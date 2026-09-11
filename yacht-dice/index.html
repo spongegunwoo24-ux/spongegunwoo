@@ -671,21 +671,21 @@ function settle(d){
   // 눈(G.forcedVals)을 모두가 함께 쓰고, 여기서는 그 면이 위로 오도록 돌려준다. 제자리에서 돌리면
   // 홱 뒤집히는 게 보이므로, 살짝 튀어올라 한 번 더 구르는 동작에 그 회전을 얹는다.
   let q=snapQuat(d.quat);
-  let v=readValue(q), tumble=false;
+  let v=readValue(q);
   const forced=G.forcedVals&&G.forcedVals[d.i];
   if(forced&&forced!==v){
     const axis=DIRS.find(function(x){return x[1]===forced;})[0];
     const world=axis.clone().applyQuaternion(q).normalize();
     q=q.clone().premultiply(new Quat().setFromUnitVectors(world,new V3(0,1,0)));
-    v=forced;tumble=true;
+    v=forced;
   }
   d.value=v;
   d.vel.set(0,0,0);d.ang.set(0,0,0);
   const p=d.pos.clone();p.y=HS;
   d.mode='anim';
-  d.anim={t:0,dur:tumble?0.34:0.1,delay:0,p0:d.pos.clone(),p1:p,q0:d.quat.clone(),
-    snap:q,axis:null,amt:0,arc:tumble?0.52:0,wob:tumble?0.06:0.02,
-    onDone:tumble?function(){SFX.land();}:null};
+  // 내려앉는 그 동작 안에서 방향만 맞춘다 — 멈춘 뒤에 다시 튀거나 뒤집히지 않는다.
+  d.anim={t:0,dur:0.1,delay:0,p0:d.pos.clone(),p1:p,q0:d.quat.clone(),
+    snap:q,axis:null,amt:0,arc:0,wob:0.02,onDone:null};
 }
 
 let acc=0;
