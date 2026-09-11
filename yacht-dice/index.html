@@ -1423,10 +1423,14 @@ function netSend(msg){
 }
 // 브로드캐스트는 채널에 있는 모두에게 한 번에 닿으므로 호스트 중계가 따로 필요 없다.
 function netBroadcast(msg){netSend(msg);}
+// 코드는 화면에 대문자로 보여주므로, 어떻게 입력하든 같은 방 이름으로 맞춰준다.
+function normCode(raw){
+  return 'yd-'+String(raw||'').trim().replace(/^yd-?/i,'').toUpperCase();
+}
 function netOpenChannel(code,onReady,onFail){
   const c=sbClient();
   if(!c){onFail('실시간 통신 라이브러리를 불러오지 못했어요.');return;}
-  const ch=c.channel('yd-'+code,{config:{broadcast:{self:false},presence:{key:MY_ID}}});
+  const ch=c.channel('room-'+normCode(code),{config:{broadcast:{self:false},presence:{key:MY_ID}}});
   ch.on('broadcast',{event:'m'},function(e){
     const msg=e&&e.payload;
     if(!msg||msg.from===MY_ID)return;
@@ -1553,14 +1557,15 @@ function removeSeat(i){
 function guestJoinRoom(code,nick){
   netTeardown();
   NET.myName=nick||'플레이어';
-  code=String(code).trim().toLowerCase().replace(/^yd-?/,'');
-  code='yd-'+code;
+  code=normCode(code);
   openModal('<h3>접속 중…</h3><div class="sub">'+code+' 방을 찾는 중입니다</div>'+
     '<button class="btn ghost" id="btnCancelJoin">취소</button>',false);
   $('btnCancelJoin').addEventListener('click',function(){netReset();startMenu();});
   netOpenChannel(code,function(){
     NET.code=code;
     netSend({type:'hello',name:NET.myName});
+    // 첫 인사가 유실되는 경우가 있어 한 번 더 보낸다 (호스트가 중복은 걸러낸다).
+    setTimeout(function(){if(NET.role!=='guest')netSend({type:'hello',name:NET.myName});},1800);
     // 채널 자체는 코드가 틀려도 열리므로, 자리 배정이 돌아오지 않으면 없는 방으로 본다.
     NET.joinTimer=setTimeout(function(){
       if(NET.role!=='guest')renderLobbyError('그 코드의 방을 찾지 못했어요. 코드를 다시 확인해주세요.');
