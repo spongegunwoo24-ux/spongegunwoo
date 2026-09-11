@@ -666,26 +666,29 @@ function readValue(q){
   }
   return val;
 }
+function targetQuat(q,face){
+  let best=null,bd=-1;
+  for(const r of CUBE_ROTS){
+    if(readValue(r)!==face)continue;
+    const dot=Math.abs(q.x*r.x+q.y*r.y+q.z*r.z+q.w*r.w);
+    if(dot>bd){bd=dot;best=r;}
+  }
+  return best?best.clone():snapQuat(q);
+}
 function settle(d){
   // 물리는 기기마다 프레임 간격이 달라 같은 씨앗으로도 결과가 갈린다. 그래서 굴리기 전에 정해둔
   // 눈(G.forcedVals)을 모두가 함께 쓰고, 여기서는 그 면이 위로 오도록 돌려준다. 제자리에서 돌리면
   // 홱 뒤집히는 게 보이므로, 살짝 튀어올라 한 번 더 구르는 동작에 그 회전을 얹는다.
-  let q=snapQuat(d.quat);
-  let v=readValue(q);
   const forced=G.forcedVals&&G.forcedVals[d.i];
-  if(forced&&forced!==v){
-    const axis=DIRS.find(function(x){return x[1]===forced;})[0];
-    const world=axis.clone().applyQuaternion(q).normalize();
-    q=q.clone().premultiply(new Quat().setFromUnitVectors(world,new V3(0,1,0)));
-    v=forced;
-  }
-  d.value=v;
+  const q=forced?targetQuat(d.quat,forced):snapQuat(d.quat);
+  d.value=forced||readValue(q);
   d.vel.set(0,0,0);d.ang.set(0,0,0);
   const p=d.pos.clone();p.y=HS;
   d.mode='anim';
-  // 내려앉는 그 동작 안에서 방향만 맞춘다 — 멈춘 뒤에 다시 튀거나 뒤집히지 않는다.
-  d.anim={t:0,dur:0.1,delay:0,p0:d.pos.clone(),p1:p,q0:d.quat.clone(),
-    snap:q,axis:null,amt:0,arc:0,wob:0.02,onDone:null};
+  // 완전히 멈추기 전에 넘겨받아, 구르던 흐름 그대로 목표 방향으로 수렴하며 선다.
+  // 다 선 뒤에 돌리는 게 아니라 서는 과정 자체가 목표를 향하므로 튀거나 뒤집히지 않는다.
+  d.anim={t:0,dur:forced?0.3:0.1,delay:0,p0:d.pos.clone(),p1:p,q0:d.quat.clone(),
+    snap:q,axis:null,amt:0,arc:0,wob:forced?0:0.02,onDone:null};
 }
 
 let acc=0;
@@ -721,7 +724,7 @@ function physics(dt){
       const still=d.vel.lengthSq()<0.09&&d.ang.lengthSq()<1.1&&d.pos.y<CFG.size*1.05;
       d.sleepT=still?d.sleepT+h:0;
       d.slowT=(d.vel.lengthSq()<0.5&&d.ang.lengthSq()<2.5)?d.slowT+h:0;
-      if(d.sleepT>0.25||d.slowT>0.9){
+      if(d.sleepT>0.1||d.slowT>0.45){
         if(d.pos.y>CFG.size*0.78&&d.retry<2){   // 다른 주사위 위에 얹힘 → 다시 굴림
           d.retry++;d.sleepT=0;
           d.vel.set(rand(-2,2),rand(2,3.5),rand(-2,2));
