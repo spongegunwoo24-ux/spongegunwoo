@@ -1,0 +1,1258 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>일일플래너</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>📝</text></svg>">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    @import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css');
+    
+    body { font-family: 'Pretendard', sans-serif; background-color: #0f172a; color: #f8fafc; overflow: hidden; height: 100vh; width: 100vw; }
+    
+    .view-fade-in { animation: fadeIn 0.3s ease-out forwards; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+    .time-box { transition: background-color 0.5s ease; } 
+    .time-box.locked:hover::after { content: none; }
+    .time-box.unlocked:hover::after { content: ''; position: absolute; inset: 0; background-color: rgba(255, 255, 255, 0.15); z-index: 10; }
+    .active-slot { box-shadow: inset 0 0 0 2px #818cf8, inset 0 0 10px rgba(99, 102, 241, 0.4); z-index: 5; }
+
+    input[type="checkbox"].task-check { 
+      appearance: none; width: 1.15rem; height: 1.15rem; border: 2px solid #475569; border-radius: 0.25rem; 
+      outline: none; cursor: pointer; position: relative; transition: all 0.2s; flex-shrink: 0;
+    }
+    input[type="checkbox"].task-check:checked { background-color: #6366f1; border-color: #6366f1; }
+    input[type="checkbox"].task-check:checked::after {
+      content: '\f00c'; font-family: 'Font Awesome 6 Free'; font-weight: 900;
+      color: white; font-size: 0.7rem; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+    }
+
+    .notebook-lines {
+      background-color: #0f172a; background-image: repeating-linear-gradient(transparent, transparent 31px, rgba(71, 85, 105, 0.5) 32px);
+      line-height: 32px; padding: 8px 16px; font-size: 0.95rem; color: #f1f5f9;
+    }
+
+    .cal-day-box { transition: all 0.2s ease; }
+    .cal-day-box:hover { transform: translateY(-2px); border-color: #818cf8; }
+
+    ::-webkit-scrollbar { width: 5px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: #475569; border-radius: 2px; }
+    ::-webkit-scrollbar-thumb:hover { background: #64748b; }
+    ::-webkit-calendar-picker-indicator { filter: invert(1); cursor: pointer; }
+    
+    .modal-backdrop { background-color: rgba(15, 23, 42, 0.85); backdrop-filter: blur(4px); }
+  </style>
+</head>
+<body class="relative flex flex-col" onclick="closeDropdownOnOutsideClick(event)">
+
+  <!-- ================= [VIEW 1] START SCREEN ================= -->
+  <div id="view-start" class="absolute inset-0 flex flex-col items-center justify-center z-40 bg-slate-900 view-fade-in">
+    <div class="text-center max-w-md w-full px-6">
+      <div class="w-20 h-20 bg-indigo-500/20 text-indigo-400 rounded-full flex items-center justify-center text-4xl mx-auto mb-6 shadow-[0_0_30px_rgba(99,102,241,0.2)]"><span>📚</span></div>
+      <h1 class="text-4xl font-black text-slate-100 tracking-tight mb-2">일일플래너</h1>
+      <p class="text-slate-400 text-sm mb-12">작은 10분이 모여 당신의 목표를 이룹니다.</p>
+      <button onclick="switchView('view-setup')" class="w-full py-4 bg-indigo-600 hover:bg-indigo-500 text-white rounded-2xl font-bold text-lg transition-all shadow-lg shadow-indigo-600/30 hover:shadow-indigo-600/50 hover:-translate-y-1">오늘의 플래너 켜기 <span class="ml-2">→</span></button>
+    </div>
+  </div>
+
+  <!-- ================= [VIEW 2] SETUP SCREEN ================= -->
+  <div id="view-setup" class="hidden absolute inset-0 z-30 bg-slate-900 overflow-y-auto view-fade-in p-4 md:p-6 flex items-center justify-center">
+    <div class="max-w-4xl w-full grid grid-cols-1 md:grid-cols-2 gap-5 bg-slate-800/50 p-6 md:p-8 rounded-3xl border border-slate-700 shadow-2xl">
+      <div class="md:col-span-2">
+        <div onclick="openDdayModal()" class="bg-indigo-600/10 border border-indigo-500/30 rounded-2xl p-4 flex justify-between items-center cursor-pointer hover:bg-indigo-600/20 transition group">
+          <div class="flex items-center gap-4"><div class="w-12 h-12 bg-indigo-500 text-white rounded-full flex items-center justify-center text-xl shadow-lg"><span>🏁</span></div><div><div class="text-indigo-300 text-xs font-bold mb-0.5">나의 D-Day 목표</div><div id="setup-dday-title" class="text-slate-200 font-bold text-lg">목표를 설정해주세요</div></div></div>
+          <div id="setup-dday-count" class="text-3xl font-black text-indigo-400">D-?</div>
+        </div>
+      </div>
+      <div class="flex flex-col gap-3">
+        <h2 class="text-lg font-bold text-slate-200"><span class="mr-2">🕘</span>어제 플래너 요약</h2>
+        <div id="setup-yesterday-card" class="bg-slate-800 p-6 rounded-2xl border border-slate-600/50 flex-1 flex flex-col justify-center items-center text-center"></div>
+      </div>
+      <div class="flex flex-col gap-3">
+        <div class="flex justify-between items-center"><h2 class="text-lg font-bold text-slate-200"><span class="mr-2">✅</span>오늘 할일 세팅</h2><span id="setup-today-date" class="text-xs text-indigo-300 bg-indigo-500/10 px-2 py-1 rounded font-bold"></span></div>
+        <div class="bg-slate-800 p-4 rounded-2xl border border-slate-600/50 flex-1 flex flex-col">
+          <form id="form-setup-add-task" class="flex flex-col gap-2 mb-4 border-b border-slate-700 pb-4">
+            <input type="text" id="setup-task-title" placeholder="과제 입력 (예: 수학 문제풀이)" class="bg-slate-900 border border-slate-600 rounded px-3 py-2 text-sm text-slate-200 outline-none focus:border-indigo-500" required>
+            <div class="flex gap-2 items-center"><select id="setup-task-subject" class="bg-slate-900 border border-slate-600 rounded px-2 py-1.5 text-xs text-slate-200 flex-1"></select><input type="number" id="setup-task-target" placeholder="목표(분)" min="1" class="bg-slate-900 border border-slate-600 rounded px-2 py-1.5 text-xs text-slate-200 w-20" required><button type="submit" class="bg-indigo-600 hover:bg-indigo-500 text-white font-bold px-3 py-1.5 rounded text-xs transition"><span>➕</span> 추가</button></div>
+          </form>
+          <div id="setup-task-list" class="flex-1 overflow-y-auto space-y-2 max-h-[220px]"></div>
+        </div>
+      </div>
+      <div class="md:col-span-2 mt-2 text-center"><button onclick="switchView('view-main')" class="px-12 py-4 bg-emerald-600 hover:bg-emerald-500 text-white rounded-2xl font-bold text-lg transition-all shadow-lg shadow-emerald-600/30 hover:-translate-y-1">준비 완료! 공부 시작하기 <span class="ml-2">✓</span></button></div>
+    </div>
+  </div>
+
+  <!-- ================= [VIEW 3] MAIN PLANNER SCREEN ================= -->
+  <div id="view-main" class="hidden h-full w-full max-w-[1800px] mx-auto p-2 md:p-3 flex flex-col gap-3 view-fade-in">
+    
+    <header class="flex-none bg-slate-800/95 p-3 md:px-5 rounded-xl shadow-lg border border-slate-700/80 flex items-center justify-between gap-4 transition-all duration-300">
+      <div class="flex flex-col min-w-0">
+        <div onclick="openDdayModal()" class="cursor-pointer font-black text-indigo-400 hover:text-indigo-300 transition text-lg sm:text-xl tracking-tight" id="dday-display">D-Day 설정</div>
+        <div class="flex items-center gap-1.5 mt-0.5">
+          <div id="current-date" class="text-[10px] sm:text-xs font-bold text-slate-400">2026.08.11 (화)</div>
+          <div id="real-time-clock" class="text-[10px] sm:text-xs font-mono font-bold text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded border border-emerald-500/20 shadow-sm">00:00:00</div>
+          <div id="viewing-status" ondblclick="toggleTimeMachine()" class="hidden cursor-pointer transition-all duration-300 select-none" title="더블클릭 시 과거 권한 켜기/끄기">과거 기록 열람중</div>
+          <button onclick="returnToToday()" id="btn-today" class="hidden px-1.5 py-0.5 bg-slate-700 hover:bg-slate-600 text-slate-200 rounded text-[9px] font-bold transition">오늘로</button>
+        </div>
+      </div>
+
+      <div class="flex items-center gap-3 flex-none">
+        <div class="flex flex-col items-center sm:items-start">
+          <div class="flex items-baseline gap-1.5">
+            <span id="total-time-display" class="text-2xl sm:text-3xl font-mono font-black text-slate-100 tracking-tighter leading-none">00:00:00</span>
+            <span id="target-time-display" class="text-[10px] sm:text-xs font-bold text-slate-500">/ 00:00</span>
+            <span id="total-achievement-wrap" class="text-[10px] sm:text-xs font-bold text-slate-500">(<span id="total-achievement" class="text-emerald-400 font-black">0%</span>)</span>
+          </div>
+          <div class="w-full h-1 bg-slate-700/80 rounded-full overflow-hidden mt-1 relative">
+            <div id="total-progress-bar" class="h-full bg-gradient-to-r from-emerald-500 to-indigo-500 transition-transform duration-700 origin-left w-full" style="transform: scaleX(0)"></div>
+          </div>
+        </div>
+        <button onclick="openXpModal()" id="tier-badge-container" class="flex items-center gap-1.5 bg-slate-900/90 hover:bg-slate-900 px-2 py-1 rounded-full border border-indigo-500/40 transition shadow-sm ml-1" title="클릭하여 레벨/XP 보기">
+          <span class="text-indigo-400 text-[10px] sm:text-xs">🏅</span>
+          <span id="tier-name" class="text-[10px] sm:text-xs font-black text-indigo-300">Lv.1 탐구자</span>
+        </button>
+      </div>
+
+      <button id="lock-mode-btn" onclick="toggleLockMode()" class="flex-none px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow border bg-slate-700 hover:bg-slate-600 text-slate-300 border-slate-600" title="잠금모드: 켜면 지정한 사이트가 크롬에서 차단됩니다. 끌 때는 비밀번호가 필요합니다.">
+        <span id="lock-mode-icon">🔓</span><span id="lock-mode-label" class="hidden sm:inline">잠금모드 OFF</span>
+      </button>
+
+      <div class="relative flex-none" id="menu-dropdown-wrapper">
+        <button id="menu-dropdown-btn" onclick="toggleMenuDropdown(event)" class="px-3 py-1.5 bg-slate-700 hover:bg-slate-600 text-slate-200 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow">
+          <span class="text-indigo-400">☰</span><span class="hidden sm:inline">기능들</span>
+        </button>
+        <div id="menu-dropdown" class="hidden absolute right-0 top-full mt-2 w-44 bg-slate-800 border border-slate-600 rounded-2xl shadow-2xl overflow-hidden z-50 divide-y divide-slate-700/60">
+          <button onclick="openCalendarModal(); closeMenuDropdown()" class="w-full text-left px-4 py-3 text-xs font-bold text-slate-200 hover:bg-slate-700 flex items-center gap-2.5 transition"><span class="text-indigo-400 w-4">📅</span> <span>달력 (기록 열람)</span></button>
+          <button onclick="openDiaryModal(); closeMenuDropdown()" class="w-full text-left px-4 py-3 text-xs font-bold text-slate-200 hover:bg-slate-700 flex items-center gap-2.5 transition"><span class="text-emerald-400 w-4">📖</span> <span>날짜별 기록장</span></button>
+          <button onclick="openStatsModal(); closeMenuDropdown()" class="w-full text-left px-4 py-3 text-xs font-bold text-slate-200 hover:bg-slate-700 flex items-center gap-2.5 transition"><span class="text-amber-400 w-4">📊</span> <span>과목별 통계</span></button>
+          <button onclick="openSettingsModal(); closeMenuDropdown()" class="w-full text-left px-4 py-3 text-xs font-bold text-slate-200 hover:bg-slate-700 flex items-center gap-2.5 transition"><span class="text-slate-400 w-4">⚙️</span> <span>플래너 설정</span></button>
+        </div>
+      </div>
+    </header>
+
+    <main class="grid grid-cols-1 lg:grid-cols-4 gap-3 flex-1 min-h-0">
+      
+      <!-- [좌측 75%] -->
+      <div class="lg:col-span-3 flex flex-col min-h-0 relative bg-slate-800/90 rounded-xl border border-slate-700/80 overflow-hidden">
+        
+        <div id="normal-view-container" class="grid grid-cols-1 lg:grid-cols-3 h-full min-h-0 divide-y lg:divide-y-0 lg:divide-x divide-slate-700/80 transition-all duration-300">
+          
+          <!-- WORKSPACE (오리지널 영단어 뷰어) -->
+          <div class="lg:col-span-2 p-3 flex flex-col h-full min-h-0">
+            <div class="flex justify-between items-center mb-2 flex-none border-b border-slate-700 pb-1.5">
+              <h2 class="text-sm font-bold text-slate-200" id="workspace-title"><span class="mr-1.5 text-indigo-400">📝</span>WORKSPACE</h2>
+              <span class="text-[9px] bg-indigo-500/20 text-indigo-300 px-1.5 py-0.5 rounded border border-indigo-500/30" id="workspace-badge">오늘의 학습 메모장</span>
+            </div>
+            
+            <div class="grid grid-cols-2 sm:grid-cols-4 gap-1.5 mb-2 flex-none" id="workspace-quick-btns">
+              <button onclick="window.open('https://classroom.google.com', 'classPopup')" class="bg-green-600/20 hover:bg-green-600/40 text-green-400 border border-green-500/30 py-1.5 rounded-lg text-[10px] font-bold transition flex items-center justify-center gap-1"><span>🧑‍🏫</span> 클래스룸</button>
+              <button onclick="window.open('https://translate.google.com', 'transPopup')" class="bg-blue-600/20 hover:bg-blue-600/40 text-blue-400 border border-blue-500/30 py-1.5 rounded-lg text-[10px] font-bold transition flex items-center justify-center gap-1"><span>🔤</span> 번역기</button>
+              <button onclick="window.open('https://www.hanilians.xyz/', 'haniPopup')" class="bg-purple-600/20 hover:bg-purple-600/40 text-purple-400 border border-purple-500/30 py-1.5 rounded-lg text-[10px] font-bold transition flex items-center justify-center gap-1"><span>🎓</span> 한일이언스</button>
+              <button onclick="window.open('https://gemini.google.com/app', 'geminiPopup')" class="bg-amber-600/20 hover:bg-amber-600/40 text-amber-300 border border-amber-500/30 py-1.5 rounded-lg text-[10px] font-bold transition flex items-center justify-center gap-1"><span>✨</span> 제미나이</button>
+            </div>
+            
+            <div id="workspace-iframe-container" class="flex-1 flex flex-col border border-slate-700/80 rounded-xl overflow-hidden bg-slate-900/60 min-h-0 shadow-inner p-3">
+              <div class="flex items-center justify-between mb-2 flex-none">
+                <span class="text-[10px] font-semibold text-slate-400"><span class="mr-1">✏️</span>공부하다 떠오른 풀이, 궁금한 점, 다음에 확인할 것을 자유롭게 적어보세요</span>
+                <span id="workspace-note-count" class="text-[9px] text-slate-500 font-mono flex-none ml-2">0자</span>
+              </div>
+              <textarea id="workspace-note" oninput="handleWorkspaceNoteInput()" class="flex-1 w-full bg-slate-950/60 border border-slate-700 rounded-lg p-3 text-xs text-slate-200 outline-none focus:border-indigo-500 resize-none leading-relaxed" placeholder="예) 이 문제 오답 이유, 헷갈리는 개념, 선생님께 질문할 것..."></textarea>
+            </div>
+
+            <!-- 과거 달력용 통계 패널 -->
+            <div id="workspace-past-stats" class="hidden flex-1 flex flex-col border border-slate-700/80 rounded-xl bg-slate-900/60 min-h-0 shadow-inner p-4 md:p-6 overflow-y-auto">
+               <div class="flex flex-col items-center justify-center py-4 flex-1">
+                  <div id="ws-pie-chart-visual" class="w-56 h-56 rounded-full shadow-2xl mb-8 relative flex items-center justify-center overflow-hidden border-4 border-slate-800" style="background: #1e293b;">
+                     <div class="w-24 h-24 bg-slate-900 rounded-full flex flex-col items-center justify-center text-slate-300 shadow-inner z-10 relative">
+                        <span class="text-[10px] font-bold text-slate-400 mb-0.5">총 학습</span>
+                        <span class="text-sm font-black text-indigo-400 font-mono" id="ws-pie-chart-total">00:00</span>
+                     </div>
+                  </div>
+                  <div id="ws-pie-chart-legend" class="w-full max-w-sm grid grid-cols-1 gap-2.5"></div>
+               </div>
+            </div>
+          </div>
+
+          <!-- TASKS -->
+          <div class="lg:col-span-1 p-3 flex flex-col h-full min-h-0">
+            <div class="flex justify-between items-center mb-2 flex-none border-b border-slate-700 pb-1.5">
+              <h2 class="text-sm font-bold text-slate-200"><span class="mr-1.5">✅</span>TASKS</h2>
+              <div class="flex items-center gap-1">
+                <button onclick="importYesterdayTasks()" class="text-[8px] bg-slate-700 hover:bg-slate-600 text-slate-300 px-1.5 py-0.5 rounded transition shadow"><span>⬇️</span> 가져오기</button>
+                <span class="text-[9px] font-bold bg-slate-700 text-slate-300 px-1.5 py-0.5 rounded">목표 <span id="task-total-min">0</span>m</span>
+              </div>
+            </div>
+            <!-- 할 일 드래그 앤 드롭 공간 -->
+            <div class="flex-1 overflow-y-auto pr-1 space-y-1.5 mb-1.5 min-h-0 pb-10" id="main-task-list"></div>
+            <button onclick="openAddTaskModal()" class="flex-none w-full py-2 bg-slate-700/50 hover:bg-slate-700 text-slate-300 hover:text-white rounded-lg border border-slate-600 border-dashed flex items-center justify-center gap-1 text-[10px] font-bold transition"><span>➕</span> 할일 추가</button>
+          </div>
+        </div>
+
+        <!-- 젠 모드 -->
+        <div id="zen-view" class="hidden absolute inset-0 bg-slate-800/95 backdrop-blur-sm flex flex-col items-center justify-center h-full min-h-0 p-6 text-center z-10 transition-opacity duration-300">
+          <div class="text-[10px] font-bold tracking-widest text-slate-400 uppercase mb-3"><span class="text-indigo-400 mr-1">🧠</span>Focus Mode</div>
+          <div id="zen-subject-badge" class="px-2 py-0.5 rounded-full text-[10px] font-bold text-white mb-1.5" style="background-color: #6366f1;">과목명</div>
+          <h2 id="zen-task-title" class="text-lg font-bold text-slate-200 mb-4 max-w-md truncate px-2">집중 중인 과제명</h2>
+          <div class="text-4xl font-mono font-black text-indigo-300 tracking-tighter mb-2" id="zen-time-display">00:00:00</div>
+          <div class="w-full max-w-xs h-1.5 bg-slate-700/60 rounded-full overflow-hidden mb-6 shadow-inner relative">
+            <div id="zen-task-progress-bar" class="h-full bg-gradient-to-r from-indigo-500 to-purple-400 transition-transform duration-700 origin-left w-full" style="transform: scaleX(0)"></div>
+          </div>
+          <div class="flex items-center gap-3">
+            <button onclick="toggleTimer()" id="zen-btn-pause" class="px-4 py-2 bg-amber-500 hover:bg-amber-400 text-white rounded-xl font-bold text-[11px] transition shadow flex items-center gap-1.5">
+              <span>⏸</span> <span id="zen-btn-pause-text">일시정지</span>
+            </button>
+            <button onclick="stopTimer()" class="px-4 py-2 bg-red-500 hover:bg-red-400 text-white rounded-xl font-bold text-[11px] transition shadow flex items-center gap-1.5">
+              <span>◻️</span> <span>완전 정지</span>
+            </button>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- [우측 25%] TIMETABLE -->
+      <div id="timetable-area" class="lg:col-span-1 bg-slate-800/90 p-3 rounded-xl border border-slate-700/80 flex flex-col h-full min-h-0 relative z-20">
+        <div class="flex justify-between items-center mb-2 flex-none">
+          <h2 class="text-sm font-bold text-slate-200"><span class="mr-1.5">▦</span>TIMETABLE</h2>
+          <div class="flex items-center gap-1">
+            <select id="manual-subject-select" class="bg-slate-700 border border-slate-600 rounded px-1 py-0.5 text-[9px] text-slate-200 outline-none hidden max-w-[60px]"></select>
+            <button id="btn-edit-grid" onclick="toggleGridEditMode()" class="px-1.5 py-1 bg-slate-700 hover:bg-slate-600 text-slate-300 rounded text-[9px] font-bold transition shadow"><span>🔒</span> 편집</button>
+          </div>
+        </div>
+        <div class="flex-1 flex flex-col border-t border-l border-slate-700/80 bg-slate-900/50 min-h-0 rounded-br-lg">
+          <div class="flex-none grid grid-cols-[30px_repeat(6,1fr)] text-center text-[9px] font-bold text-slate-400 bg-slate-800/50">
+            <div class="border-b border-r border-slate-700/80 py-0.5">TIME</div><div class="border-b border-r border-slate-700/80 py-0.5">00</div><div class="border-b border-r border-slate-700/80 py-0.5">10</div><div class="border-b border-r border-slate-700/80 py-0.5">20</div><div class="border-b border-r border-slate-700/80 py-0.5">30</div><div class="border-b border-r border-slate-700/80 py-0.5">40</div><div class="border-b border-r border-slate-700/80 py-0.5">50</div>
+          </div>
+          <!-- 1초마다 스마트 엔진이 색을 주입하는 모눈종이 -->
+          <div class="flex-1 flex flex-col min-h-0" id="timetable-grid"></div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <!-- ================= 모달 창 세트 ================= -->
+  
+  <div id="modal-xp" class="fixed inset-0 modal-backdrop hidden flex items-center justify-center z-50 p-4">
+    <div class="bg-slate-800 border border-slate-600 rounded-2xl shadow-2xl w-full max-w-sm p-6 flex flex-col">
+      <div class="flex justify-between items-center mb-4 border-b border-slate-700 pb-3"><h3 class="text-base font-bold text-slate-100 flex items-center gap-2"><span class="text-indigo-400">🏅</span><span>학자 칭호 & XP 시스템</span></h3><button onclick="closeModal('modal-xp')" class="text-slate-400 hover:text-white"><span class="text-lg">✕</span></button></div>
+      <div class="text-center py-2 mb-4 bg-slate-900/80 rounded-xl border border-slate-700 p-4">
+        <div class="text-xs text-slate-400 mb-1">현재 나의 칭호</div>
+        <div id="modal-xp-tier-name" class="text-xl font-black text-indigo-400 mb-1">Lv.1 탐구자</div>
+        <div id="modal-xp-count" class="text-xs font-mono font-bold text-slate-300">0 XP 보유</div>
+        <div class="w-full h-1 bg-slate-700 rounded-full overflow-hidden mt-3 mb-1"><div id="modal-xp-progress-bar" class="h-full bg-indigo-500 transition-all duration-500" style="width: 0%"></div></div>
+        <div id="modal-xp-next-text" class="text-[10px] text-slate-400 text-right">다음 레벨까지 남은 조건: -</div>
+      </div>
+      <div class="space-y-2 text-xs">
+        <div class="font-bold text-slate-300 mb-1">💡 경험치(XP) 획득 규칙</div>
+        <div class="flex justify-between items-center bg-slate-900/50 px-3 py-2 rounded-lg border border-slate-700/60"><span class="text-slate-300"><span class="text-indigo-400 mr-1.5">⏱️</span>10분 집중 1칸 완료</span><span class="font-bold text-indigo-400">+5 XP</span></div>
+        <div class="flex justify-between items-center bg-slate-900/50 px-3 py-2 rounded-lg border border-slate-700/60"><span class="text-slate-300"><span class="text-emerald-400 mr-1.5">✓</span>할 일 1개 완료</span><span class="font-bold text-emerald-400">+10 XP</span></div>
+        <div class="flex justify-between items-center bg-slate-900/50 px-3 py-2 rounded-lg border border-slate-700/60"><span class="text-slate-300"><span class="text-amber-400 mr-1.5">👑</span>오늘 할 일 올클리어</span><span class="font-bold text-amber-400">+30 XP</span></div>
+      </div>
+      <div class="mt-5 flex justify-end"><button onclick="closeModal('modal-xp')" class="w-full py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold transition shadow">확인</button></div>
+    </div>
+  </div>
+
+  <div id="modal-stats" class="fixed inset-0 modal-backdrop hidden flex items-center justify-center z-50 p-4">
+    <div class="bg-slate-800 border border-slate-600 rounded-2xl shadow-2xl w-full max-w-md p-6 flex flex-col max-h-[90vh]">
+      <div class="flex justify-between items-center mb-4 border-b border-slate-700 pb-3"><h3 class="text-base font-bold text-slate-100 flex items-center gap-2"><span class="text-emerald-400">📊</span><span>오늘 학습 밸런스 리포트</span></h3><button onclick="closeModal('modal-stats')" class="text-slate-400 hover:text-white"><span class="text-lg">✕</span></button></div>
+      <div class="flex flex-col items-center justify-center py-2">
+        <div id="pie-chart-visual" class="w-40 h-40 rounded-full shadow-xl mb-4 relative flex items-center justify-center overflow-hidden" style="background: #1e293b;">
+          <div class="w-16 h-16 bg-slate-800 rounded-full flex items-center justify-center text-[9px] font-bold text-slate-300 shadow-inner z-10 relative">오늘 비중</div>
+        </div>
+        <div id="pie-chart-legend" class="w-full space-y-1.5 max-h-[140px] overflow-y-auto pr-1 mb-4"></div>
+      </div>
+      <div class="border-t border-slate-700 pt-4 mt-1">
+        <div class="text-xs font-bold text-slate-300 mb-2.5 flex items-center gap-1.5"><span class="text-amber-400">⭐</span><span>어제 공부량 기준 Top 3 과목</span></div>
+        <div id="yesterday-top3-list" class="space-y-1.5"></div>
+      </div>
+      <div class="mt-5 flex justify-end"><button onclick="closeModal('modal-stats')" class="w-full py-2.5 bg-slate-700 hover:bg-slate-600 text-white rounded-xl text-xs font-bold transition">닫기</button></div>
+    </div>
+  </div>
+
+  <div id="modal-dday" class="fixed inset-0 modal-backdrop hidden flex items-center justify-center z-50 p-4">
+    <div class="bg-slate-800 border border-slate-600 rounded-2xl shadow-2xl w-full max-w-sm p-6">
+      <div class="flex justify-between items-center mb-5"><h3 class="text-lg font-bold text-slate-100"><span class="mr-2">🏁</span>D-Day 목표 설정</h3><button onclick="closeModal('modal-dday')" class="text-slate-400 hover:text-white"><span class="text-lg">✕</span></button></div>
+      <form id="form-dday" class="flex flex-col gap-4">
+        <div><label class="block text-xs font-bold text-slate-400 mb-1.5">목표 이름</label><input type="text" id="input-dday-title" placeholder="예: 2학기 중간고사" class="w-full bg-slate-900 border border-slate-600 rounded-lg px-3 py-2 text-sm text-slate-200 outline-none focus:border-indigo-500" required></div>
+        <div><label class="block text-xs font-bold text-slate-400 mb-1.5">목표 날짜</label><input type="date" id="input-dday-date" class="w-full bg-slate-900 border border-slate-600 rounded-lg px-3 py-2 text-sm text-slate-200 outline-none focus:border-indigo-500" required></div>
+        <button type="submit" class="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-3 rounded-xl transition mt-2 shadow-lg shadow-indigo-600/30">저장하기</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- 더블클릭 시 [수정] 모드로 변신하는 통합 할일 창 -->
+  <div id="modal-add-task" class="fixed inset-0 modal-backdrop hidden flex items-center justify-center z-50 p-4">
+    <div class="bg-slate-800 border border-slate-600 rounded-2xl shadow-2xl w-full max-w-sm p-6">
+      <div class="flex justify-between items-center mb-4"><h3 id="modal-add-task-title" class="text-base font-bold text-slate-100">새로운 할일 추가</h3><button onclick="closeModal('modal-add-task')" class="text-slate-400 hover:text-white"><span class="text-lg">✕</span></button></div>
+      <form id="form-main-add-task" class="flex flex-col gap-3">
+        <input type="text" id="main-task-title" placeholder="과제명 입력 (예: 수학 문제풀이)" class="bg-slate-900 border border-slate-600 rounded px-3 py-2 text-sm text-slate-200 outline-none focus:border-indigo-500" required>
+        <div class="flex gap-2"><select id="main-task-subject" class="bg-slate-900 border border-slate-600 rounded px-2 py-2 text-xs text-slate-200 flex-1"></select><input type="number" id="main-task-target" placeholder="목표(분)" min="1" class="bg-slate-900 border border-slate-600 rounded px-2 py-2 text-xs text-slate-200 w-24" required></div>
+        <label class="flex items-center gap-2 text-xs text-indigo-300 font-semibold cursor-pointer bg-indigo-500/10 px-3 py-2 rounded border border-indigo-500/20"><input type="checkbox" id="main-task-routine" class="rounded border-slate-600 text-indigo-500 focus:ring-0 w-4 h-4"><span>매일 반복하는 루틴으로 설정</span></label>
+        <button id="modal-add-task-btn" type="submit" class="mt-2 w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-2.5 rounded-xl transition shadow-lg">추가하기</button>
+      </form>
+    </div>
+  </div>
+
+  <div id="modal-diary" class="fixed inset-0 modal-backdrop hidden flex items-center justify-center z-50 p-4">
+    <div class="bg-slate-800 border border-slate-600 rounded-2xl shadow-2xl w-full max-w-3xl p-6 flex flex-col max-h-[85vh]">
+      <div class="flex justify-between items-center mb-4 border-b border-slate-700 pb-3"><div class="flex items-center gap-3"><h3 class="text-base font-bold text-slate-100 flex items-center gap-2"><span class="text-indigo-400">📖</span><span>날짜별 기록장</span></h3><div class="h-4 w-px bg-slate-600"></div><div class="flex items-center gap-1.5 bg-slate-900/80 px-2 py-1 rounded-lg border border-slate-700"><button onclick="changeDiaryDate(-1)" class="w-6 h-6 rounded hover:bg-slate-700 text-slate-300 flex items-center justify-center text-xs transition"><span>‹</span></button><span id="diary-date-label" class="text-xs font-bold text-indigo-300 px-2 min-w-[120px] text-center">2026.08.11 (화)</span><button onclick="changeDiaryDate(1)" class="w-6 h-6 rounded hover:bg-slate-700 text-slate-300 flex items-center justify-center text-xs transition"><span>›</span></button></div></div><div class="flex items-center gap-2"><button onclick="insertDiaryTemplate()" class="px-2.5 py-1.5 bg-slate-700 hover:bg-slate-600 text-slate-300 rounded-lg text-[10px] font-bold transition flex items-center gap-1 border border-slate-600"><span class="text-indigo-400">📋</span> <span>3줄 회고</span></button><button onclick="closeModal('modal-diary')" class="text-slate-400 hover:text-white ml-2"><span class="text-lg">✕</span></button></div></div>
+      <div class="flex items-center justify-between mb-3 bg-slate-900/50 p-2.5 rounded-xl border border-slate-700/80"><span class="text-[10px] font-semibold text-slate-400 pl-1">오늘의 공부 만족도:</span><div class="flex gap-1.5" id="diary-mood-selector"><button onclick="selectDiaryMood('🔥')" class="px-2 py-1 rounded-lg text-[10px] font-bold bg-slate-800 hover:bg-slate-700 border border-slate-700 transition" data-mood="🔥">🔥 완벽함</button><button onclick="selectDiaryMood('💡')" class="px-2 py-1 rounded-lg text-[10px] font-bold bg-slate-800 hover:bg-slate-700 border border-slate-700 transition" data-mood="💡">💡 깨달음</button><button onclick="selectDiaryMood('🐢')" class="px-2 py-1 rounded-lg text-[10px] font-bold bg-slate-800 hover:bg-slate-700 border border-slate-700 transition" data-mood="🐢">🐢 전진</button><button onclick="selectDiaryMood('💤')" class="px-2 py-1 rounded-lg text-[10px] font-bold bg-slate-800 hover:bg-slate-700 border border-slate-700 transition" data-mood="💤">💤 휴식</button></div></div>
+      <div class="flex-1 mb-4 overflow-hidden border border-slate-600 rounded-xl bg-slate-900"><textarea id="diary-textarea" rows="12" class="w-full h-full notebook-lines border-none outline-none resize-none" placeholder="이곳에 오늘 하루의 배움, 부족했던 점, 내일의 다짐을 줄글 노트에 적듯 자유롭게 기록해보세요..." oninput="updateCharCount()"></textarea></div>
+      <div class="flex justify-between items-center"><span id="diary-char-count" class="text-[10px] text-slate-400 font-mono">0 글자 작성 중</span><div class="flex gap-2"><button onclick="closeModal('modal-diary')" class="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-slate-300 rounded-lg text-xs font-bold transition">닫기</button><button onclick="saveDiary(true)" class="px-5 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-bold transition shadow-lg flex items-center gap-1.5"><span>✓</span> 저장하기</button></div></div>
+    </div>
+  </div>
+
+  <div id="modal-calendar" class="fixed inset-0 modal-backdrop hidden flex items-center justify-center z-50 p-4">
+    <div class="bg-slate-800 border border-slate-600 rounded-2xl shadow-2xl w-full max-w-3xl overflow-hidden flex flex-col max-h-[90vh]">
+      <div class="flex justify-between items-center p-4 border-b border-slate-700 bg-slate-800/90"><h3 class="text-base font-black text-slate-100 flex items-center gap-2" id="calendar-month-title"></h3><div class="flex gap-2"><button onclick="changeMonth(-1)" class="px-2.5 py-1 bg-slate-700 rounded hover:bg-slate-600 transition text-xs"><span>‹</span></button><button onclick="changeMonth(1)" class="px-2.5 py-1 bg-slate-700 rounded hover:bg-slate-600 transition text-xs"><span>›</span></button><button onclick="closeModal('modal-calendar')" class="ml-3 text-slate-400 hover:text-white"><span class="text-lg">✕</span></button></div></div>
+      <div class="p-4 flex-1 overflow-y-auto bg-slate-900/40">
+        <div class="grid grid-cols-7 gap-2 text-center text-[10px] font-black mb-2"><div class="text-red-400">일</div><div>월</div><div>화</div><div>수</div><div>목</div><div>금</div><div class="text-blue-400">토</div></div>
+        <div id="calendar-grid" class="grid grid-cols-7 gap-2"></div>
+        <div class="mt-4 pt-3 border-t border-slate-700/80 flex flex-wrap items-center justify-center gap-4 text-[10px] text-slate-300">
+          <div class="flex items-center gap-1"><span class="text-sm">🔥</span> <span class="font-semibold text-emerald-400">100% 완벽 달성</span></div><div class="flex items-center gap-1"><span class="text-sm">🟢</span> <span class="font-semibold text-slate-300">80% ~ 99% (훌륭함)</span></div><div class="flex items-center gap-1"><span class="text-sm">🟡</span> <span class="font-semibold text-slate-300">50% ~ 79% (잘했어요)</span></div><div class="flex items-center gap-1"><span class="text-sm">🔴</span> <span class="font-semibold text-slate-300">50% 미만</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="modal-settings" class="fixed inset-0 modal-backdrop hidden flex items-center justify-center z-50 p-4">
+    <div class="bg-slate-800 border border-slate-600 rounded-2xl shadow-2xl w-full max-w-md p-5">
+      <div class="flex justify-between items-center mb-4"><h3 class="text-base font-bold text-slate-100"><span class="mr-2">⚙️</span>플래너 설정</h3><button onclick="closeModal('modal-settings')" class="text-slate-400 hover:text-white"><span class="text-lg">✕</span></button></div>
+      <h4 class="text-[10px] font-bold text-slate-400 mb-2 uppercase tracking-wider">과목 및 색상 설정</h4>
+      <div class="space-y-2 max-h-[25vh] overflow-y-auto pr-1" id="settings-subject-list"></div>
+      <form id="form-add-subject" class="mt-4 flex gap-2 border-b border-slate-700 pb-5 mb-5"><input type="color" id="input-sub-color" value="#8b5cf6" class="w-8 h-8 rounded border-0 cursor-pointer bg-transparent"><input type="text" id="input-sub-name" placeholder="새 과목명" required class="flex-1 bg-slate-900 border border-slate-600 rounded px-3 text-xs text-white"><button type="submit" class="bg-indigo-600 hover:bg-indigo-500 text-white px-3 rounded text-xs font-bold">추가</button></form>
+      <h4 class="text-[10px] font-bold text-slate-400 mb-2 uppercase tracking-wider">데이터 영구 보존</h4>
+      <div class="flex gap-2"><button onclick="exportData()" class="flex-1 bg-slate-700 hover:bg-slate-600 text-slate-200 py-2 rounded-lg text-[10px] font-bold flex flex-col items-center gap-1 border border-slate-600"><span class="text-sm">⬇️</span>백업 다운로드</button><button onclick="document.getElementById('import-file').click()" class="flex-1 bg-slate-700 hover:bg-slate-600 text-slate-200 py-2 rounded-lg text-[10px] font-bold flex flex-col items-center gap-1 border border-slate-600"><span class="text-sm">⬆️</span>복원하기</button><input type="file" id="import-file" onchange="importData(event)" accept=".json" class="hidden"></div>
+      <h4 class="text-[10px] font-bold text-slate-400 mt-5 mb-2 uppercase tracking-wider">타임머신 관리자 비밀번호</h4>
+      <form id="form-change-password" class="flex gap-2">
+        <input type="password" id="input-new-password" placeholder="새 비밀번호 (기본값: 1234)" class="flex-1 bg-slate-900 border border-slate-600 rounded px-3 py-2 text-xs text-slate-200 outline-none focus:border-indigo-500">
+        <button type="submit" class="bg-indigo-600 hover:bg-indigo-500 text-white px-3 rounded text-xs font-bold">변경</button>
+      </form>
+      <p class="text-[9px] text-slate-500 mt-1.5 mb-5 border-b border-slate-700 pb-5">과거 기록을 수정하는 타임머신 모드에 진입할 때 입력하는 비밀번호예요.</p>
+      <h4 class="text-[10px] font-bold text-slate-400 mb-2 uppercase tracking-wider">잠금모드 비밀번호</h4>
+      <button onclick="openChangeLockPasswordModal()" class="w-full bg-slate-700 hover:bg-slate-600 text-slate-200 py-2 rounded-lg text-[10px] font-bold transition flex items-center justify-center gap-2 border border-slate-600"><span class="text-sm">🔑</span>잠금 비밀번호 변경</button>
+      <p class="text-[9px] text-slate-500 mt-1.5 mb-5 border-b border-slate-700 pb-5">잠금모드를 끌 때 입력하는 비밀번호예요. 타임머신 비밀번호와는 별개입니다.</p>
+      <h4 class="text-[10px] font-bold text-red-400/80 mt-5 mb-2 uppercase tracking-wider">위험 구역</h4>
+      <button onclick="resetAllData()" class="w-full bg-red-600/20 hover:bg-red-600/40 text-red-400 py-2 rounded-lg text-[10px] font-bold transition flex items-center justify-center gap-2 border border-red-500/30"><span class="text-sm">🗑️</span>모든 데이터 초기화</button>
+    </div>
+  </div>
+
+  <div id="modal-confirm" class="fixed inset-0 modal-backdrop hidden flex items-center justify-center z-50 p-4">
+    <div class="bg-slate-800 border border-slate-600 rounded-2xl shadow-2xl w-full max-w-sm p-5 text-center">
+      <div class="w-14 h-14 bg-indigo-500/20 text-indigo-400 rounded-full flex items-center justify-center text-2xl mx-auto mb-3"><span>⏱️</span></div>
+      <h3 class="text-lg font-bold text-slate-100 mb-1">공부 시작</h3>
+      <p class="text-slate-400 text-xs mb-5">"<span id="confirm-task-name" class="font-bold text-white"></span>"<br>공부를 지금 시작하시겠습니까?</p>
+      <div class="flex gap-2.5"><button onclick="closeModal('modal-confirm')" class="flex-1 py-2.5 bg-slate-700 hover:bg-slate-600 rounded-xl font-bold text-xs text-slate-300 transition">취소</button><button onclick="confirmStartTask()" class="flex-1 py-2.5 bg-indigo-600 hover:bg-indigo-500 rounded-xl font-bold text-xs text-white transition shadow-lg shadow-indigo-500/30">시작하기</button></div>
+    </div>
+  </div>
+
+  <!-- 잠금모드 비밀번호 창 -->
+  <div id="modal-lock-password" class="fixed inset-0 modal-backdrop hidden flex items-center justify-center z-[60] p-4">
+    <div class="bg-slate-800 border border-slate-600 rounded-2xl shadow-2xl w-full max-w-sm p-5 text-center">
+      <div class="w-14 h-14 bg-red-500/20 text-red-400 rounded-full flex items-center justify-center text-2xl mx-auto mb-3"><span id="lock-password-modal-icon">🔒</span></div>
+      <h3 class="text-lg font-bold text-slate-100 mb-1" id="lock-password-title">잠금모드</h3>
+      <p class="text-slate-400 text-xs mb-4" id="lock-password-desc">비밀번호를 입력하세요.</p>
+      <form id="form-lock-password" class="flex flex-col gap-2.5" onsubmit="event.preventDefault(); submitLockPassword();">
+        <input type="password" id="lock-password-input" placeholder="비밀번호" autocomplete="off" class="bg-slate-900 border border-slate-600 rounded-xl px-3 py-2.5 text-sm text-slate-200 outline-none focus:border-indigo-500 text-center" required>
+        <div id="lock-password-confirm-wrap" class="hidden">
+          <input type="password" id="lock-password-confirm-input" placeholder="비밀번호 확인" autocomplete="off" class="w-full bg-slate-900 border border-slate-600 rounded-xl px-3 py-2.5 text-sm text-slate-200 outline-none focus:border-indigo-500 text-center">
+        </div>
+        <div class="flex gap-2.5 mt-1.5">
+          <button type="button" onclick="closeModal('modal-lock-password')" class="flex-1 py-2.5 bg-slate-700 hover:bg-slate-600 rounded-xl font-bold text-xs text-slate-300 transition">취소</button>
+          <button type="submit" class="flex-1 py-2.5 bg-red-600 hover:bg-red-500 rounded-xl font-bold text-xs text-white transition shadow-lg shadow-red-500/30">확인</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- 브라우저 기본 alert/confirm/prompt를 대체하는 공용 창 (공부 시작 창과 동일한 스타일) -->
+  <div id="modal-generic" class="fixed inset-0 modal-backdrop hidden flex items-center justify-center z-[70] p-4">
+    <div class="bg-slate-800 border border-slate-600 rounded-2xl shadow-2xl w-full max-w-sm p-5 text-center">
+      <div class="w-14 h-14 bg-indigo-500/20 text-indigo-400 rounded-full flex items-center justify-center text-2xl mx-auto mb-3"><span id="generic-icon">ℹ️</span></div>
+      <h3 id="generic-title" class="text-lg font-bold text-slate-100 mb-1">알림</h3>
+      <p id="generic-message" class="text-slate-400 text-xs mb-4"></p>
+      <div id="generic-input-wrap" class="hidden mb-4">
+        <input id="generic-input" type="text" class="w-full bg-slate-900 border border-slate-600 rounded-xl px-3 py-2.5 text-sm text-slate-100 outline-none focus:border-indigo-500 text-center" />
+      </div>
+      <div class="flex gap-2.5">
+        <button id="generic-cancel-btn" class="flex-1 py-2.5 bg-slate-700 hover:bg-slate-600 rounded-xl font-bold text-xs text-slate-300 transition">취소</button>
+        <button id="generic-confirm-btn" class="flex-1 py-2.5 bg-indigo-600 hover:bg-indigo-500 rounded-xl font-bold text-xs text-white transition shadow-lg shadow-indigo-500/30">확인</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= V49 시간 단절(Gap) 완벽 기억 엔진 ================= -->
+  <script>
+    const defaultSubjects = [
+      { id: 'sub_1', name: '수학', color: '#6366f1' }, { id: 'sub_2', name: '국어', color: '#10b981' },
+      { id: 'sub_3', name: '영어', color: '#f59e0b' }, { id: 'sub_4', name: '탐구/기타', color: '#ec4899' }
+    ];
+    function safeJSONParse(key, fallback) { try { const item = localStorage.getItem(key); return item && item !== "undefined" && item !== "null" ? JSON.parse(item) : JSON.parse(JSON.stringify(fallback)); } catch (e) { return JSON.parse(JSON.stringify(fallback)); } }
+
+    let state = {
+      subjects: safeJSONParse('planner_subjects', defaultSubjects), dDay: safeJSONParse('planner_dday', { title: '', date: '' }),
+      records: safeJSONParse('planner_records', {}), xp: safeJSONParse('planner_xp', 0), allClearDates: safeJSONParse('planner_all_clear', {}),
+      adminPassword: safeJSONParse('planner_admin_pw', '1234'),
+      lockMode: safeJSONParse('planner_lock_mode', false), lockPasswordHash: safeJSONParse('planner_lock_password', null)
+    };
+    let lockPasswordModalMode = null; // 'set' | 'confirm' | 'change'
+
+    let todayStr = getLocalDateStr(new Date()); let currentDateStr = todayStr;
+    let timerState = { interval: null, isRunning: false, taskId: null, subjectId: null, lastTickTime: null, lastRenderedTimeKey: null };
+    let calYear = new Date().getFullYear(), calMonth = new Date().getMonth(), tempStartTaskId = null;
+    let isGridEditMode = false; let isTimeMachineUnlocked = false; 
+
+    let editTaskId = null; 
+    const UI = {}; let saveTickCounter = 0;
+
+    function sanitizeState() {
+      if (!state) state = {}; if (!Array.isArray(state.subjects) || state.subjects.length === 0) state.subjects = JSON.parse(JSON.stringify(defaultSubjects));
+      if (!state.dDay || typeof state.dDay !== 'object') state.dDay = { title: '', date: '' }; if (!state.records || typeof state.records !== 'object') state.records = {};
+      if (typeof state.xp !== 'number') state.xp = 0; if (!state.allClearDates || typeof state.allClearDates !== 'object') state.allClearDates = {};
+      if (typeof state.adminPassword !== 'string' || !state.adminPassword) state.adminPassword = '1234';
+      if (typeof state.lockMode !== 'boolean') state.lockMode = false; if (typeof state.lockPasswordHash !== 'string') state.lockPasswordHash = null;
+      saveData();
+    }
+
+    // ✨ 크롬 확장 프로그램(사이트 차단기)에게 타이머/잠금모드 상태를 전달
+    function notifyExtension(action, payload) {
+      try { window.postMessage({ source: 'daily-planner-app', action, payload }, '*'); } catch (e) {}
+    }
+
+    async function sha256Hex(text) {
+      const enc = new TextEncoder().encode(text);
+      const buf = await crypto.subtle.digest('SHA-256', enc);
+      return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
+    }
+
+    function updateLockModeUI() {
+      const btn = document.getElementById('lock-mode-btn'); const icon = document.getElementById('lock-mode-icon'); const label = document.getElementById('lock-mode-label');
+      if (!btn) return;
+      if (state.lockMode) {
+        btn.className = 'flex-none px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow border bg-red-600/20 hover:bg-red-600/30 text-red-400 border-red-500/40';
+        icon.innerText = '🔒'; label.innerText = '잠금모드 ON';
+      } else {
+        btn.className = 'flex-none px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow border bg-slate-700 hover:bg-slate-600 text-slate-300 border-slate-600';
+        icon.innerText = '🔓'; label.innerText = '잠금모드 OFF';
+      }
+    }
+
+    function toggleLockMode() {
+      if (!state.lockMode) {
+        // 켤 때는 자유롭게. 단, 최초 1회는 끌 때 사용할 비밀번호를 먼저 설정해야 함.
+        if (!state.lockPasswordHash) { openLockPasswordModal('set'); return; }
+        activateLockMode();
+      } else {
+        // 끌 때는 비밀번호 확인 필요
+        openLockPasswordModal('confirm');
+      }
+    }
+
+    function activateLockMode() {
+      state.lockMode = true; localStorage.setItem('planner_lock_mode', JSON.stringify(true));
+      updateLockModeUI(); notifyExtension('lockMode', { enabled: true });
+    }
+    function deactivateLockMode() {
+      state.lockMode = false; localStorage.setItem('planner_lock_mode', JSON.stringify(false));
+      updateLockModeUI(); notifyExtension('lockMode', { enabled: false });
+    }
+
+    function openLockPasswordModal(mode) {
+      lockPasswordModalMode = mode;
+      const titleEl = document.getElementById('lock-password-title'); const descEl = document.getElementById('lock-password-desc');
+      const confirmWrap = document.getElementById('lock-password-confirm-wrap');
+      const confirmInput = document.getElementById('lock-password-confirm-input');
+      if (mode === 'set') { titleEl.innerText = '잠금 해제용 비밀번호 설정'; descEl.innerText = '잠금모드를 끌 때 사용할 비밀번호를 설정하세요.'; confirmWrap.classList.remove('hidden'); confirmInput.required = true; }
+      else if (mode === 'setOnly') { titleEl.innerText = '잠금 비밀번호 설정'; descEl.innerText = '새로 사용할 비밀번호를 설정하세요.'; confirmWrap.classList.remove('hidden'); confirmInput.required = true; }
+      else if (mode === 'reset') { titleEl.innerText = '새 비밀번호 설정'; descEl.innerText = '새로 사용할 비밀번호를 입력하세요.'; confirmWrap.classList.remove('hidden'); confirmInput.required = true; }
+      else if (mode === 'confirm') { titleEl.innerText = '잠금모드 해제'; descEl.innerText = '잠금모드를 끄려면 비밀번호를 입력하세요.'; confirmWrap.classList.add('hidden'); confirmInput.required = false; }
+      else if (mode === 'change') { titleEl.innerText = '잠금 비밀번호 변경'; descEl.innerText = '현재 비밀번호를 먼저 입력하세요.'; confirmWrap.classList.add('hidden'); confirmInput.required = false; }
+      document.getElementById('lock-password-input').value = ''; document.getElementById('lock-password-confirm-input').value = '';
+      document.getElementById('modal-lock-password').classList.remove('hidden');
+      setTimeout(() => document.getElementById('lock-password-input').focus(), 50);
+    }
+
+    function openChangeLockPasswordModal() {
+      closeModal('modal-settings');
+      openLockPasswordModal(state.lockPasswordHash ? 'change' : 'setOnly');
+    }
+
+    async function submitLockPassword() {
+      const pw = document.getElementById('lock-password-input').value;
+      if (!pw) return uiAlert('비밀번호를 입력하세요.', {icon:'⚠️', title:'입력 필요'});
+
+      if (lockPasswordModalMode === 'set' || lockPasswordModalMode === 'setOnly' || lockPasswordModalMode === 'reset') {
+        const pw2 = document.getElementById('lock-password-confirm-input').value;
+        if (pw !== pw2) return uiAlert('비밀번호가 일치하지 않습니다.', {icon:'⚠️', title:'확인 실패'});
+        const mode = lockPasswordModalMode;
+        state.lockPasswordHash = await sha256Hex(pw);
+        localStorage.setItem('planner_lock_password', JSON.stringify(state.lockPasswordHash));
+        closeModal('modal-lock-password');
+        if (mode === 'set') activateLockMode();
+        else uiAlert(mode === 'reset' ? '비밀번호가 변경되었습니다.' : '비밀번호가 설정되었습니다.', {icon:'🔑', title:'설정 완료'});
+      } else if (lockPasswordModalMode === 'confirm') {
+        const hash = await sha256Hex(pw);
+        if (hash === state.lockPasswordHash) { closeModal('modal-lock-password'); deactivateLockMode(); }
+        else uiAlert('비밀번호가 올바르지 않습니다.', {icon:'⚠️', title:'인증 실패'});
+      } else if (lockPasswordModalMode === 'change') {
+        const hash = await sha256Hex(pw);
+        if (hash !== state.lockPasswordHash) return uiAlert('현재 비밀번호가 올바르지 않습니다.', {icon:'⚠️', title:'인증 실패'});
+        openLockPasswordModal('reset');
+      }
+    }
+
+    function initDOMCache() {
+      UI.totalTime = document.getElementById('total-time-display'); UI.targetTime = document.getElementById('target-time-display');
+      UI.totalAchieve = document.getElementById('total-achievement'); UI.totalBar = document.getElementById('total-progress-bar');
+      UI.zenTime = document.getElementById('zen-time-display'); UI.zenTaskBar = document.getElementById('zen-task-progress-bar');
+      UI.clock = document.getElementById('real-time-clock'); UI.viewStatus = document.getElementById('viewing-status');
+      UI.btnToday = document.getElementById('btn-today'); UI.currentDate = document.getElementById('current-date');
+      UI.zenView = document.getElementById('zen-view'); UI.normalView = document.getElementById('normal-view-container');
+    }
+
+    function init() {
+      sanitizeState(); ensureDailyRecord(currentDateStr); initDOMCache();
+      renderSubjects(); updateDdayDisplay(); updateTierBadge();
+      
+      document.getElementById('form-setup-add-task').onsubmit = (e) => { e.preventDefault(); addTask('setup'); };
+      document.getElementById('form-main-add-task').onsubmit = (e) => { e.preventDefault(); addTask('main'); };
+      document.getElementById('form-add-subject').onsubmit = handleAddSubject; document.getElementById('form-dday').onsubmit = handleDdaySubmit;
+      document.getElementById('form-change-password').onsubmit = handleChangePassword;
+
+      updateLockModeUI(); notifyExtension('lockMode', { enabled: !!state.lockMode }); notifyExtension('timerState', { running: false });
+      setInterval(updateClock, 1000); updateClock(); switchView('view-start');
+    }
+
+    function updateClock() { if (UI.clock) UI.clock.innerText = new Date().toLocaleTimeString('en-US', { hour12: false }); }
+
+    function updateViewingStatusUI() {
+      if (!UI.viewStatus) return;
+      if (currentDateStr === todayStr) { UI.viewStatus.classList.add('hidden'); return; }
+      UI.viewStatus.classList.remove('hidden');
+      if (isTimeMachineUnlocked) {
+        UI.viewStatus.innerHTML = "과거 기록 수정 중 🔓"; UI.viewStatus.className = "text-[9px] text-red-400 font-semibold bg-red-500/10 px-1.5 py-0.5 rounded border border-red-500/30 cursor-pointer transition-all duration-300 select-none";
+      } else {
+        UI.viewStatus.innerHTML = "과거 기록 열람중"; UI.viewStatus.className = "text-[9px] text-amber-400 font-semibold bg-amber-500/10 px-1.5 py-0.5 rounded border border-amber-500/30 cursor-pointer transition-all duration-300 select-none";
+      }
+    }
+
+    function toggleTimeMachine() {
+      if (currentDateStr === todayStr) return; 
+      if (isTimeMachineUnlocked) { 
+        isTimeMachineUnlocked = false; 
+        uiAlert("타임머신 모드가 종료되었습니다.", {icon:'🔒', title:'타임머신 종료'});
+        updateViewingStatusUI(); updateDashboard(); renderTimetable(); renderTasks();
+      } else {
+        uiPrompt("과거 기록을 수정하시겠습니까?\n관리자 비밀번호를 입력하세요.", (val) => {
+          if (val === state.adminPassword) { 
+            isTimeMachineUnlocked = true; 
+            uiAlert("타임머신 모드 가동: 과거 기록 수정 및 할일 추가 권한이 해제되었습니다.", {icon:'🔓', title:'타임머신 가동'});
+            updateViewingStatusUI(); updateDashboard(); renderTimetable(); renderTasks();
+          } else { 
+            uiAlert("비밀번호가 틀렸습니다.", {icon:'⚠️', title:'인증 실패'});
+          }
+        }, {icon:'🔒', title:'관리자 인증', isPassword:true, placeholder:'비밀번호 입력'});
+      }
+    }
+
+    function switchView(viewId) {
+      document.getElementById('view-start').classList.add('hidden'); document.getElementById('view-setup').classList.add('hidden'); document.getElementById('view-main').classList.add('hidden'); document.getElementById(viewId).classList.remove('hidden');
+      if (viewId === 'view-setup') renderSetupView();
+      if (viewId === 'view-main') { isGridEditMode = false; updateHeaderDate(); renderTasks(); renderTimetable(); updateDashboard(); updateTierBadge(); }
+    }
+
+    function ensureDailyRecord(dateStr) {
+      if (!state.records) state.records = {};
+      if (!state.records[dateStr] || !state.records[dateStr].tasks || !state.records[dateStr].grid) {
+        let carriedTasks = []; const pastDates = Object.keys(state.records).sort().filter(d => d < dateStr);
+        if (pastDates.length > 0) { const lastDate = pastDates[pastDates.length - 1]; const lastTasks = state.records[lastDate].tasks || [];
+          lastTasks.forEach(t => { if (t.isRoutine || !t.completed) carriedTasks.push({ ...t, id: 't_'+Date.now()+'_'+Math.random().toString(36).substr(2,4), completed: false, elapsedSec: 0 }); });
+        }
+        state.records[dateStr] = { tasks: carriedTasks, grid: {}, diary: '', mood: '' }; saveData();
+      }
+    }
+
+    function addXP(amount) { state.xp = Math.max(0, state.xp + amount); saveData(); updateTierBadge(); }
+    function getTierInfo(xp) {
+      if (xp >= 5001) return { name: "Lv.5 마스터", colorClass: "text-purple-300 border-purple-500/50 bg-purple-500/10", nextXP: null, currentLevelBase: 5001 };
+      if (xp >= 2501) return { name: "Lv.4 학자", colorClass: "text-amber-300 border-amber-500/50 bg-amber-500/10", nextXP: 5001, currentLevelBase: 2501 };
+      if (xp >= 1001) return { name: "Lv.3 분석가", colorClass: "text-emerald-300 border-emerald-500/50 bg-emerald-500/10", nextXP: 2501, currentLevelBase: 1001 };
+      if (xp >= 301) return { name: "Lv.2 몰입자", colorClass: "text-cyan-300 border-cyan-500/50 bg-cyan-500/10", nextXP: 1001, currentLevelBase: 301 };
+      return { name: "Lv.1 탐구자", colorClass: "text-indigo-300 border-indigo-500/30", nextXP: 301, currentLevelBase: 0 };
+    }
+    function updateTierBadge() {
+      const tier = getTierInfo(state.xp);
+      const elName = document.getElementById('tier-name'); const elContainer = document.getElementById('tier-badge-container');
+      if (!elName) return; elName.innerText = tier.name;
+      if (elContainer) elContainer.className = `flex items-center gap-1.5 px-2.5 py-1 rounded-full border cursor-pointer transition shadow-sm ml-1 ${tier.colorClass}`;
+    }
+    function openXpModal() {
+      const tier = getTierInfo(state.xp); document.getElementById('modal-xp-tier-name').innerText = tier.name; document.getElementById('modal-xp-count').innerText = `${state.xp} XP 보유 중`;
+      const pb = document.getElementById('modal-xp-progress-bar'); const nt = document.getElementById('modal-xp-next-text');
+      if (tier.nextXP === null) { pb.style.width = '100%'; nt.innerText = '🎉 최고 등급 마스터에 도달했습니다!'; } else {
+        const pct = Math.min(100, Math.floor(((state.xp - tier.currentLevelBase) / (tier.nextXP - tier.currentLevelBase)) * 100));
+        pb.style.width = `${pct}%`; nt.innerText = `다음 레벨까지 ${tier.nextXP - state.xp} XP 남음 (${pct}%)`;
+      }
+      document.getElementById('modal-xp').classList.remove('hidden');
+    }
+
+    function renderSetupView() {
+      const dateObj = new Date(todayStr); const days = ['일','월','화','수','목','금','토']; document.getElementById('setup-today-date').innerText = `${todayStr.replace(/-/g, '.')} (${days[dateObj.getDay()]})`;
+      const pastDates = Object.keys(state.records).sort().filter(d => d < todayStr); let yesterdayHTML = '';
+      if (pastDates.length > 0) {
+        const lastRec = state.records[pastDates[pastDates.length - 1]]; const targetSec = lastRec.tasks.reduce((sum, t) => sum + ((t.targetMin || 0) * 60), 0); const totalSec = Object.values(lastRec.grid || {}).reduce((sum, c) => sum + (c.seconds || 0), 0);
+        const pct = targetSec > 0 ? Math.floor((totalSec / targetSec) * 100) : (totalSec>0 ? 100 : 0); const stamp = pct >= 100 ? '🔥 완벽했어요!' : pct >= 80 ? '🟢 훌륭합니다!' : pct >= 50 ? '🟡 잘했어요!' : '🔴 오늘은 더 화이팅!';
+        yesterdayHTML = `<div class="text-xs text-slate-400 mb-1">${pastDates[pastDates.length - 1]}</div><div class="text-3xl font-black text-white mb-2 font-mono">${formatTime(totalSec, true)}</div><div class="text-emerald-400 font-bold mb-4">목표 달성률 ${pct}%</div><div class="bg-slate-700/50 px-4 py-2 rounded-full text-sm font-bold text-slate-200">${stamp}</div>`;
+      } else { yesterdayHTML = `<div class="text-slate-400 text-sm mb-2"><span class="text-3xl mb-3 text-emerald-400 block">🌱</span>기록된 이전 데이터가 없습니다.</div><div class="text-slate-200 font-bold">오늘부터 멋진 기록을 만들어보세요!</div>`; }
+      document.getElementById('setup-yesterday-card').innerHTML = yesterdayHTML; renderSetupTaskList();
+    }
+    
+    function renderSetupTaskList() {
+      const tasks = state.records[todayStr].tasks || []; const listEl = document.getElementById('setup-task-list');
+      if (tasks.length === 0) { listEl.innerHTML = '<div class="text-center text-slate-500 text-xs py-4">등록된 할 일이 없습니다.<br>위에서 추가해주세요.</div>'; return; }
+      listEl.innerHTML = tasks.map(task => { const sub = getSubject(task.subjectId); return `<div class="flex justify-between items-center bg-slate-900/60 p-2.5 rounded border border-slate-700/70 group"><div class="flex items-center gap-2"><span class="px-1.5 py-0.5 rounded text-[8px] font-bold text-white" style="background-color: ${sub.color}">${sub.name}</span><span class="text-xs font-bold text-slate-200">${task.title}</span><span class="text-[9px] text-slate-400 font-mono">${task.targetMin}m</span></div><button onclick="deleteTask('${task.id}', true)" class="text-slate-500 hover:text-red-400 text-xs px-2"><span>🗑️</span></button></div>`; }).join('');
+    }
+
+    function getSubject(id) { if (!state.subjects || state.subjects.length === 0) sanitizeState(); return state.subjects.find(s => s && s.id === id) || state.subjects[0] || defaultSubjects[0]; }
+    function renderSubjects() {
+      const ops = state.subjects.map(sub => sub && sub.name && sub.id ? `<option value="${sub.id}">${sub.name}</option>` : '').join('');
+      ['setup-task-subject', 'main-task-subject', 'manual-subject-select'].forEach(id => { const el = document.getElementById(id); if(el) el.innerHTML = ops; });
+      document.getElementById('settings-subject-list').innerHTML = state.subjects.map(sub => sub ? `<div class="flex justify-between items-center bg-slate-900 p-2 rounded border border-slate-700"><div class="flex items-center gap-2"><div class="w-3 h-3 rounded-full" style="background-color: ${sub.color}"></div><span class="text-xs font-bold text-slate-200">${sub.name}</span></div><button onclick="deleteSubject('${sub.id}')" class="text-slate-500 hover:text-red-400 text-[10px]"><span>🗑️</span></button></div>` : '').join('');
+    }
+
+    let dragTaskIdx = null;
+    function taskDragStart(e, idx) { dragTaskIdx = idx; e.dataTransfer.effectAllowed = 'move'; setTimeout(() => e.target.classList.add('opacity-40', 'border-dashed'), 10); }
+    function taskDragOver(e) { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; }
+    function taskDrop(e, targetIdx) { e.preventDefault(); if (dragTaskIdx === null || dragTaskIdx === targetIdx) return; const tasks = state.records[currentDateStr].tasks; const [movedTask] = tasks.splice(dragTaskIdx, 1); tasks.splice(targetIdx, 0, movedTask); saveData(); renderTasks(); updateDashboard(); }
+    function taskDragEnd(e) { e.target.classList.remove('opacity-40', 'border-dashed'); dragTaskIdx = null; }
+
+    let taskClickTimer = null;
+    function handleTaskClick(id) {
+        if (taskClickTimer) { clearTimeout(taskClickTimer); taskClickTimer = null; openEditTaskModal(id); } 
+        else { taskClickTimer = setTimeout(() => { taskClickTimer = null; openConfirmStart(id); }, 250); }
+    }
+
+    function renderTasks() {
+      let tasks = [...(state.records[currentDateStr].tasks || [])]; let totalTarget = 0;
+      if (timerState.taskId) { const idx = tasks.findIndex(t => t.id === timerState.taskId); if (idx > 0) tasks.unshift(tasks.splice(idx, 1)[0]); }
+
+      document.getElementById('main-task-list').innerHTML = tasks.map((task, idx) => {
+        const sub = getSubject(task.subjectId); totalTarget += (task.targetMin || 0);
+        const isRun = timerState.isRunning && timerState.taskId === task.id; const isPause = !timerState.isRunning && timerState.taskId === task.id;
+        let hiCls = 'border-slate-700/70 bg-slate-900/60'; let bHTML = '';
+        if (isRun) { hiCls = 'border-indigo-500 bg-indigo-950/40 shadow-[0_0_12px_rgba(99,102,241,0.35)]'; bHTML = `<span class="text-[8px] bg-indigo-500 text-white font-black px-1.5 py-0.5 rounded animate-pulse">▶ 집중 중</span>`; } 
+        else if (isPause) { hiCls = 'border-amber-500/70 bg-amber-950/30'; bHTML = `<span class="text-[8px] bg-amber-500/20 text-amber-300 font-bold px-1.5 py-0.5 rounded border border-amber-500/30">|| 일시정지</span>`; }
+        
+        const elapsedHTML = `<div id="task-elapsed-${task.id}" class="text-[9px] font-mono text-indigo-300 mt-0.5">${task.elapsedSec > 0 ? `누적: ${formatTime(task.elapsedSec)}` : ''}</div>`;
+        return `<div draggable="true" ondragstart="taskDragStart(event, ${idx})" ondragover="taskDragOver(event)" ondrop="taskDrop(event, ${idx})" ondragend="taskDragEnd(event)" class="flex items-center gap-1.5 p-2 rounded-lg border ${hiCls} hover:border-slate-500 transition group min-w-0 cursor-grab active:cursor-grabbing">
+            <input type="checkbox" class="task-check" ${task.completed ? 'checked' : ''} onchange="toggleTaskComplete('${task.id}', this.checked)">
+            <div class="flex-1 min-w-0 cursor-pointer ${task.completed ? 'opacity-40 line-through' : ''}" onclick="handleTaskClick('${task.id}')" title="한 번 클릭: 공부 시작 / 더블클릭: 할일 수정">
+                <div class="flex items-center gap-1 mb-0.5 flex-wrap">
+                    <span class="px-1.5 py-0.5 rounded text-[8px] font-bold text-white whitespace-nowrap" style="background-color: ${sub.color}">${sub.name}</span>
+                    ${bHTML}${task.isRoutine ? '<span class="text-[7px] text-indigo-300 bg-indigo-500/20 px-1 rounded font-semibold whitespace-nowrap">루틴</span>' : ''}
+                    <span class="text-[8px] text-slate-400 font-mono whitespace-nowrap"><span class="mr-0.5">🕐</span>${task.targetMin}m</span>
+                </div>
+                <div class="text-[11px] font-bold text-slate-200 leading-tight truncate select-none">${task.title}</div>
+                ${elapsedHTML}
+            </div>
+            <button onclick="deleteTask('${task.id}')" class="opacity-0 group-hover:opacity-100 text-slate-500 hover:text-red-400 transition p-1 text-[10px] flex-none"><span>✕</span></button>
+        </div>`;
+      }).join('');
+      document.getElementById('task-total-min').innerText = totalTarget;
+    }
+
+    // ✨ V49 핵심: 세그먼트 배열을 바탕으로 빈틈없이 정확한 그라데이션을 뽑아주는 엔진
+    function getCellGradient(cellData) {
+        if (!cellData || cellData.seconds === 0) return 'transparent';
+        
+        // 95% 이상 공부했으면 빈틈없이 꽉 채운 솔리드 컬러로 덮어버림
+        let rawFillPct = (cellData.seconds / 600) * 100;
+        if (rawFillPct >= 95) {
+            let mainSubId = Object.keys(cellData.parts).reduce((a, b) => cellData.parts[a] > cellData.parts[b] ? a : b, Object.keys(cellData.parts)[0]);
+            return getSubject(mainSubId).color;
+        } 
+        
+        let gradParts = [];
+        if (cellData.segments && cellData.segments.length > 0) {
+            let currentPct = 0;
+            // 멈췄다 켰던 시간 조각(Segment)들을 정확히 그 위치에 하나씩 그림
+            cellData.segments.forEach(seg => {
+                let startPct = (seg.startOffset / 600) * 100;
+                let widthPct = (seg.seconds / 600) * 100;
+                let subColor = getSubject(seg.subId).color;
+                
+                if (startPct > currentPct) {
+                    gradParts.push(`transparent ${currentPct}% ${startPct}%`); // 쉰 시간(공백)은 투명하게!
+                }
+                gradParts.push(`${subColor} ${startPct}% ${startPct + widthPct}%`);
+                currentPct = startPct + widthPct;
+            });
+            if (currentPct < 100) gradParts.push(`transparent ${currentPct}% 100%`);
+        } else {
+            // 호환성: 예전 방식의 데이터일 경우 왼쪽부터 채움
+            let startPct = cellData.startOffset !== undefined ? (cellData.startOffset / 600) * 100 : 0;
+            let fillPct = Math.min(100, rawFillPct);
+            if (startPct + fillPct > 100) fillPct = 100 - startPct;
+            
+            if (startPct > 0) gradParts.push(`transparent 0% ${startPct}%`);
+            let currentPct = startPct;
+            for (let subId in cellData.parts) {
+                let subColor = getSubject(subId).color;
+                let pct = (cellData.parts[subId] / 600) * 100;
+                gradParts.push(`${subColor} ${currentPct}% ${currentPct + pct}%`);
+                currentPct += pct;
+            }
+            if (currentPct < 100) gradParts.push(`transparent ${currentPct}% 100%`);
+        }
+        return `linear-gradient(to right, ${gradParts.join(', ')})`;
+    }
+
+    function renderTimetable() {
+      const grid = document.getElementById('timetable-grid'); if (!grid) return; 
+      const recordGrid = state.records[currentDateStr].grid || {}; grid.innerHTML = '';
+      const now = new Date(); const activeTimeKey = timerState.isRunning && currentDateStr === todayStr ? `${String(now.getHours()).padStart(2, '0')}:${String(Math.floor(now.getMinutes() / 10) * 10).padStart(2, '0')}` : null;
+      
+      for (let i = 0; i < 18; i++) {
+        let h = (7 + i) % 24; let row = document.createElement('div'); row.className = 'flex-1 grid grid-cols-[30px_repeat(6,1fr)] w-full min-h-0';
+        let label = document.createElement('div'); label.className = 'flex items-center justify-center text-[8px] font-mono font-bold text-slate-500 border-b border-r border-slate-700/80 bg-slate-800/30'; label.innerText = `${(7+i)>=24?'+':''}${String(h).padStart(2, '0')}`; row.appendChild(label);
+        
+        for (let m = 0; m < 6; m++) {
+          let timeKey = `${String(h).padStart(2, '0')}:${String(m * 10).padStart(2, '0')}`;
+          let cellData = recordGrid[timeKey] || { seconds: 0, passed: false, parts: {} };
+          let box = document.createElement('div');
+          
+          box.id = 'cell-' + timeKey.replace(':', '-');
+          box.className = `time-box relative overflow-hidden group border-b border-r border-slate-700/80 ${timeKey === activeTimeKey ? 'active-slot' : ''} ${isGridEditMode ? 'unlocked cursor-pointer' : 'locked'}`;
+
+          // ✨ V49: 복잡한 수학 공식을 getCellGradient() 함수 하나로 깔끔하게 처리!
+          box.style.background = getCellGradient(cellData);
+          box.onclick = () => handleManualOverride(timeKey); row.appendChild(box);
+        }
+        grid.appendChild(row);
+      }
+    }
+
+    function updateDashboard() {
+      const tasks = state.records[currentDateStr].tasks || []; const targetSec = tasks.reduce((sum, t) => sum + ((t.targetMin || 0) * 60), 0);
+      let totalSec = Object.values(state.records[currentDateStr].grid || {}).reduce((sum, cell) => sum + (cell.seconds || 0), 0);
+      if(UI.totalTime) UI.totalTime.innerText = formatTime(totalSec); 
+      if(UI.targetTime) UI.targetTime.innerText = formatTime(targetSec);
+      
+      let achPct = targetSec > 0 ? Math.floor((totalSec / targetSec) * 100) : 0; 
+      if(UI.totalAchieve) UI.totalAchieve.innerText = `${achPct}%`;
+      if(UI.totalBar) UI.totalBar.style.transform = `scaleX(${Math.min(achPct / 100, 1)})`;
+
+      const btnStart = document.getElementById('btn-start'); const btnStop = document.getElementById('btn-stop');
+      const menuBtn = document.getElementById('menu-dropdown-btn');
+
+      if (currentDateStr !== todayStr && !isTimeMachineUnlocked) {
+        if (btnStart) { btnStart.disabled = true; btnStart.className = 'w-10 h-10 rounded-xl bg-slate-700 text-slate-500 flex items-center justify-center text-base cursor-not-allowed transition-all duration-300'; }
+        if (btnStop) btnStop.disabled = true;
+        return;
+      }
+
+      if (timerState.taskId) {
+        if(UI.normalView) UI.normalView.classList.add('opacity-0', 'pointer-events-none');
+        if(UI.zenView) UI.zenView.classList.remove('hidden');
+        if(menuBtn) menuBtn.classList.add('opacity-50', 'pointer-events-none');
+
+        const task = tasks.find(t => t.id === timerState.taskId);
+        if (task) {
+          const sub = getSubject(task.subjectId); document.getElementById('zen-subject-badge').innerText = sub.name; document.getElementById('zen-subject-badge').style.backgroundColor = sub.color; document.getElementById('zen-task-title').innerText = task.title;
+          if(UI.zenTime) UI.zenTime.innerText = formatTime(task.elapsedSec || 0);
+          
+          if (UI.zenTaskBar && task.targetMin > 0) {
+            const taskPct = Math.floor(((task.elapsedSec || 0) / (task.targetMin * 60)) * 100);
+            UI.zenTaskBar.style.transform = `scaleX(${Math.min(taskPct / 100, 1)})`;
+          }
+        }
+
+        const zenPauseBtn = document.getElementById('zen-btn-pause');
+        if (timerState.isRunning) {
+          zenPauseBtn.innerHTML = '<span>⏸</span> <span id="zen-btn-pause-text">일시정지</span>'; zenPauseBtn.className = 'px-4 py-2 bg-amber-500 hover:bg-amber-400 text-white rounded-xl font-bold text-[11px] transition shadow flex items-center gap-1.5';
+        } else {
+          zenPauseBtn.innerHTML = '<span>▶</span> <span>이어하기</span>'; zenPauseBtn.className = 'px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl font-bold text-[11px] transition shadow flex items-center gap-1.5';
+        }
+
+        if (btnStart) {
+          btnStart.disabled = false;
+          if (timerState.isRunning) { btnStart.innerHTML = '<span>⏸</span>'; btnStart.className = 'w-8 h-8 rounded-lg bg-amber-500 text-white flex items-center justify-center text-xs shadow-lg transition-all duration-300'; }
+          else { btnStart.innerHTML = '<span>▶</span>'; btnStart.className = 'w-8 h-8 rounded-lg bg-indigo-600 text-white flex items-center justify-center text-xs shadow-lg transition-all duration-300'; }
+        }
+        if (btnStop) { btnStop.disabled = false; btnStop.className = 'w-8 h-8 rounded-lg bg-red-500 text-white flex items-center justify-center text-xs shadow-lg transition-all duration-300'; }
+      } else {
+        if(UI.normalView) UI.normalView.classList.remove('opacity-0', 'pointer-events-none');
+        if(UI.zenView) UI.zenView.classList.add('hidden');
+        if(menuBtn) menuBtn.classList.remove('opacity-50', 'pointer-events-none');
+        
+        if (btnStart) { btnStart.innerHTML = '<span>▶</span>'; btnStart.className = 'w-10 h-10 rounded-xl bg-slate-700 text-slate-500 flex items-center justify-center text-base disabled:opacity-50 cursor-not-allowed transition-all duration-300'; btnStart.disabled = true; }
+        if (btnStop) { btnStop.disabled = true; btnStop.className = 'w-10 h-10 rounded-xl bg-slate-700 text-slate-500 flex items-center justify-center text-base disabled:opacity-50 cursor-not-allowed transition-all duration-300'; }
+      }
+    }
+
+    function toggleTimer() { if (timerState.isRunning) pauseTimer(); else if (timerState.taskId) resumeTimer(); }
+
+    function toggleGridEditMode() {
+      if (currentDateStr !== todayStr && !isTimeMachineUnlocked) { uiAlert('과거 타임테이블은 타임머신 모드(날짜 더블클릭 후 관리자 비밀번호 입력)에서만 수정 가능합니다.'); return; }
+      if (!isGridEditMode) { 
+        uiConfirm("타임테이블을 수동으로 편집하시겠습니까?", () => { isGridEditMode = true; document.getElementById('manual-subject-select').classList.remove('hidden'); const btn = document.getElementById('btn-edit-grid'); btn.innerHTML = '<span>✓</span> 완료'; btn.className = 'px-1.5 py-1 bg-amber-600 hover:bg-amber-500 text-white rounded text-[9px] font-bold transition shadow'; renderTimetable(); }, {icon:'✏️', title:'편집 모드'});
+      } else resetEditMode();
+    }
+    function resetEditMode() { isGridEditMode = false; document.getElementById('manual-subject-select').classList.add('hidden'); const btn = document.getElementById('btn-edit-grid'); btn.innerHTML = '<span>🔒</span> 편집'; btn.className = 'px-1.5 py-1 bg-slate-700 hover:bg-slate-600 text-slate-300 rounded text-[9px] font-bold transition shadow border border-slate-600'; renderTimetable(); }
+
+    function handleManualOverride(timeKey) {
+      if (currentDateStr !== todayStr && !isTimeMachineUnlocked) { uiAlert('과거 기록은 타임머신 모드에서만 수정할 수 있습니다.'); return; }
+      if (!isGridEditMode) { uiAlert('칸을 수정하려면 상단의 [🔒 편집] 버튼을 먼저 눌러주세요.'); return; }
+      
+      let gridData = state.records[currentDateStr].grid;
+      if (!gridData[timeKey]) gridData[timeKey] = { seconds: 0, passed: false, parts: {}, segments: [] };
+      
+      const subId = document.getElementById('manual-subject-select').value || state.subjects[0].id;
+      let currentSec = gridData[timeKey].seconds;
+      
+      // 수동 편집 시 한 번 클릭으로 즉시 10분(100%) 채우고, 다시 클릭하면 초기화 (0% -> 100% -> 0%)
+      if (currentSec === 0) {
+         gridData[timeKey].seconds = 600;
+         gridData[timeKey].parts = {}; gridData[timeKey].parts[subId] = 600;
+         gridData[timeKey].segments = [{ subId: subId, startOffset: 0, seconds: 600 }]; // 편집은 무조건 0초(왼쪽)부터
+         gridData[timeKey].passed = true;
+      } else {
+         gridData[timeKey].seconds = 0;
+         gridData[timeKey].parts = {};
+         gridData[timeKey].segments = [];
+         gridData[timeKey].passed = false;
+      }
+      saveData(); updateDashboard(); renderTimetable(); 
+    }
+
+    function openAddTaskModal() { 
+      if (currentDateStr !== todayStr && !isTimeMachineUnlocked) { uiAlert('과거 기록에는 과제를 추가할 수 없습니다.'); return; }
+      editTaskId = null;
+      document.getElementById('form-main-add-task').reset(); 
+      document.getElementById('modal-add-task-title').innerText = "새로운 할일 추가";
+      document.getElementById('modal-add-task-btn').innerHTML = "추가하기";
+      document.getElementById('modal-add-task').classList.remove('hidden'); 
+    }
+    
+    function openEditTaskModal(id) {
+      if (currentDateStr !== todayStr && !isTimeMachineUnlocked) { uiAlert('과거 기록은 타임머신 모드(날짜 더블클릭 후 관리자 비밀번호 입력)에서만 수정할 수 있습니다.'); return; }
+      const task = state.records[currentDateStr].tasks.find(t => t.id === id);
+      if (!task) return;
+      
+      editTaskId = id;
+      document.getElementById('modal-add-task-title').innerText = "할일 목표 수정";
+      document.getElementById('modal-add-task-btn').innerHTML = '<span>✓</span> 수정 완료';
+      
+      document.getElementById('main-task-title').value = task.title;
+      document.getElementById('main-task-subject').value = task.subjectId;
+      document.getElementById('main-task-target').value = task.targetMin;
+      document.getElementById('main-task-routine').checked = task.isRoutine || false;
+      
+      document.getElementById('modal-add-task').classList.remove('hidden');
+    }
+
+    function addTask(source) {
+      if(currentDateStr !== todayStr && !isTimeMachineUnlocked) { uiAlert('과거 기록에는 과제를 추가하거나 수정할 수 없습니다.'); return; }
+      const prefix = source === 'setup' ? 'setup' : 'main';
+      const title = document.getElementById(`${prefix}-task-title`).value || '새 과제';
+      const subjectId = document.getElementById(`${prefix}-task-subject`).value || state.subjects[0].id;
+      const targetMin = parseInt(document.getElementById(`${prefix}-task-target`).value) || 10;
+      const isRoutine = document.getElementById(`${prefix}-task-routine`) ? document.getElementById(`${prefix}-task-routine`).checked : false;
+
+      ensureDailyRecord(currentDateStr); 
+
+      if (source === 'main' && editTaskId) {
+         const task = state.records[currentDateStr].tasks.find(t => t.id === editTaskId);
+         if (task) { task.title = title; task.subjectId = subjectId; task.targetMin = targetMin; task.isRoutine = isRoutine; }
+         editTaskId = null;
+      } else {
+         const newTask = { id: 't_'+Date.now()+'_'+Math.floor(Math.random()*1000), title, subjectId, targetMin, completed: false, elapsedSec: 0, isRoutine };
+         state.records[currentDateStr].tasks.push(newTask); 
+      }
+      
+      saveData(); 
+      if(source === 'setup') { document.getElementById('form-setup-add-task').reset(); renderSetupTaskList(); } 
+      else { document.getElementById('form-main-add-task').reset(); renderTasks(); updateDashboard(); closeModal('modal-add-task'); }
+    }
+    
+    function importYesterdayTasks() {
+      if (currentDateStr !== todayStr && !isTimeMachineUnlocked) { uiAlert('과거 기록에서는 할 일을 가져올 수 없습니다.'); return; }
+      const pastDates = Object.keys(state.records).sort().filter(d => d < currentDateStr);
+      if (pastDates.length === 0) { uiAlert('가져올 이전 기록이 없습니다.'); return; }
+      const lastTasks = state.records[pastDates[pastDates.length - 1]].tasks || [];
+      if (lastTasks.length === 0) { uiAlert('가져올 할 일이 없습니다.'); return; }
+      let importedCount = 0;
+      lastTasks.forEach(t => {
+        if (!state.records[currentDateStr].tasks.some(ct => ct.title === t.title)) {
+          state.records[currentDateStr].tasks.push({ id: 't_'+Date.now()+'_'+Math.floor(Math.random()*1000) + importedCount, title: t.title, subjectId: t.subjectId, targetMin: t.targetMin, completed: false, elapsedSec: 0, isRoutine: t.isRoutine });
+          importedCount++;
+        }
+      });
+      if (importedCount === 0) uiAlert('이미 모든 할 일이 추가되어 있습니다.'); 
+      else { saveData(); renderTasks(); updateDashboard(); uiAlert(`${importedCount}개의 할 일을 성공적으로 가져왔습니다!`, {icon:'✅', title:'가져오기 완료'}); }
+    }
+
+    function deleteTask(id, fromSetup=false) {
+      uiConfirm('과제를 삭제하시겠습니까?', () => {
+        if(timerState.taskId === id) stopTimer();
+        state.records[currentDateStr].tasks = state.records[currentDateStr].tasks.filter(t => t.id !== id); saveData(); 
+        if(fromSetup) renderSetupTaskList(); else { renderTasks(); updateDashboard(); }
+      }, {icon:'🗑️', title:'삭제 확인', confirmText:'삭제'});
+    }
+    function toggleTaskComplete(id, isChecked) {
+      const task = state.records[currentDateStr].tasks.find(t => t.id === id);
+      if(task) { 
+        task.completed = isChecked; if(isChecked && timerState.taskId === id) stopTimer(); 
+        if (isChecked) addXP(10); else addXP(-10);
+        const allTasks = state.records[currentDateStr].tasks; const isAllClear = allTasks.length > 0 && allTasks.every(t => t.completed);
+        if (isAllClear && !state.allClearDates[currentDateStr]) { state.allClearDates[currentDateStr] = true; addXP(30); setTimeout(() => uiAlert('오늘의 할 일 올클리어 완료!\n보너스 +30 XP 지급!', {icon:'🎉', title:'올클리어 달성'}), 100); }
+        saveData(); renderTasks(); 
+      }
+    }
+    function openConfirmStart(id) {
+      if(currentDateStr !== todayStr && !isTimeMachineUnlocked) { uiAlert('과거 기록에서는 타이머 실행이 불가능합니다.'); return; }
+      const task = state.records[currentDateStr].tasks.find(t => t.id === id); if(!task || task.completed) return;
+      tempStartTaskId = id; document.getElementById('confirm-task-name').innerText = task.title; document.getElementById('modal-confirm').classList.remove('hidden');
+    }
+    
+    // ✨ 타이머 재시작 시, 컴퓨터가 새로운 조각(Segment)을 팔 준비를 하도록 틱타임 리셋
+    function confirmStartTask() { closeModal('modal-confirm'); const task = state.records[currentDateStr].tasks.find(t => t.id === tempStartTaskId); if(!task) return; timerState.taskId = task.id; timerState.subjectId = task.subjectId; resumeTimer(); }
+    function resumeTimer() { if(timerState.isRunning) return; timerState.isRunning = true; timerState.lastTickTime = Date.now(); timerState.interval = setInterval(timerTick, 1000); notifyExtension('timerState', { running: true }); renderTasks(); renderTimetable(); updateDashboard(); }
+    
+    function pauseTimer() { timerState.isRunning = false; if (timerState.interval) clearInterval(timerState.interval); timerState.interval = null; notifyExtension('timerState', { running: false }); saveData(); renderTasks(); updateDashboard(); renderTimetable(); }
+    function stopTimer() { timerState.isRunning = false; if (timerState.interval) clearInterval(timerState.interval); timerState.interval = null; timerState.taskId = null; timerState.subjectId = null; notifyExtension('timerState', { running: false }); saveData(); renderTasks(); updateDashboard(); renderTimetable(); }
+
+    function updateLiveTimerUI(timeKey, task) {
+       const activeTimeKey = timerState.isRunning && currentDateStr === todayStr ? timeKey : null;
+       const tasks = state.records[currentDateStr].tasks || [];
+       const targetSec = tasks.reduce((sum, t) => sum + ((t.targetMin || 0) * 60), 0);
+       const totalSec = Object.values(state.records[currentDateStr].grid || {}).reduce((sum, cell) => sum + (cell.seconds || 0), 0);
+       
+       if(UI.totalTime) UI.totalTime.innerText = formatTime(totalSec);
+       
+       let achPct = targetSec > 0 ? Math.floor((totalSec / targetSec) * 100) : 0;
+       if(UI.totalAchieve) UI.totalAchieve.innerText = `${achPct}%`;
+       if(UI.totalBar) UI.totalBar.style.transform = `scaleX(${Math.min(achPct / 100, 1)})`;
+
+       if (task) {
+          if(UI.zenTime) UI.zenTime.innerText = formatTime(task.elapsedSec || 0);
+          if (UI.zenTaskBar && task.targetMin > 0) {
+             const taskPct = Math.floor(((task.elapsedSec || 0) / (task.targetMin * 60)) * 100);
+             UI.zenTaskBar.style.transform = `scaleX(${Math.min(taskPct / 100, 1)})`;
+          }
+          const elapsedEl = document.getElementById(`task-elapsed-${task.id}`);
+          if (elapsedEl) elapsedEl.innerText = `누적: ${formatTime(task.elapsedSec)}`;
+       }
+
+       document.querySelectorAll('.time-box.active-slot').forEach(el => el.classList.remove('active-slot'));
+       
+       const cellId = 'cell-' + timeKey.replace(':', '-');
+       const box = document.getElementById(cellId);
+       if (box) {
+          let cellData = state.records[currentDateStr].grid[timeKey];
+          box.style.background = getCellGradient(cellData);
+          if(timeKey === activeTimeKey) box.classList.add('active-slot');
+       }
+    }
+
+    // ✨ V49 핵심: 시간 단절(Gap) 완벽 기억 엔진 (타이머가 돌 때마다 조각을 나눠서 저장)
+    function timerTick() {
+      const now = new Date(); const currentMs = Date.now(); 
+      const diffSec = Math.round((currentMs - timerState.lastTickTime) / 1000); 
+      if (diffSec < 1) return; 
+      
+      let t = timerState.lastTickTime;
+      timerState.lastTickTime = currentMs;
+      
+      const task = state.records[currentDateStr].tasks.find(tk => tk.id === timerState.taskId);
+      if(!timerState.subjectId && task) timerState.subjectId = task.subjectId;
+      
+      let gridData = state.records[currentDateStr].grid;
+      let secCount = 0;
+      
+      while (t < currentMs && secCount < diffSec) {
+          let d = new Date(t);
+          let tk = `${String(d.getHours()).padStart(2, '0')}:${String(Math.floor(d.getMinutes() / 10) * 10).padStart(2, '0')}`;
+          let secOffset = (d.getMinutes() % 10) * 60 + d.getSeconds(); // 이 칸의 정확한 초(0~599)
+          
+          if (!gridData[tk]) gridData[tk] = { seconds: 0, passed: false, parts: {}, segments: [] };
+          if (!gridData[tk].segments) gridData[tk].segments = [];
+          
+          // 방금 전까지 공부하던 마지막 조각(Segment)을 확인
+          let lastSeg = gridData[tk].segments[gridData[tk].segments.length - 1];
+          
+          // 만약 과목이 같고, 쉬지 않고 이어서 공부 중이라면 그 조각의 길이를 +1초 늘림
+          if (lastSeg && lastSeg.subId === timerState.subjectId && (lastSeg.startOffset + lastSeg.seconds === secOffset)) {
+              lastSeg.seconds += 1;
+          } else {
+              // 과목이 바뀌었거나, 중간에 1초라도 쉬었다가 다시 켰다면 아예 새로운 조각을 만들어버림! (빈틈을 메우지 않음)
+              gridData[tk].segments.push({ subId: timerState.subjectId, startOffset: secOffset, seconds: 1 });
+          }
+          
+          if (!gridData[tk].parts[timerState.subjectId]) gridData[tk].parts[timerState.subjectId] = 0;
+          gridData[tk].parts[timerState.subjectId] += 1;
+          gridData[tk].seconds += 1;
+          if (gridData[tk].seconds >= 600 && !gridData[tk].passed) {
+              gridData[tk].passed = true;
+              addXP(5);
+          }
+          t += 1000;
+          secCount++;
+      }
+      
+      if (task) task.elapsedSec = (task.elapsedSec || 0) + diffSec; 
+      
+      const finalTimeKey = `${String(now.getHours()).padStart(2, '0')}:${String(Math.floor(now.getMinutes() / 10) * 10).padStart(2, '0')}`;
+      
+      if (timerState.lastRenderedTimeKey !== finalTimeKey) {
+          renderTimetable(); 
+          timerState.lastRenderedTimeKey = finalTimeKey;
+      } else if (!document.hidden) { 
+          updateLiveTimerUI(finalTimeKey, task); 
+      }
+      
+      saveTickCounter += diffSec;
+      if (saveTickCounter >= 10) { saveData(); saveTickCounter = 0; }
+    }
+
+    window.addEventListener('beforeunload', () => { saveData(); });
+    document.addEventListener("visibilitychange", () => {
+      if (document.hidden) { saveData(); } 
+      else { if (timerState.isRunning) { updateDashboard(); renderTimetable(); } }
+    });
+
+    // ================= 오늘의 학습 메모장 (자동 저장) =================
+    let workspaceNoteSaveTimer = null;
+    function loadWorkspaceNote() {
+      const ta = document.getElementById('workspace-note'); if (!ta) return;
+      ensureDailyRecord(currentDateStr);
+      ta.value = state.records[currentDateStr].workspaceNote || '';
+      updateWorkspaceNoteCount();
+    }
+    function updateWorkspaceNoteCount() {
+      const ta = document.getElementById('workspace-note'); const cnt = document.getElementById('workspace-note-count');
+      if (ta && cnt) cnt.innerText = `${ta.value.length}자`;
+    }
+    function handleWorkspaceNoteInput() {
+      updateWorkspaceNoteCount();
+      clearTimeout(workspaceNoteSaveTimer);
+      workspaceNoteSaveTimer = setTimeout(() => {
+        ensureDailyRecord(currentDateStr);
+        state.records[currentDateStr].workspaceNote = document.getElementById('workspace-note').value;
+        saveData();
+      }, 400);
+    }
+
+    function updateWorkspaceView() {
+       const iframeCont = document.getElementById('workspace-iframe-container');
+       const statsCont = document.getElementById('workspace-past-stats');
+       const title = document.getElementById('workspace-title');
+       const badge = document.getElementById('workspace-badge');
+       const btns = document.getElementById('workspace-quick-btns');
+
+       if (currentDateStr === todayStr) {
+           if(iframeCont) iframeCont.classList.remove('hidden');
+           if(statsCont) statsCont.classList.add('hidden');
+           if(btns) btns.classList.remove('hidden');
+           if(title) title.innerHTML = '<span class="mr-1.5 text-indigo-400">📝</span>WORKSPACE';
+           if(badge) { badge.innerText = '오늘의 학습 메모장'; badge.className = 'text-[9px] bg-indigo-500/20 text-indigo-300 px-1.5 py-0.5 rounded border border-indigo-500/30'; }
+           loadWorkspaceNote();
+       } else {
+           if(iframeCont) iframeCont.classList.add('hidden');
+           if(statsCont) statsCont.classList.remove('hidden');
+           if(btns) btns.classList.add('hidden');
+           if(title) title.innerHTML = '<span class="mr-1.5 text-amber-400">📊</span>PAST RECORD';
+           if(badge) { badge.innerText = `${currentDateStr} 학습 통계`; badge.className = 'text-[9px] bg-amber-500/20 text-amber-300 px-1.5 py-0.5 rounded border border-amber-500/30'; }
+           renderWorkspacePastStats();
+       }
+    }
+
+    function renderWorkspacePastStats() {
+       let subjectTimes = {}; state.subjects.forEach(s => { subjectTimes[s.id] = 0; });
+       const record = state.records[currentDateStr];
+       if (record && record.grid) {
+           Object.values(record.grid).forEach(cell => {
+               if (cell && cell.parts) { for(let sub in cell.parts) subjectTimes[sub] += cell.parts[sub]; } 
+               else if (cell && cell.subjectId && cell.seconds > 0) subjectTimes[cell.subjectId] += cell.seconds;
+           });
+       }
+       
+       const totalSec = Object.values(subjectTimes).reduce((sum, val) => sum + val, 0);
+       const visualEl = document.getElementById('ws-pie-chart-visual'); 
+       const legendEl = document.getElementById('ws-pie-chart-legend');
+       const totalEl = document.getElementById('ws-pie-chart-total');
+
+       if (totalSec === 0) { 
+           visualEl.style.background = "#334155"; 
+           totalEl.innerText = "00:00";
+           legendEl.innerHTML = `<div class="text-center text-slate-400 text-sm py-4 bg-slate-800/50 rounded-xl">해당 날짜의 학습 기록이 없습니다.</div>`; 
+           return; 
+       }
+       
+       totalEl.innerText = formatTime(totalSec, true);
+       let gradientParts = []; let currentDeg = 0; let legendHTML = "";
+       state.subjects.forEach(s => {
+           const sec = subjectTimes[s.id] || 0; if (sec === 0) return;
+           const pct = Math.round((sec / totalSec) * 100); const deg = (sec / totalSec) * 360;
+           gradientParts.push(`${s.color} ${currentDeg}deg ${currentDeg + deg}deg`); currentDeg += deg;
+           legendHTML += `<div class="flex items-center justify-between bg-slate-800/80 px-4 py-3 rounded-xl border border-slate-700/60 shadow-sm"><div class="flex items-center gap-3"><div class="w-4 h-4 rounded-full" style="background-color: ${s.color}"></div><span class="text-sm font-bold text-slate-200">${s.name}</span></div><div class="flex items-center gap-4"><span class="text-sm font-mono text-slate-400">${formatTime(sec, true)}</span><span class="text-xs font-black text-indigo-300 w-10 text-right">${pct}%</span></div></div>`;
+       });
+       visualEl.style.background = `conic-gradient(${gradientParts.join(', ')})`; legendEl.innerHTML = legendHTML;
+    }
+
+    function openStatsModal() { renderTodaySubjectPieChart(); renderYesterdayTop3(); document.getElementById('modal-stats').classList.remove('hidden'); }
+    function renderTodaySubjectPieChart() {
+      let subjectTimes = {}; state.subjects.forEach(s => { subjectTimes[s.id] = 0; });
+      const todayRec = state.records[todayStr];
+      if (todayRec && todayRec.grid) { Object.values(todayRec.grid).forEach(cell => { if (cell && cell.parts) { for(let sub in cell.parts) subjectTimes[sub] += cell.parts[sub]; } else if (cell && cell.subjectId && cell.seconds > 0) subjectTimes[cell.subjectId] += cell.seconds; }); }
+      const totalSec = Object.values(subjectTimes).reduce((sum, val) => sum + val, 0);
+      const visualEl = document.getElementById('pie-chart-visual'); const legendEl = document.getElementById('pie-chart-legend');
+
+      if (totalSec === 0) { visualEl.style.background = "#334155"; legendEl.innerHTML = `<div class="text-center text-slate-400 text-xs py-3">오늘 학습한 기록이 없습니다.</div>`; return; }
+      
+      let gradientParts = []; let currentDeg = 0; let legendHTML = "";
+      state.subjects.forEach(s => {
+        const sec = subjectTimes[s.id] || 0; if (sec === 0) return;
+        const pct = Math.round((sec / totalSec) * 100); const deg = (sec / totalSec) * 360;
+        gradientParts.push(`${s.color} ${currentDeg}deg ${currentDeg + deg}deg`); currentDeg += deg;
+        legendHTML += `<div class="flex items-center justify-between bg-slate-900/80 px-3 py-2 rounded-lg border border-slate-700"><div class="flex items-center gap-2"><div class="w-3 h-3 rounded-full" style="background-color: ${s.color}"></div><span class="text-xs font-bold text-slate-200">${s.name}</span></div><div class="flex items-center gap-3"><span class="text-xs font-mono text-slate-400">${formatTime(sec, true)}</span><span class="text-[10px] font-black text-indigo-300 w-8 text-right">${pct}%</span></div></div>`;
+      });
+      visualEl.style.background = `conic-gradient(${gradientParts.join(', ')})`; legendEl.innerHTML = legendHTML;
+    }
+
+    function renderYesterdayTop3() {
+      const todayObj = new Date(todayStr); todayObj.setDate(todayObj.getDate() - 1); const yesterdayStr = getLocalDateStr(todayObj);
+      const targetDateStr = state.records[yesterdayStr] ? yesterdayStr : Object.keys(state.records).sort().filter(d => d < todayStr).pop();
+      const listEl = document.getElementById('yesterday-top3-list');
+      if (!targetDateStr || !state.records[targetDateStr]) { listEl.innerHTML = `<div class="text-center text-slate-500 text-xs py-3 bg-slate-900/40 rounded-xl">어제 학습 기록이 없습니다.</div>`; return; }
+
+      let subjectTimes = {}; state.subjects.forEach(s => { subjectTimes[s.id] = 0; });
+      Object.values(state.records[targetDateStr].grid || {}).forEach(cell => { if (cell && cell.parts) { for(let sub in cell.parts) subjectTimes[sub] += cell.parts[sub]; } else if (cell && cell.subjectId && cell.seconds > 0) subjectTimes[cell.subjectId] += cell.seconds; });
+      
+      const totalSec = Object.values(subjectTimes).reduce((sum, val) => sum + val, 0);
+      if (totalSec === 0) { listEl.innerHTML = `<div class="text-center text-slate-500 text-xs py-3 bg-slate-900/40 rounded-xl">${targetDateStr} 학습 기록이 0분입니다.</div>`; return; }
+      
+      const sortedSubjects = state.subjects.map(s => ({ ...s, seconds: subjectTimes[s.id] || 0 })).filter(s => s.seconds > 0).sort((a, b) => b.seconds - a.seconds).slice(0, 3);
+      const medals = ['🥇 1위', '🥈 2위', '🥉 3위'];
+      listEl.innerHTML = sortedSubjects.map((s, idx) => { const pct = Math.round((s.seconds / totalSec) * 100); return `<div class="flex items-center justify-between bg-slate-900/90 px-3 py-2 rounded-xl border border-slate-700/80"><div class="flex items-center gap-2"><span class="text-xs font-bold text-amber-400 w-12">${medals[idx]}</span><span class="px-1.5 py-0.5 rounded text-[8px] font-bold text-white" style="background-color: ${s.color}">${s.name}</span></div><div class="flex items-center gap-3"><span class="text-xs font-mono text-slate-300">${formatTime(s.seconds, true)}</span><span class="text-[10px] font-black text-emerald-400 w-8 text-right">${pct}%</span></div></div>`; }).join('');
+    }
+
+    function toggleMenuDropdown(e) { if (e) e.stopPropagation(); document.getElementById('menu-dropdown').classList.toggle('hidden'); }
+    function closeMenuDropdown() { const dd = document.getElementById('menu-dropdown'); if (dd) dd.classList.add('hidden'); }
+    function closeDropdownOnOutsideClick(e) { const wrapper = document.getElementById('menu-dropdown-wrapper'); if (wrapper && !wrapper.contains(e.target)) closeMenuDropdown(); }
+    
+    function openDiaryModal() { updateDiaryModalUI(); document.getElementById('modal-diary').classList.remove('hidden'); }
+    function updateDiaryModalUI() { const days = ['일', '월', '화', '수', '목', '금', '토']; document.getElementById('diary-date-label').innerText = `${currentDateStr.replace(/-/g, '.')} (${days[new Date(currentDateStr).getDay()]})`; ensureDailyRecord(currentDateStr); document.getElementById('diary-textarea').value = state.records[currentDateStr].diary || ''; updateCharCount(); const mood = state.records[currentDateStr].mood || ''; document.querySelectorAll('#diary-mood-selector button').forEach(b => { b.className = b.getAttribute('data-mood') === mood ? 'px-2 py-1 rounded-lg text-[10px] font-bold bg-indigo-600 text-white border border-indigo-500 shadow transition' : 'px-2 py-1 rounded-lg text-[10px] font-bold bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 transition'; }); }
+    function changeDiaryDate(delta) { saveDiary(false); const curr = new Date(currentDateStr); curr.setDate(curr.getDate() + delta); currentDateStr = getLocalDateStr(curr); ensureDailyRecord(currentDateStr); updateDiaryModalUI(); updateHeaderDate(); renderTasks(); renderTimetable(); updateDashboard(); }
+    function selectDiaryMood(mood) { ensureDailyRecord(currentDateStr); state.records[currentDateStr].mood = mood; saveData(); updateDiaryModalUI(); }
+    function insertDiaryTemplate() { const ta = document.getElementById('diary-textarea'); const t = "[오늘 잘한 점]\n- \n\n[보완할 점]\n- \n\n[내일의 목표]\n- \n"; ta.value = ta.value.trim().length > 0 ? ta.value + "\n\n" + t : t; updateCharCount(); }
+    function updateCharCount() { document.getElementById('diary-char-count').innerText = `${document.getElementById('diary-textarea') ? document.getElementById('diary-textarea').value.length : 0} 글자 작성 중`; }
+    function saveDiary(showAlertFlag = true) { ensureDailyRecord(currentDateStr); state.records[currentDateStr].diary = document.getElementById('diary-textarea').value; saveData(); if (showAlertFlag) { closeModal('modal-diary'); uiAlert('기록장이 안전하게 저장되었습니다!', {icon:'📖', title:'저장 완료'}); } if (!document.getElementById('modal-calendar').classList.contains('hidden')) renderCalendar(); }
+    
+    function lockTimeMachineIfActive() { if(isTimeMachineUnlocked) { isTimeMachineUnlocked = false; updateViewingStatusUI(); } }
+    function updateHeaderDate() { const days = ['일', '월', '화', '수', '목', '금', '토']; if(UI.currentDate) UI.currentDate.innerText = `${currentDateStr.replace(/-/g, '.')} (${days[new Date(currentDateStr).getDay()]})`; if(UI.btnToday) UI.btnToday.classList.toggle('hidden', currentDateStr === todayStr); updateViewingStatusUI(); updateWorkspaceView(); }
+    function returnToToday() { lockTimeMachineIfActive(); currentDateStr = todayStr; switchView('view-main'); }
+
+    function openCalendarModal() { renderCalendar(); document.getElementById('modal-calendar').classList.remove('hidden'); }
+    function changeMonth(delta) { calMonth += delta; if(calMonth > 11) { calMonth = 0; calYear++; } else if(calMonth < 0) { calMonth = 11; calYear--; } renderCalendar(); }
+    
+    function renderCalendar() {
+      document.getElementById('calendar-month-title').innerText = `${calYear}년 ${calMonth + 1}월`; const grid = document.getElementById('calendar-grid'); grid.innerHTML = '';
+      const firstDay = new Date(calYear, calMonth, 1).getDay(); const daysInMonth = new Date(calYear, calMonth + 1, 0).getDate();
+      for(let i=0; i<firstDay; i++) grid.innerHTML += `<div></div>`;
+      for(let d=1; d<=daysInMonth; d++) {
+        const dateStr = `${calYear}-${String(calMonth+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`; const record = state.records[dateStr]; 
+        let stamp = '', details = ''; let borderClass = dateStr === currentDateStr ? 'border-indigo-500 bg-indigo-950/50 shadow-md' : (dateStr === todayStr ? 'border-amber-500/80 bg-amber-950/40' : 'border-slate-700/80 bg-slate-800/60');
+        if (record) {
+          const targetSec = (record.tasks||[]).reduce((sum, t) => sum + ((t.targetMin||0) * 60), 0); const totalSec = Object.values(record.grid||{}).reduce((sum, c) => sum + (c.seconds||0), 0);
+          if (targetSec > 0 || totalSec > 0) { const pct = targetSec > 0 ? Math.floor((totalSec / targetSec) * 100) : (totalSec>0 ? 100 : 0); stamp = pct >= 100 ? '🔥' : pct >= 80 ? '🟢' : pct >= 50 ? '🟡' : '🔴'; details = `<div class="text-[9px] text-slate-400 mt-0.5 font-mono">${formatTime(totalSec, true)}</div><div class="text-[10px] font-black ${pct>=100 ? 'text-emerald-400' : 'text-slate-300'}">${pct}%</div>`; }
+        }
+        grid.innerHTML += `<div onclick="selectCalendarDate('${dateStr}')" class="cal-day-box h-14 border rounded-xl p-1.5 cursor-pointer flex flex-col items-center justify-start ${borderClass}"><div class="text-[10px] font-bold ${dateStr === todayStr ? 'text-amber-400' : 'text-slate-300'}">${d} ${stamp}</div>${details}</div>`;
+      }
+    }
+
+    function selectCalendarDate(dateStr) { lockTimeMachineIfActive(); closeModal('modal-calendar'); if (timerState.isRunning) stopTimer(); currentDateStr = dateStr; ensureDailyRecord(dateStr); switchView('view-main'); }
+    function openSettingsModal() { document.getElementById('modal-settings').classList.remove('hidden'); }
+    function handleAddSubject(e) { e.preventDefault(); state.subjects.push({ id: 's_'+Date.now(), name: document.getElementById('input-sub-name').value, color: document.getElementById('input-sub-color').value }); saveData(); renderSubjects(); document.getElementById('form-add-subject').reset(); }
+    function deleteSubject(id) { if(state.subjects.length <= 1) { uiAlert('최소 1개의 과목은 존재해야 합니다.'); return; } state.subjects = state.subjects.filter(s => s.id !== id); saveData(); renderSubjects(); }
+    function openDdayModal() { document.getElementById('input-dday-title').value = state.dDay.title || ''; document.getElementById('input-dday-date').value = state.dDay.date || todayStr; document.getElementById('modal-dday').classList.remove('hidden'); }
+    function handleDdaySubmit(e) { e.preventDefault(); if (!state.dDay) state.dDay = {}; state.dDay.title = document.getElementById('input-dday-title').value; state.dDay.date = document.getElementById('input-dday-date').value; saveData(); updateDdayDisplay(); closeModal('modal-dday'); }
+    function updateDdayDisplay() { 
+      if(state.dDay && state.dDay.date && state.dDay.title) { 
+        const target = new Date(state.dDay.date + "T00:00:00"); const today = new Date(todayStr + "T00:00:00"); const diff = Math.round((target - today) / 86400000); const dStr = diff > 0 ? `D-${diff}` : diff === 0 ? 'D-Day' : `D+${Math.abs(diff)}`;
+        document.getElementById('dday-display').innerHTML = `${state.dDay.title} <span class="ml-1 text-white">${dStr}</span>`; 
+        const st = document.getElementById('setup-dday-title'); const sc = document.getElementById('setup-dday-count'); if(st && sc) { st.innerText = state.dDay.title; sc.innerText = dStr; }
+      } else { document.getElementById('dday-display').innerText = 'D-Day 설정하기'; const st = document.getElementById('setup-dday-title'); const sc = document.getElementById('setup-dday-count'); if(st && sc) { st.innerText = '목표를 설정해주세요'; sc.innerText = 'D-?'; } }
+    }
+
+    function resetAllData() { uiConfirm('경고: 모든 플래너 기록과 설정이 완전히 삭제됩니다!\n정말 초기화하시겠습니까?', () => { localStorage.clear(); location.reload(); }, {icon:'⚠️', title:'전체 초기화', confirmText:'삭제'}); }
+    function exportData() { const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([JSON.stringify(state)], { type: "application/json" })); a.download = `Daily_Planner_Backup_${todayStr}.json`; document.body.appendChild(a); a.click(); document.body.removeChild(a); }
+    function importData(e) { const file = e.target.files[0]; if (!file) return; const reader = new FileReader(); reader.onload = function(evt) { try { const imp = JSON.parse(evt.target.result); if(imp && imp.records) { state = imp; saveData(); init(); uiAlert('데이터 복원 완료!', {icon:'✅', title:'복원 완료'}); closeModal('modal-settings'); } else uiAlert('올바른 백업 파일이 아닙니다.', {icon:'⚠️', title:'오류'}); } catch(err) { uiAlert('파일 읽기 오류.', {icon:'⚠️', title:'오류'}); } }; reader.readAsText(file); e.target.value = ''; }
+    function formatTime(sec, short=false) { const h = Math.floor(sec / 3600), m = Math.floor((sec % 3600) / 60), s = sec % 60; return short ? `${h}h ${m}m` : `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`; }
+    function getLocalDateStr(date) { const offset = date.getTimezoneOffset() * 60000; return new Date(date.getTime() - offset).toISOString().split('T')[0]; }
+    function saveData() { localStorage.setItem('planner_subjects', JSON.stringify(state.subjects)); localStorage.setItem('planner_records', JSON.stringify(state.records)); localStorage.setItem('planner_dday', JSON.stringify(state.dDay)); localStorage.setItem('planner_xp', JSON.stringify(state.xp)); localStorage.setItem('planner_all_clear', JSON.stringify(state.allClearDates)); localStorage.setItem('planner_admin_pw', JSON.stringify(state.adminPassword)); localStorage.setItem('planner_lock_mode', JSON.stringify(state.lockMode)); localStorage.setItem('planner_lock_password', JSON.stringify(state.lockPasswordHash)); }
+    function handleChangePassword(e) {
+      e.preventDefault();
+      const input = document.getElementById('input-new-password');
+      const val = input.value.trim();
+      if (!val) { uiAlert('새 비밀번호를 입력해주세요.'); return; }
+      state.adminPassword = val; saveData(); input.value = '';
+      uiAlert('관리자 비밀번호가 변경되었습니다.', {icon:'🔑', title:'변경 완료'});
+    }
+
+    function closeModal(id) { document.getElementById(id).classList.add('hidden'); }
+
+    // ================= 브라우저 기본 alert/confirm/prompt 대체 (모달 창) =================
+    function uiAlert(message, opts = {}) {
+      document.getElementById('generic-icon').innerText = opts.icon || 'ℹ️';
+      document.getElementById('generic-title').innerText = opts.title || '알림';
+      document.getElementById('generic-message').innerText = message;
+      document.getElementById('generic-input-wrap').classList.add('hidden');
+      document.getElementById('generic-cancel-btn').classList.add('hidden');
+      const confirmBtn = document.getElementById('generic-confirm-btn');
+      confirmBtn.innerText = opts.confirmText || '확인';
+      confirmBtn.onclick = () => { closeModal('modal-generic'); if (opts.onConfirm) opts.onConfirm(); };
+      document.getElementById('modal-generic').classList.remove('hidden');
+    }
+
+    function uiConfirm(message, onConfirm, opts = {}) {
+      document.getElementById('generic-icon').innerText = opts.icon || '❓';
+      document.getElementById('generic-title').innerText = opts.title || '확인';
+      document.getElementById('generic-message').innerText = message;
+      document.getElementById('generic-input-wrap').classList.add('hidden');
+      const cancelBtn = document.getElementById('generic-cancel-btn');
+      cancelBtn.classList.remove('hidden'); cancelBtn.innerText = opts.cancelText || '취소';
+      cancelBtn.onclick = () => { closeModal('modal-generic'); if (opts.onCancel) opts.onCancel(); };
+      const confirmBtn = document.getElementById('generic-confirm-btn');
+      confirmBtn.innerText = opts.confirmText || '확인';
+      confirmBtn.onclick = () => { closeModal('modal-generic'); onConfirm(); };
+      document.getElementById('modal-generic').classList.remove('hidden');
+    }
+
+    function uiPrompt(message, onSubmit, opts = {}) {
+      document.getElementById('generic-icon').innerText = opts.icon || '🔒';
+      document.getElementById('generic-title').innerText = opts.title || '입력';
+      document.getElementById('generic-message').innerText = message;
+      const inputWrap = document.getElementById('generic-input-wrap');
+      inputWrap.classList.remove('hidden');
+      const input = document.getElementById('generic-input');
+      input.value = ''; input.type = opts.isPassword ? 'password' : 'text'; input.placeholder = opts.placeholder || '';
+      const cancelBtn = document.getElementById('generic-cancel-btn');
+      cancelBtn.classList.remove('hidden'); cancelBtn.innerText = opts.cancelText || '취소';
+      cancelBtn.onclick = () => { closeModal('modal-generic'); if (opts.onCancel) opts.onCancel(); };
+      const confirmBtn = document.getElementById('generic-confirm-btn');
+      confirmBtn.innerText = opts.confirmText || '확인';
+      confirmBtn.onclick = () => { const val = input.value; closeModal('modal-generic'); onSubmit(val); };
+      input.onkeydown = (e) => { if (e.key === 'Enter') confirmBtn.click(); };
+      document.getElementById('modal-generic').classList.remove('hidden');
+      setTimeout(() => input.focus(), 50);
+    }
+    
+    window.addEventListener('beforeunload', () => { notifyExtension('timerState', { running: false }); });
+
+    init();
+  </script>
+</body>
+</html>
