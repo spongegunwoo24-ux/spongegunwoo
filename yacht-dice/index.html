@@ -667,14 +667,25 @@ function readValue(q){
   return val;
 }
 function settle(d){
-  // 굴리는 사람 화면에서는 물리가 도착한 자리가 곧 결과다 — 여기서 손대지 않는다.
-  const q=snapQuat(d.quat);
-  d.value=readValue(q);
+  // 물리는 기기마다 프레임 간격이 달라 같은 씨앗으로도 결과가 갈린다. 그래서 굴리기 전에 정해둔
+  // 눈(G.forcedVals)을 모두가 함께 쓰고, 여기서는 그 면이 위로 오도록 돌려준다. 제자리에서 돌리면
+  // 홱 뒤집히는 게 보이므로, 살짝 튀어올라 한 번 더 구르는 동작에 그 회전을 얹는다.
+  let q=snapQuat(d.quat);
+  let v=readValue(q), tumble=false;
+  const forced=G.forcedVals&&G.forcedVals[d.i];
+  if(forced&&forced!==v){
+    const axis=DIRS.find(function(x){return x[1]===forced;})[0];
+    const world=axis.clone().applyQuaternion(q).normalize();
+    q=q.clone().premultiply(new Quat().setFromUnitVectors(world,new V3(0,1,0)));
+    v=forced;tumble=true;
+  }
+  d.value=v;
   d.vel.set(0,0,0);d.ang.set(0,0,0);
   const p=d.pos.clone();p.y=HS;
   d.mode='anim';
-  d.anim={t:0,dur:0.1,delay:0,p0:d.pos.clone(),p1:p,q0:d.quat.clone(),
-    snap:q,axis:null,amt:0,arc:0,wob:0.02,onDone:null};
+  d.anim={t:0,dur:tumble?0.34:0.1,delay:0,p0:d.pos.clone(),p1:p,q0:d.quat.clone(),
+    snap:q,axis:null,amt:0,arc:tumble?0.52:0,wob:tumble?0.06:0.02,
+    onDone:tumble?function(){SFX.land();}:null};
 }
 
 let acc=0;
@@ -1009,7 +1020,7 @@ const totalOf=p=>CATS.reduce((a,c)=>a+(p.scores[c.id]||0),0)+bonusOf(p);
 const values=()=>dice.map(d=>d.value);
 
 /* ---------- 상태 ---------- */
-const G={mode:'solo',players:[],cur:0,round:1,rolls:3,phase:'menu',rolled:false,forcedVals:null,rollMine:false};
+const G={mode:'solo',players:[],cur:0,round:1,rolls:3,phase:'menu',rolled:false,forcedVals:null};
 const cur=()=>G.players[G.cur];
 const isSolo=()=>G.players.length===1;
 
@@ -1166,8 +1177,16 @@ function throwDice(fromNet,seed,vals){
   cupMode='tip';
   SFX.whoosh();
   if(seed==null)seed=(_origRandom()*4294967295)>>>0;
-  G.forcedVals=null;G.rollMine=!fromNet;
-  if(!fromNet&&NET.role!=='local')netSend({type:'throw',seed:seed});
+  // 굴리기 전에 눈을 정해 함께 보낸다 — 도중에 누구 화면이 멈춰도 결과가 어긋나지 않는다.
+  if(vals==null&&NET.role!=='local')
+    vals=dice.map(function(d){return d.held?null:(1+((_origRandom()*6)|0));});
+  G.forcedVals=vals||null;
+  // 눈은 여기서 바로 확정한다. 굴러가는 모습은 기기마다 달라도 되고, 애니메이션이 느리거나
+  // 멈춰도 상관없다 — 멈춘 뒤 모두가 보는 숫자는 이 값으로 이미 같아져 있다.
+  if(G.forcedVals)dice.forEach(function(d,i){
+    if(!d.held&&G.forcedVals[i])d.value=G.forcedVals[i];
+  });
+  if(!fromNet&&NET.role!=='local')netSend({type:'throw',seed:seed,vals:vals});
   setTimeout(function(){spill(seed);},220);
 }
 function spill(seed){
@@ -1198,35 +1217,6 @@ function launch(d,power){
 }
 // 기기마다 물리 결과가 갈리므로 굴린 사람의 눈을 정답으로 삼는다. 보는 쪽에서만 맞추고,
 // 주사위가 자리로 굴러 들어가는 동작에 얹어 돌려서 따로 튀어 보이지 않게 한다.
-function faceQuat(d,face){
-  const axis=DIRS.find(function(x){return x[1]===face;})[0];
-  const world=axis.clone().applyQuaternion(d.quat).normalize();
-  return d.quat.clone().premultiply(new Quat().setFromUnitVectors(world,new V3(0,1,0)));
-}
-function applyForcedVals(){
-  if(!G.forcedVals)return;
-  dice.forEach(function(d){
-    const forced=G.forcedVals[d.i];
-    if(!forced||d.held||d.value===forced)return;
-    d.value=forced;
-    d.wantFace=forced;        // 아직 구르는 중이면 멈춘 뒤에 맞춘다
-  });
-  refreshCard();
-}
-// 결과가 언제 도착하든(구르는 중이든 끝난 뒤든) 멈춘 주사위부터 차례로 눈을 맞춘다.
-function flushFaceFix(){
-  let fixed=false;
-  for(const d of dice){
-    if(!d.wantFace||d.mode!=='sleep')continue;
-    const q=faceQuat(d,d.wantFace);
-    d.value=d.wantFace;      // 멈추면서 settle()이 물리 값으로 덮어썼을 수 있다
-    d.wantFace=null;fixed=true;
-    d.mode='anim';
-    d.anim={t:0,dur:0.22,delay:0,p0:d.pos.clone(),p1:d.pos.clone(),q0:d.quat.clone(),
-      snap:q,axis:null,amt:0,arc:0,wob:0.03,onDone:null};
-  }
-  if(fixed)refreshCard();
-}
 function checkSettled(){
   rollTimer+=dtG;
   const busy=dice.some(function(d){return d.mode==='phys'||d.mode==='anim'||d.mode==='cup';});
@@ -1236,9 +1226,6 @@ function checkSettled(){
 function finishRoll(){
   G.phase='reveal';
   camPushTarget.set(0,0,0);
-  if(G.rollMine&&NET.role!=='local')
-    netSend({type:'result',vals:dice.map(function(d){return d.held?null:d.value;})});
-  else applyForcedVals();
   const c=counts(values());
   let yacht=false;for(let n=1;n<=6;n++)if(c[n]===5)yacht=true;
   const free=dice.filter(function(d){return !d.held;});
@@ -1247,11 +1234,8 @@ function finishRoll(){
     free.forEach(function(d){
       // 물리로 실제 굴러간 결과를 이미 보여줬으니, 자리로 옮길 때는 다시 돌리지 않고
       // 눈을 그대로 유지한 채 살짝 통통 튀며 들어가게 한다.
-      const fix=d.wantFace?faceQuat(d,d.wantFace):null;
-      if(d.wantFace)d.value=d.wantFace;
-      d.wantFace=null;
       d.animTo(new V3(slotX(d.i),HS,CFG.rowBack),{dur:0.34,delay:i*0.05,
-        arc:0.34,wob:0.045,snap:fix,onDone:function(){SFX.land();}});
+        arc:0.34,wob:0.045,onDone:function(){SFX.land();}});
       i++;
     });
     setTimeout(function(){afterRoll(yacht);},360+i*50);
@@ -1586,11 +1570,7 @@ function netApply(msg){
       closeModal();
       break;}
     case 'shake':beginShake(true);break;
-    case 'throw':throwDice(true,msg.seed);break;
-    case 'result':
-      G.forcedVals=msg.vals;
-      applyForcedVals();        // 아직 구르는 중이면 flushFaceFix가 멈춘 뒤에 마저 맞춘다
-      break;
+    case 'throw':throwDice(true,msg.seed,msg.vals);break;
     case 'sync':applySync(msg.s);break;
     case 'hold':toggleHold(dice[msg.i],true,msg.held);break;
     case 'holdset':
@@ -2078,7 +2058,6 @@ function loop(){
   camPush.lerp(camPushTarget,Math.min(1,dtG*3.2));
   for(const d of dice)if(d.wobT<2)d.wobT+=dtG;
   physics(dtG);
-  flushFaceFix();
   updateAnims(dtG);
   updateCup(dtG);
   updateShake();
