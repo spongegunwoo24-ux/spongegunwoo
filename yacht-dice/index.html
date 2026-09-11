@@ -545,6 +545,7 @@ class Die{
     this.mode='anim';
     this.anim={t:0,dur:o.dur||0.5,delay:o.delay||0,
       p0:this.pos.clone(),p1:p1.clone(),q0:this.quat.clone(),
+      snap:o.snap||null,
       axis:o.axis||null,amt:o.amt||0,arc:o.arc||0,wob:o.wob||0,onDone:o.onDone||null};
   }
 }
@@ -656,17 +657,9 @@ function readValue(q){
   return val;
 }
 function settle(d){
-  // 물리는 기기마다 프레임 간격이 달라 같은 씨앗을 써도 결과가 갈린다. 그래서 온라인에서는
-  // 굴린 사람이 정한 눈(G.forcedVals)을 정답으로 삼고, 여기서 그 면이 위로 오도록만 돌려준다.
-  let q=snapQuat(d.quat);
+  // 굴리는 사람 화면에서는 물리가 도착한 자리가 곧 결과다 — 여기서 손대지 않는다.
+  const q=snapQuat(d.quat);
   d.value=readValue(q);
-  const forced=G.forcedVals&&G.forcedVals[d.i];
-  if(forced&&forced!==d.value){
-    const axis=DIRS.find(function(x){return x[1]===forced;})[0];
-    const world=axis.clone().applyQuaternion(q).normalize();
-    q=q.clone().premultiply(new Quat().setFromUnitVectors(world,new V3(0,1,0)));
-    d.value=forced;
-  }
   d.vel.set(0,0,0);d.ang.set(0,0,0);
   const p=d.pos.clone();p.y=HS;
   d.mode='anim';
@@ -1006,7 +999,7 @@ const totalOf=p=>CATS.reduce((a,c)=>a+(p.scores[c.id]||0),0)+bonusOf(p);
 const values=()=>dice.map(d=>d.value);
 
 /* ---------- 상태 ---------- */
-const G={mode:'solo',players:[],cur:0,round:1,rolls:3,phase:'menu',rolled:false,forcedVals:null};
+const G={mode:'solo',players:[],cur:0,round:1,rolls:3,phase:'menu',rolled:false,forcedVals:null,rollMine:false};
 const cur=()=>G.players[G.cur];
 const isSolo=()=>G.players.length===1;
 
@@ -1163,11 +1156,8 @@ function throwDice(fromNet,seed,vals){
   cupMode='tip';
   SFX.whoosh();
   if(seed==null)seed=(_origRandom()*4294967295)>>>0;
-  // 온라인에서는 굴리는 사람이 눈을 정해 함께 보낸다. 씨앗은 굴러가는 모습을 비슷하게 맞추는 용도.
-  if(vals==null&&NET.role!=='local')
-    vals=dice.map(function(d){return d.held?null:(1+((_origRandom()*6)|0));});
-  G.forcedVals=vals||null;
-  if(!fromNet&&NET.role!=='local')netSend({type:'throw',seed:seed,vals:vals});
+  G.forcedVals=null;G.rollMine=!fromNet;
+  if(!fromNet&&NET.role!=='local')netSend({type:'throw',seed:seed});
   setTimeout(function(){spill(seed);},220);
 }
 function spill(seed){
@@ -1196,6 +1186,25 @@ function launch(d,power){
   d.ang.set(rand(-26,26),rand(-26,26),rand(-26,26));
   camShake=Math.max(camShake,0.05);
 }
+// 기기마다 물리 결과가 갈리므로 굴린 사람의 눈을 정답으로 삼는다. 보는 쪽에서만 맞추고,
+// 주사위가 자리로 굴러 들어가는 동작에 얹어 돌려서 따로 튀어 보이지 않게 한다.
+function applyForcedVals(dur){
+  if(!G.forcedVals)return;
+  dice.forEach(function(d){
+    const forced=G.forcedVals[d.i];
+    if(!forced||d.held||d.value===forced)return;
+    const axis=DIRS.find(function(x){return x[1]===forced;})[0];
+    const world=axis.clone().applyQuaternion(d.quat).normalize();
+    const q=d.quat.clone().premultiply(new Quat().setFromUnitVectors(world,new V3(0,1,0)));
+    d.value=forced;
+    if(dur){
+      d.mode='anim';
+      d.anim={t:0,dur:dur,delay:0,p0:d.pos.clone(),p1:d.pos.clone(),q0:d.quat.clone(),
+        snap:q,axis:null,amt:0,arc:0,wob:0.03,onDone:null};
+    }else d.pendingSnap=q;
+  });
+  refreshCard();
+}
 function checkSettled(){
   rollTimer+=dtG;
   const busy=dice.some(function(d){return d.mode==='phys'||d.mode==='anim'||d.mode==='cup';});
@@ -1205,6 +1214,9 @@ function checkSettled(){
 function finishRoll(){
   G.phase='reveal';
   camPushTarget.set(0,0,0);
+  if(G.rollMine&&NET.role!=='local')
+    netSend({type:'result',vals:dice.map(function(d){return d.held?null:d.value;})});
+  else applyForcedVals(0);
   const c=counts(values());
   let yacht=false;for(let n=1;n<=6;n++)if(c[n]===5)yacht=true;
   const free=dice.filter(function(d){return !d.held;});
@@ -1214,7 +1226,8 @@ function finishRoll(){
       // 물리로 실제 굴러간 결과를 이미 보여줬으니, 자리로 옮길 때는 다시 돌리지 않고
       // 눈을 그대로 유지한 채 살짝 통통 튀며 들어가게 한다.
       d.animTo(new V3(slotX(d.i),HS,CFG.rowBack),{dur:0.34,delay:i*0.05,
-        arc:0.34,wob:0.045,onDone:function(){SFX.land();}});
+        arc:0.34,wob:0.045,snap:d.pendingSnap||null,onDone:function(){SFX.land();}});
+      d.pendingSnap=null;
       i++;
     });
     setTimeout(function(){afterRoll(yacht);},360+i*50);
@@ -1549,7 +1562,11 @@ function netApply(msg){
       closeModal();
       break;}
     case 'shake':beginShake(true);break;
-    case 'throw':throwDice(true,msg.seed,msg.vals);break;
+    case 'throw':throwDice(true,msg.seed);break;
+    case 'result':
+      G.forcedVals=msg.vals;
+      if(G.phase==='picking'||G.phase==='ready')applyForcedVals(0.25);
+      break;
     case 'sync':applySync(msg.s);break;
     case 'hold':toggleHold(dice[msg.i],true,msg.held);break;
     case 'holdset':
@@ -1825,7 +1842,7 @@ function gameOver(){
 /* ---------- 채팅 ---------- */
 const chatLog=[];
 let chatOpen=false, chatUnread=0;
-const EMOJIS=['👍','😂','😮','😡','🎉','🔥','❤️','👏'];
+const EMOJIS=['👍','👎','🖕','😂','😮','😡','🎉','🔥','❤️','👏'];
 const chatPanelEl=$('chatPanel'), chatBtn=$('btnChat');
 function myChatName(){
   const s=NET.seats&&NET.seats[NET.mySeat];
