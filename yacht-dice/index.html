@@ -656,10 +656,17 @@ function readValue(q){
   return val;
 }
 function settle(d){
-  // 던지기 시작할 때 정해둔 씨앗값이 물리 전체를 그대로 재현하므로,
-  // 결과는 늘 이 물리가 실제로 도착한 자리 그대로다 — 멈춘 뒤 따로 맞추는 동작이 없다.
-  const q=snapQuat(d.quat);
+  // 물리는 기기마다 프레임 간격이 달라 같은 씨앗을 써도 결과가 갈린다. 그래서 온라인에서는
+  // 굴린 사람이 정한 눈(G.forcedVals)을 정답으로 삼고, 여기서 그 면이 위로 오도록만 돌려준다.
+  let q=snapQuat(d.quat);
   d.value=readValue(q);
+  const forced=G.forcedVals&&G.forcedVals[d.i];
+  if(forced&&forced!==d.value){
+    const axis=DIRS.find(function(x){return x[1]===forced;})[0];
+    const world=axis.clone().applyQuaternion(q).normalize();
+    q=q.clone().premultiply(new Quat().setFromUnitVectors(world,new V3(0,1,0)));
+    d.value=forced;
+  }
   d.vel.set(0,0,0);d.ang.set(0,0,0);
   const p=d.pos.clone();p.y=HS;
   d.mode='anim';
@@ -999,7 +1006,7 @@ const totalOf=p=>CATS.reduce((a,c)=>a+(p.scores[c.id]||0),0)+bonusOf(p);
 const values=()=>dice.map(d=>d.value);
 
 /* ---------- 상태 ---------- */
-const G={mode:'solo',players:[],cur:0,round:1,rolls:3,phase:'menu',rolled:false};
+const G={mode:'solo',players:[],cur:0,round:1,rolls:3,phase:'menu',rolled:false,forcedVals:null};
 const cur=()=>G.players[G.cur];
 const isSolo=()=>G.players.length===1;
 
@@ -1100,6 +1107,7 @@ function randomQuat(q){
   const s1=Math.sqrt(1-u1),s2=Math.sqrt(u1);
   q.set(s1*Math.sin(TAU*u2),s1*Math.cos(TAU*u2),s2*Math.sin(TAU*u3),s2*Math.cos(TAU*u3));
 }
+function othersTurn(){return NET.role!=='local'&&G.cur!==NET.mySeat;}
 function beginShake(fromNet){
   if(!fromNet){
     if(NET.role!=='local'&&!canDrive())return;
@@ -1114,7 +1122,7 @@ function beginShake(fromNet){
   cup.scale.setScalar(1);cupPos.copy(CUP_HOME);cup.visible=true;cup.updateMatrixWorld(true);
   rollBtn.classList.add('shaking');
   rollLabel.textContent='놓으면 굴러갑니다';
-  setHint('컵을 흔드는 중…');
+  setHint(othersTurn()?cur().name+'님이 컵을 흔드는 중…':'컵을 흔드는 중…');
   camPushTarget.set(-0.9,-0.3,-0.7);
   SFX.whoosh();
   refreshCard();
@@ -1147,7 +1155,7 @@ function beginSeededRoll(seed){
 function endSeededRoll(){
   if(_rngActive){Math.random=_origRandom;_rngActive=false;}
 }
-function throwDice(fromNet,seed){
+function throwDice(fromNet,seed,vals){
   if(!fromNet&&NET.role!=='local'&&!canDrive())return;
   pendingRelease=false;
   rollBtn.disabled=true;
@@ -1155,7 +1163,11 @@ function throwDice(fromNet,seed){
   cupMode='tip';
   SFX.whoosh();
   if(seed==null)seed=(_origRandom()*4294967295)>>>0;
-  if(!fromNet&&NET.role!=='local')netSend({type:'throw',seed:seed});
+  // 온라인에서는 굴리는 사람이 눈을 정해 함께 보낸다. 씨앗은 굴러가는 모습을 비슷하게 맞추는 용도.
+  if(vals==null&&NET.role!=='local')
+    vals=dice.map(function(d){return d.held?null:(1+((_origRandom()*6)|0));});
+  G.forcedVals=vals||null;
+  if(!fromNet&&NET.role!=='local')netSend({type:'throw',seed:seed,vals:vals});
   setTimeout(function(){spill(seed);},220);
 }
 function spill(seed){
@@ -1212,6 +1224,7 @@ function finishRoll(){
   }
 }
 function afterRoll(yacht){
+  G.forcedVals=null;
   G.phase='picking';
   cardEl.classList.remove('hidden');
   refreshCard();
@@ -1243,7 +1256,8 @@ function toggleHold(d,fromNet,forceVal){
   SFX.hold(d.held);
   layout({stagger:0.03});
   const n=dice.filter(function(x){return x.held;}).length;
-  setHint(n+'개 고정 · 나머지 '+(5-n)+'개만 다시 굴러갑니다');
+  setHint(othersTurn()?cur().name+'님이 '+n+'개를 고정했어요'
+    :n+'개 고정 · 나머지 '+(5-n)+'개만 다시 굴러갑니다');
   if(!fromNet&&NET.role!=='local')netSend({type:'hold',i:d.i,held:val});
 }
 
@@ -1254,6 +1268,10 @@ function pick(id,fromNet,forcedPts){
   const p=cur();
   if(p.scores[id]!==undefined)return;
   const pts=(fromNet&&forcedPts!=null)?forcedPts:scoreFor(id,values());
+  // 남이 고른 칸은 내 화면에도 남겨줘야 상대가 무엇을 했는지 알 수 있다.
+  const announce=(fromNet||p.cpu)
+    ?(p.name+' → '+((CATS.find(function(c){return c.id===id;})||{}).label||id)+' '+pts+'점')
+    :'';
   const had=bonusOf(p);
   p.scores[id]=pts;
   const el=rowEls[id];
@@ -1275,18 +1293,20 @@ function pick(id,fromNet,forcedPts){
   if(G.cur===0)G.round++;
   G.phase='ready';
   refreshCard();
+  let turnHint;
   if(cur().cpu){
     rollBtn.disabled=true;
-    setHint(cur().name+'의 차례');
+    turnHint=cur().name+'의 차례';
     if(NET.role==='local'||NET.role==='host')cpuTurn();
   }else if(NET.role!=='local'&&G.cur!==NET.mySeat){
     rollBtn.disabled=true;
-    setHint(cur().name+'의 차례입니다');
+    turnHint=cur().name+'의 차례입니다';
   }else{
     rollBtn.disabled=false;
-    setHint(isSolo()?'다음 라운드 — 버튼을 길게 눌러 컵을 흔드세요':cur().name+'의 차례 — 버튼을 길게 눌러 굴리기');
+    turnHint=isSolo()?'다음 라운드 — 버튼을 길게 눌러 컵을 흔드세요':cur().name+'의 차례 — 버튼을 길게 눌러 굴리기';
     closeCardIfMobile();
   }
+  setHint(announce?announce+' · '+turnHint:turnHint);
 }
 
 /* ---------- CPU ---------- */
@@ -1413,6 +1433,7 @@ function netTeardown(){
 }
 function netReset(){
   netTeardown();
+  stopHostSync();
   NET.role='local';NET.mySeat=0;NET.seats=[];NET.code=null;
   chatLog.length=0;chatUnread=0;renderChat();updateChatBadge();toggleChat(false);
 }
@@ -1444,6 +1465,55 @@ function netOpenChannel(code,onReady,onFail){
     else if(status==='CHANNEL_ERROR'||status==='TIMED_OUT')onFail('실시간 서버에 연결하지 못했어요 ('+status+').');
   });
   NET.ch=ch;
+}
+// 브로드캐스트는 도착이 보장되지 않는다. 메시지 하나가 유실되면 상대 차례에서 영영 멈추므로,
+// 호스트가 주기적으로 현재 상태를 뿌리고 뒤처진 쪽이 그대로 따라잡게 한다.
+let syncTimer=null;
+function snapshotState(){
+  return {
+    cur:G.cur,round:G.round,rolls:G.rolls,rolled:G.rolled,
+    scores:G.players.map(function(p){return p.scores;}),
+    cpu:G.players.map(function(p){return !!p.cpu;}),
+    names:G.players.map(function(p){return p.name;}),
+    vals:dice.map(function(d){return d.value;}),
+    held:dice.map(function(d){return d.held;})
+  };
+}
+function startHostSync(){
+  stopHostSync();
+  if(NET.role!=='host')return;
+  syncTimer=setInterval(function(){
+    if(G.mode!=='online'||NET.role!=='host')return;
+    if(G.phase==='menu'||G.phase==='lobby'||G.phase==='over')return;
+    netBroadcast({type:'sync',s:snapshotState()});
+  },2500);
+}
+function stopHostSync(){if(syncTimer){clearInterval(syncTimer);syncTimer=null;}}
+function applySync(s){
+  if(NET.role!=='guest'||!s||!s.scores||G.mode!=='online')return;
+  if(G.players.length!==s.scores.length)return;
+  const busy=G.phase==='shaking'||G.phase==='throwing'||G.phase==='flying'||G.phase==='reveal';
+  if(busy)return;                       // 굴리는 중에는 화면을 가로채지 않는다
+  const same=s.cur===G.cur&&s.round===G.round&&s.rolls===G.rolls&&
+    s.scores.every(function(sc,i){return JSON.stringify(sc)===JSON.stringify(G.players[i].scores);});
+  if(same)return;
+  G.players.forEach(function(p,i){p.scores=s.scores[i];p.cpu=s.cpu[i];p.name=s.names[i];});
+  G.cur=s.cur;G.round=s.round;G.rolls=s.rolls;G.rolled=s.rolled;
+  dice.forEach(function(d,i){
+    d.mode='sleep';d.anim=null;d.vel.set(0,0,0);d.ang.set(0,0,0);
+    d.value=s.vals[i];d.setValueUp(d.value);d.held=s.held[i];
+  });
+  cupMode='off';cup.visible=false;
+  layout({force:true});
+  G.phase=s.rolled?'picking':'ready';
+  cardEl.classList.remove('hidden');
+  refreshCard();
+  if(G.cur!==NET.mySeat){
+    rollBtn.disabled=true;setHint(cur().name+'의 차례입니다');
+  }else{
+    rollBtn.disabled=G.rolled&&G.rolls<=0;
+    setHint(G.rolled?'점수표에서 칸을 고르세요':'버튼을 길게 눌러 컵을 흔드세요');
+  }
 }
 function netRecv(msg){
   if(msg.type==='hello'){
@@ -1479,11 +1549,13 @@ function netApply(msg){
       closeModal();
       break;}
     case 'shake':beginShake(true);break;
-    case 'throw':throwDice(true,msg.seed);break;
+    case 'throw':throwDice(true,msg.seed,msg.vals);break;
+    case 'sync':applySync(msg.s);break;
     case 'hold':toggleHold(dice[msg.i],true,msg.held);break;
     case 'holdset':
       msg.mask.forEach(function(v,i){dice[i].held=v;});
       SFX.hold(true);layout({stagger:0.05});
+      setHint(cur().name+'님이 '+msg.mask.filter(Boolean).length+'개를 남기고 다시 굴립니다');
       break;
     case 'pick':pick(msg.catId,true,msg.pts);break;
     case 'chat':
@@ -1913,6 +1985,7 @@ function newGameOnline(players,startingSeat){
   G.mode='online';
   G.players=players;
   commonReset();
+  startHostSync();
 }
 let now=0,dtG=0,last=performance.now()/1000;
 let busyT=0;
