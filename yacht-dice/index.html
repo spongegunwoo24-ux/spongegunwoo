@@ -140,6 +140,34 @@ body.p3 .row .val,body.p4 .row .val{width:40px;font-size:13px}
 .rolls i.on{background:var(--brass);box-shadow:0 0 9px #dba63fb0}
 #btnCard{display:none}
 
+/* ---------- 채팅 ---------- */
+.chat-badge{position:absolute;top:-3px;right:-3px;min-width:15px;height:15px;border-radius:8px;
+  background:var(--red);color:#fff;font:700 9px/15px var(--sans);text-align:center;display:none;padding:0 2px}
+#chatPanel{position:fixed;z-index:8;left:14px;bottom:96px;width:min(280px,calc(100vw - 28px));
+  max-height:min(360px,50vh);display:flex;flex-direction:column;
+  background:linear-gradient(#123c37,#0a2622);color:#e9e2d2;border-radius:10px;
+  box-shadow:0 18px 40px #00000073,0 0 0 1px #ffffff1a;overflow:hidden;
+  transition:opacity .22s,transform .22s}
+#chatPanel.hidden{opacity:0;transform:translateY(10px);pointer-events:none}
+.chat-head{display:flex;align-items:center;justify-content:space-between;padding:8px 10px;
+  font:600 12px var(--sans);border-bottom:1px solid #ffffff1f;background:#0000002e;flex:none}
+.chat-close{background:none;border:0;color:#cfe0dc;font-size:13px;cursor:pointer;padding:2px 6px}
+.chat-emojis{display:flex;gap:4px;padding:6px 8px;border-bottom:1px solid #ffffff14;flex-wrap:wrap;flex:none}
+.chat-emojis button{background:#ffffff14;border:0;border-radius:6px;font-size:16px;padding:3px 6px;cursor:pointer}
+.chat-emojis button:hover{background:#ffffff2a}
+.chat-messages{flex:1;overflow-y:auto;padding:8px 10px;display:flex;flex-direction:column;gap:6px;
+  font-size:12.5px;min-height:70px}
+.chat-msg{background:#ffffff12;border-radius:8px;padding:5px 8px;max-width:88%;word-break:break-word;align-self:flex-start}
+.chat-msg b{display:block;font-size:10px;color:#8ba49f;margin-bottom:1px;font-weight:600}
+.chat-msg.me{align-self:flex-end;background:#dba63f2e}
+.chat-emoji-big{font-size:26px;line-height:1}
+.chat-input-row{display:flex;gap:6px;padding:8px;border-top:1px solid #ffffff1f;flex:none}
+.chat-input-row input{flex:1;border:0;border-radius:6px;padding:7px 9px;font:inherit;font-size:12.5px;
+  background:#ffffff14;color:#e9e2d2;outline:none}
+.chat-input-row input::placeholder{color:#8ba49f}
+.chat-input-row button{border:0;border-radius:6px;padding:7px 12px;background:var(--brass);
+  color:#2a1c05;font:700 12px var(--sans);cursor:pointer}
+
 /* ---------- 모달 ---------- */
 .modal{position:fixed;inset:0;z-index:20;display:none;place-items:center;
   background:#02100fd6;backdrop-filter:blur(3px);padding:20px}
@@ -212,6 +240,7 @@ body.p3 .row .val,body.p4 .row .val{width:40px;font-size:13px}
   <div class="tools">
     <button id="btnSound" aria-pressed="true" title="소리">🔊</button>
     <button id="btnFx" aria-pressed="true" title="연출">✨</button>
+    <button id="btnChat" title="채팅" style="display:none;position:relative">💬<span id="chatBadge" class="chat-badge"></span></button>
     <button id="btnHelp" title="규칙">?</button>
   </div>
 </header>
@@ -238,6 +267,16 @@ body.p3 .row .val,body.p4 .row .val{width:40px;font-size:13px}
 
 <div id="toast"></div>
 <div class="modal" id="modal"><div class="sheet" id="sheet"></div></div>
+
+<div id="chatPanel" class="hidden">
+  <div class="chat-head">💬 채팅 <button id="chatClose" class="chat-close">✕</button></div>
+  <div class="chat-emojis" id="chatEmojis"></div>
+  <div class="chat-messages" id="chatMessages"></div>
+  <div class="chat-input-row">
+    <input id="chatInput" maxlength="120" placeholder="메시지 입력...">
+    <button id="chatSend">보내기</button>
+  </div>
+</div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/peerjs/1.5.5/peerjs.min.js"></script>
@@ -1364,6 +1403,7 @@ function netTeardown(){
 function netReset(){
   netTeardown();
   NET.role='local';NET.mySeat=0;NET.seats=[];NET.code=null;
+  chatLog.length=0;chatUnread=0;renderChat();updateChatBadge();toggleChat(false);
 }
 function netSend(msg){
   if(NET.role==='host')netBroadcast(msg,null);
@@ -1394,6 +1434,9 @@ function netApply(msg){
       SFX.hold(true);layout({stagger:0.05});
       break;
     case 'pick':pick(msg.catId,true,msg.pts);break;
+    case 'chat':
+      addChatMessage(msg.name,msg.text,false,!!msg.emoji);
+      break;
     case 'seatlost':
       if(G.players[msg.i]){
         G.players[msg.i].cpu=true;
@@ -1680,6 +1723,73 @@ function gameOver(){
   $('btnMenu2').addEventListener('click',function(){closeModal();netReset();startMenu();});
 }
 
+/* ---------- 채팅 ---------- */
+const chatLog=[];
+let chatOpen=false, chatUnread=0;
+const EMOJIS=['👍','😂','😮','😡','🎉','🔥','❤️','👏'];
+const chatPanelEl=$('chatPanel'), chatBtn=$('btnChat');
+function myChatName(){
+  const s=NET.seats&&NET.seats[NET.mySeat];
+  return (s&&s.name)||NET.myName||'나';
+}
+function addChatMessage(name,text,mine,isEmoji){
+  chatLog.push({name:name,text:text,mine:mine,isEmoji:isEmoji});
+  if(chatLog.length>100)chatLog.shift();
+  renderChat();
+  if(isEmoji)toast(text);
+  if(!chatOpen&&!mine){chatUnread++;updateChatBadge();}
+}
+function renderChat(){
+  const box=$('chatMessages');
+  if(!box)return;
+  box.innerHTML=chatLog.map(function(m){
+    const body=m.isEmoji?('<span class="chat-emoji-big">'+m.text+'</span>')
+      :('<b>'+m.name+'</b><span>'+String(m.text).replace(/[&<>]/g,function(c){return c==='&'?'&amp;':c==='<'?'&lt;':'&gt;';})+'</span>');
+    return '<div class="chat-msg'+(m.mine?' me':'')+'">'+body+'</div>';
+  }).join('');
+  box.scrollTop=box.scrollHeight;
+}
+function updateChatBadge(){
+  const b=$('chatBadge');
+  if(!b)return;
+  b.textContent=chatUnread>9?'9+':String(chatUnread);
+  b.style.display=chatUnread>0?'flex':'none';
+}
+function toggleChat(force){
+  chatOpen=force!=null?force:!chatOpen;
+  chatPanelEl.classList.toggle('hidden',!chatOpen);
+  if(chatOpen){chatUnread=0;updateChatBadge();$('chatInput').focus();}
+}
+function sendChatText(){
+  if(NET.role==='local')return;
+  const inp=$('chatInput');
+  const text=inp.value.trim();
+  if(!text)return;
+  inp.value='';
+  const name=myChatName();
+  addChatMessage(name,text,true,false);
+  netSend({type:'chat',name:name,text:text,emoji:false});
+}
+function sendChatEmoji(e){
+  if(NET.role==='local')return;
+  const name=myChatName();
+  addChatMessage(name,e,true,true);
+  netSend({type:'chat',name:name,text:e,emoji:true});
+}
+EMOJIS.forEach(function(e){
+  const b=document.createElement('button');
+  b.type='button';b.textContent=e;
+  b.addEventListener('click',function(){sendChatEmoji(e);});
+  $('chatEmojis').appendChild(b);
+});
+chatBtn.addEventListener('click',function(){toggleChat();});
+$('chatClose').addEventListener('click',function(){toggleChat(false);});
+$('chatSend').addEventListener('click',sendChatText);
+$('chatInput').addEventListener('keydown',function(e){
+  e.stopPropagation();
+  if(e.key==='Enter'){e.preventDefault();sendChatText();}
+});
+
 /* ---------- 입력 ---------- */
 const ray=new THREE.Raycaster(), ptr=new THREE.Vector2();
 let downAt=null;
@@ -1743,6 +1853,8 @@ function closeCardIfMobile(){if(innerWidth<=900)setCard(false);}
 
 /* ---------- 시작 ---------- */
 function commonReset(){
+  chatBtn.style.display=G.mode==='online'?'flex':'none';
+  if(G.mode!=='online')toggleChat(false);
   G.cur=0;G.round=1;G.rolls=3;G.rolled=false;G.phase='ready';
   document.body.classList.remove('p2','p3','p4');
   if(G.players.length>1)document.body.classList.add('p'+G.players.length);
