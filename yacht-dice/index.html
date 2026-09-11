@@ -279,7 +279,7 @@ body.p3 .row .val,body.p4 .row .val{width:40px;font-size:13px}
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/peerjs/1.5.5/peerjs.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
 /* ============================================================
    요트 다이스 — 3D 컵 셰이크 / 물리 / CPU·2인 대전
@@ -1389,29 +1389,27 @@ function cpuPick(){
 }
 
 /* ---------- 온라인 대전 (PeerJS, 호스트-중계 방식) ---------- */
-const NET={role:'local',peer:null,conns:[],connsByPeer:{},mySeat:0,seats:[],code:null,hostConn:null,myName:'나'};
-// 학교/회사 방화벽처럼 P2P(UDP) 직접 연결이 막힌 망에서는 STUN만으로 연결이 안 된다.
-// TURN 중계 서버를 함께 넘겨서 TCP 443(=일반 HTTPS와 같은 통로)으로 우회하도록 한다.
-const PEER_CONFIG={
-  iceServers:[
-    {urls:'stun:stun.l.google.com:19302'},
-    {urls:'stun:stun1.l.google.com:19302'},
-    {urls:'turn:openrelay.metered.ca:80',username:'openrelayproject',credential:'openrelayproject'},
-    {urls:'turn:openrelay.metered.ca:443',username:'openrelayproject',credential:'openrelayproject'},
-    {urls:'turn:openrelay.metered.ca:443?transport=tcp',username:'openrelayproject',credential:'openrelayproject'},
-    {urls:'turn:staticauth.openrelay.metered.ca:443?transport=tcp',username:'openrelayproject',credential:'openrelayproject'}
-  ],
-  sdpSemantics:'unified-plan'
-};
+// 통신은 Supabase Realtime 브로드캐스트 채널 하나로 처리한다.
+// WebRTC(P2P)를 쓰지 않으므로 참가자 모두가 같은 채널에 붙기만 하면 되고,
+// 학교/회사처럼 UDP와 P2P가 막힌 망에서도 일반 HTTPS와 같은 경로로 오간다.
+const SB_URL="https://cryeosgmuxqyphntqqlc.supabase.co";
+const SB_KEY="sb_publishable_oXzL8eqnE-eVeBv4SGUIIA_c8wFi8u2";
+const MY_ID='p'+Math.random().toString(36).slice(2,10);
+let SB=null;
+function sbClient(){
+  if(!SB&&window.supabase)SB=window.supabase.createClient(SB_URL,SB_KEY);
+  return SB;
+}
+const NET={role:'local',ch:null,mySeat:0,seats:[],code:null,myName:'나',joinTimer:null};
 function canDrive(){
   if(NET.role==='local')return true;
   if(NET.role==='host'&&cur()&&cur().cpu)return true;
   return G.cur===NET.mySeat;
 }
 function netTeardown(){
-  NET.conns=[];NET.connsByPeer={};NET.hostConn=null;
-  if(NET.peer){try{NET.peer.destroy();}catch(e){}}
-  NET.peer=null;
+  if(NET.joinTimer){clearTimeout(NET.joinTimer);NET.joinTimer=null;}
+  if(NET.ch){try{NET.ch.unsubscribe();}catch(e){}}
+  NET.ch=null;
 }
 function netReset(){
   netTeardown();
@@ -1419,21 +1417,58 @@ function netReset(){
   chatLog.length=0;chatUnread=0;renderChat();updateChatBadge();toggleChat(false);
 }
 function netSend(msg){
-  if(NET.role==='host')netBroadcast(msg,null);
-  else if(NET.role==='guest'&&NET.hostConn){try{NET.hostConn.send(msg);}catch(e){}}
+  if(!NET.ch)return;
+  msg.from=MY_ID;
+  try{NET.ch.send({type:'broadcast',event:'m',payload:msg});}catch(e){}
 }
-function netBroadcast(msg,exceptConn){
-  NET.conns.forEach(function(c){
-    if(c!==exceptConn){try{c.send(msg);}catch(e){}}
+// 브로드캐스트는 채널에 있는 모두에게 한 번에 닿으므로 호스트 중계가 따로 필요 없다.
+function netBroadcast(msg){netSend(msg);}
+function netOpenChannel(code,onReady,onFail){
+  const c=sbClient();
+  if(!c){onFail('실시간 통신 라이브러리를 불러오지 못했어요.');return;}
+  const ch=c.channel('yd-'+code,{config:{broadcast:{self:false},presence:{key:MY_ID}}});
+  ch.on('broadcast',{event:'m'},function(e){
+    const msg=e&&e.payload;
+    if(!msg||msg.from===MY_ID)return;
+    netRecv(msg);
   });
+  ch.on('presence',{event:'leave'},function(e){
+    onSeatGone(e&&e.key);
+  });
+  ch.subscribe(function(status){
+    if(status==='SUBSCRIBED'){ch.track({id:MY_ID});onReady();}
+    else if(status==='CHANNEL_ERROR'||status==='TIMED_OUT')onFail('실시간 서버에 연결하지 못했어요 ('+status+').');
+  });
+  NET.ch=ch;
+}
+function netRecv(msg){
+  if(msg.type==='hello'){
+    if(NET.role==='host')assignSeat(msg.from,msg.name);
+    return;
+  }
+  if(msg.type==='full'||msg.type==='kicked'){
+    if(msg.id===MY_ID){
+      netTeardown();
+      renderLobbyError(msg.type==='full'?'방이 가득 찼어요 (최대 4인).':'방에서 나가게 되었어요.');
+    }
+    return;
+  }
+  netApply(msg);
 }
 function netApply(msg){
   switch(msg.type){
-    case 'seats':
+    case 'seats':{
       NET.seats=msg.seats;
-      if(NET.role==='guest')NET.mySeat=mySeatIndex();
+      if(NET.role!=='host'){
+        // 내 자리가 목록에 잡히는 순간이 곧 입장 성공 — 그때 게스트로 확정한다.
+        const mi=mySeatIndex();
+        if(mi>=0){
+          NET.role='guest';NET.mySeat=mi;
+          if(NET.joinTimer){clearTimeout(NET.joinTimer);NET.joinTimer=null;}
+        }
+      }
       if(G.phase==='menu'||G.phase==='lobby')renderLobby();
-      break;
+      break;}
     case 'start':{
       const players=msg.players.map(function(p){return {name:p.name,cpu:p.cpu,scores:{}};});
       newGameOnline(players);
@@ -1467,55 +1502,37 @@ function randCode(){
   let s='';for(let i=0;i<4;i++)s+=A[(Math.random()*A.length)|0];
   return 'yd-'+s;
 }
-function hostCreateRoom(nick,tries){
-  tries=tries||0;
+function hostCreateRoom(nick){
   netTeardown();
   NET.myName=nick||'나';
   const code=randCode();
-  const peer=new Peer(code,{debug:0,config:PEER_CONFIG});
-  NET.peer=peer;
-  peer.on('open',function(){
+  openModal('<h3>방 만드는 중…</h3><div class="sub">잠시만 기다려주세요</div>',false);
+  netOpenChannel(code,function(){
     NET.role='host';NET.mySeat=0;NET.code=code;
-    NET.seats=[{name:NET.myName,cpu:false,connId:'host',isHost:true}];
+    NET.seats=[{name:NET.myName,cpu:false,connId:MY_ID,isHost:true}];
     renderLobby();
-  });
-  peer.on('connection',function(conn){
-    if(NET.role!=='host')return;
-    conn.on('open',function(){
-      conn.on('data',function(msg){
-        if(msg.type==='hello')assignSeat(conn,msg.name);
-        else{netApply(msg);netBroadcast(msg,conn);}
-      });
-      conn.on('close',function(){onGuestLeft(conn);});
-      conn.on('error',function(){onGuestLeft(conn);});
-    });
-  });
-  peer.on('error',function(err){
-    if(err&&err.type==='unavailable-id'&&tries<3){hostCreateRoom(nick,tries+1);return;}
-    renderLobbyError('방을 만들지 못했어요 ('+(err&&err.type||'오류')+'). 네트워크 상태를 확인해주세요.');
+  },function(m){
+    renderLobbyError('방을 만들지 못했어요. '+m);
   });
 }
-function assignSeat(conn,name){
-  if(NET.seats.length>=4){try{conn.send({type:'full'});}catch(e){}try{conn.close();}catch(e){}return;}
-  NET.seats.push({name:(name||'플레이어').toString().slice(0,10),cpu:false,connId:conn.peer,isHost:false});
-  NET.connsByPeer[conn.peer]=conn;
-  NET.conns.push(conn);
-  netBroadcast({type:'seats',seats:NET.seats},null);
+function assignSeat(id,name){
+  if(NET.seats.some(function(s){return s.connId===id;}))return;   // 같은 사람의 hello 재전송
+  if(NET.seats.length>=4){netBroadcast({type:'full',id:id});return;}
+  NET.seats.push({name:(name||'플레이어').toString().slice(0,10),cpu:false,connId:id,isHost:false});
+  netBroadcast({type:'seats',seats:NET.seats});
   renderLobby();
 }
-function onGuestLeft(conn){
-  const i=NET.conns.indexOf(conn);
-  if(i>=0)NET.conns.splice(i,1);
-  delete NET.connsByPeer[conn.peer];
+function onSeatGone(id){
+  if(NET.role!=='host'||!id)return;
+  const si=NET.seats.findIndex(function(s){return s.connId===id;});
+  if(si<0)return;
   if(G.phase==='menu'||G.phase==='lobby'){
-    const si=NET.seats.findIndex(function(s){return s.connId===conn.peer;});
-    if(si>=0){NET.seats.splice(si,1);netBroadcast({type:'seats',seats:NET.seats},null);renderLobby();}
-  }else{
-    const si=NET.seats.findIndex(function(s){return s.connId===conn.peer;});
-    if(si>=0&&G.players[si]){
-      netBroadcast({type:'seatlost',i:si},null);
-      netApply({type:'seatlost',i:si});
-    }
+    NET.seats.splice(si,1);
+    netBroadcast({type:'seats',seats:NET.seats});
+    renderLobby();
+  }else if(G.players[si]){
+    netBroadcast({type:'seatlost',i:si});
+    netApply({type:'seatlost',i:si});
   }
 }
 function addAISeat(){
@@ -1528,41 +1545,33 @@ function addAISeat(){
 function removeSeat(i){
   if(NET.role!=='host'||i===0)return;
   const s=NET.seats[i];
-  if(s&&!s.cpu&&s.connId&&NET.connsByPeer[s.connId]){try{NET.connsByPeer[s.connId].close();}catch(e){}}
   NET.seats.splice(i,1);
-  netBroadcast({type:'seats',seats:NET.seats},null);
+  if(s&&!s.cpu&&s.connId)netBroadcast({type:'kicked',id:s.connId});
+  netBroadcast({type:'seats',seats:NET.seats});
   renderLobby();
 }
 function guestJoinRoom(code,nick){
   netTeardown();
   NET.myName=nick||'플레이어';
-  const peer=new Peer({debug:0,config:PEER_CONFIG});
-  NET.peer=peer;
-  peer.on('open',function(){
-    const conn=peer.connect(code.trim());
-    NET.hostConn=conn;
-    conn.on('open',function(){
-      NET.role='guest';
-      conn.send({type:'hello',name:NET.myName});
-      renderLobby();
-    });
-    conn.on('data',function(msg){
-      if(msg.type==='full'){renderLobbyError('방이 가득 찼어요 (최대 4인).');return;}
-      netApply(msg);
-    });
-    conn.on('close',function(){
-      if(G.mode!=='online'||G.phase==='menu'||G.phase==='lobby')renderLobbyError('호스트와 연결이 끊어졌어요.');
-      else toast('호스트 연결 끊김');
-    });
-    conn.on('error',function(){renderLobbyError('연결에 실패했어요. 코드를 다시 확인해주세요.');});
-  });
-  peer.on('error',function(err){
-    renderLobbyError('연결에 실패했어요 ('+(err&&err.type||'오류')+'). 코드를 확인해주세요.');
+  code=String(code).trim().toLowerCase().replace(/^yd-?/,'');
+  code='yd-'+code;
+  openModal('<h3>접속 중…</h3><div class="sub">'+code+' 방을 찾는 중입니다</div>'+
+    '<button class="btn ghost" id="btnCancelJoin">취소</button>',false);
+  $('btnCancelJoin').addEventListener('click',function(){netReset();startMenu();});
+  netOpenChannel(code,function(){
+    NET.code=code;
+    netSend({type:'hello',name:NET.myName});
+    // 채널 자체는 코드가 틀려도 열리므로, 자리 배정이 돌아오지 않으면 없는 방으로 본다.
+    NET.joinTimer=setTimeout(function(){
+      if(NET.role!=='guest')renderLobbyError('그 코드의 방을 찾지 못했어요. 코드를 다시 확인해주세요.');
+    },8000);
+  },function(m){
+    renderLobbyError('접속하지 못했어요. '+m);
   });
 }
 function mySeatIndex(){
   if(NET.role==='host')return 0;
-  return NET.seats.findIndex(function(s){return s.connId===(NET.peer&&NET.peer.id);});
+  return NET.seats.findIndex(function(s){return s.connId===MY_ID;});
 }
 function renderLobbyError(msg){
   netTeardown();
@@ -1631,7 +1640,7 @@ function onlineScreen(){
         '</div>'+
       '</div>'+
     '</div>'+
-    '<p style="font-size:11px;color:#877c68;margin-top:12px">브라우저 간 직접 연결(P2P) 방식이라 별도 서버 가입이 필요 없어요. 파일을 인터넷 호스팅에 올려서 열면 더 안정적으로 연결돼요.</p>'+
+    '<p style="font-size:11px;color:#877c68;margin-top:12px">같은 와이파이가 아니어도, 학교처럼 제한된 인터넷에서도 접속됩니다.</p>'+
     '<button class="btn ghost" id="btnBack2">뒤로</button>',false);
   $('mCreate').addEventListener('click',function(){
     const nick=$('nickInput').value.trim()||'나';
