@@ -167,6 +167,14 @@ body.p3 .row .val,body.p4 .row .val{width:40px;font-size:13px}
 .chat-input-row input::placeholder{color:#8ba49f}
 .chat-input-row button{border:0;border-radius:6px;padding:7px 12px;background:var(--brass);
   color:#2a1c05;font:700 12px var(--sans);cursor:pointer}
+#chatFloat{position:fixed;z-index:7;left:14px;bottom:96px;width:min(280px,calc(100vw - 28px));
+  display:flex;flex-direction:column;gap:6px;pointer-events:none}
+.chat-float{background:#0b2a27e6;border:1px solid #ffffff24;border-radius:10px;padding:6px 10px;
+  font-size:12.5px;color:#e9e2d2;box-shadow:0 8px 20px #0007;word-break:break-word;
+  animation:chatPop .22s ease-out;transition:opacity .4s}
+.chat-float b{display:block;font-size:10px;color:#8ba49f;font-weight:600}
+.chat-float.out{opacity:0}
+@keyframes chatPop{from{opacity:0;transform:translateY(6px)}}
 
 /* ---------- 모달 ---------- */
 .modal{position:fixed;inset:0;z-index:20;display:none;place-items:center;
@@ -267,6 +275,8 @@ body.p3 .row .val,body.p4 .row .val{width:40px;font-size:13px}
 
 <div id="toast"></div>
 <div class="modal" id="modal"><div class="sheet" id="sheet"></div></div>
+
+<div id="chatFloat"></div>
 
 <div id="chatPanel" class="hidden">
   <div class="chat-head">💬 채팅 <button id="chatClose" class="chat-close">✕</button></div>
@@ -1188,22 +1198,34 @@ function launch(d,power){
 }
 // 기기마다 물리 결과가 갈리므로 굴린 사람의 눈을 정답으로 삼는다. 보는 쪽에서만 맞추고,
 // 주사위가 자리로 굴러 들어가는 동작에 얹어 돌려서 따로 튀어 보이지 않게 한다.
-function applyForcedVals(dur){
+function faceQuat(d,face){
+  const axis=DIRS.find(function(x){return x[1]===face;})[0];
+  const world=axis.clone().applyQuaternion(d.quat).normalize();
+  return d.quat.clone().premultiply(new Quat().setFromUnitVectors(world,new V3(0,1,0)));
+}
+function applyForcedVals(){
   if(!G.forcedVals)return;
   dice.forEach(function(d){
     const forced=G.forcedVals[d.i];
     if(!forced||d.held||d.value===forced)return;
-    const axis=DIRS.find(function(x){return x[1]===forced;})[0];
-    const world=axis.clone().applyQuaternion(d.quat).normalize();
-    const q=d.quat.clone().premultiply(new Quat().setFromUnitVectors(world,new V3(0,1,0)));
     d.value=forced;
-    if(dur){
-      d.mode='anim';
-      d.anim={t:0,dur:dur,delay:0,p0:d.pos.clone(),p1:d.pos.clone(),q0:d.quat.clone(),
-        snap:q,axis:null,amt:0,arc:0,wob:0.03,onDone:null};
-    }else d.pendingSnap=q;
+    d.wantFace=forced;        // 아직 구르는 중이면 멈춘 뒤에 맞춘다
   });
   refreshCard();
+}
+// 결과가 언제 도착하든(구르는 중이든 끝난 뒤든) 멈춘 주사위부터 차례로 눈을 맞춘다.
+function flushFaceFix(){
+  let fixed=false;
+  for(const d of dice){
+    if(!d.wantFace||d.mode!=='sleep')continue;
+    const q=faceQuat(d,d.wantFace);
+    d.value=d.wantFace;      // 멈추면서 settle()이 물리 값으로 덮어썼을 수 있다
+    d.wantFace=null;fixed=true;
+    d.mode='anim';
+    d.anim={t:0,dur:0.22,delay:0,p0:d.pos.clone(),p1:d.pos.clone(),q0:d.quat.clone(),
+      snap:q,axis:null,amt:0,arc:0,wob:0.03,onDone:null};
+  }
+  if(fixed)refreshCard();
 }
 function checkSettled(){
   rollTimer+=dtG;
@@ -1216,7 +1238,7 @@ function finishRoll(){
   camPushTarget.set(0,0,0);
   if(G.rollMine&&NET.role!=='local')
     netSend({type:'result',vals:dice.map(function(d){return d.held?null:d.value;})});
-  else applyForcedVals(0);
+  else applyForcedVals();
   const c=counts(values());
   let yacht=false;for(let n=1;n<=6;n++)if(c[n]===5)yacht=true;
   const free=dice.filter(function(d){return !d.held;});
@@ -1225,9 +1247,11 @@ function finishRoll(){
     free.forEach(function(d){
       // 물리로 실제 굴러간 결과를 이미 보여줬으니, 자리로 옮길 때는 다시 돌리지 않고
       // 눈을 그대로 유지한 채 살짝 통통 튀며 들어가게 한다.
+      const fix=d.wantFace?faceQuat(d,d.wantFace):null;
+      if(d.wantFace)d.value=d.wantFace;
+      d.wantFace=null;
       d.animTo(new V3(slotX(d.i),HS,CFG.rowBack),{dur:0.34,delay:i*0.05,
-        arc:0.34,wob:0.045,snap:d.pendingSnap||null,onDone:function(){SFX.land();}});
-      d.pendingSnap=null;
+        arc:0.34,wob:0.045,snap:fix,onDone:function(){SFX.land();}});
       i++;
     });
     setTimeout(function(){afterRoll(yacht);},360+i*50);
@@ -1565,7 +1589,7 @@ function netApply(msg){
     case 'throw':throwDice(true,msg.seed);break;
     case 'result':
       G.forcedVals=msg.vals;
-      if(G.phase==='picking'||G.phase==='ready')applyForcedVals(0.25);
+      applyForcedVals();        // 아직 구르는 중이면 flushFaceFix가 멈춘 뒤에 마저 맞춘다
       break;
     case 'sync':applySync(msg.s);break;
     case 'hold':toggleHold(dice[msg.i],true,msg.held);break;
@@ -1853,7 +1877,20 @@ function addChatMessage(name,text,mine,isEmoji){
   if(chatLog.length>100)chatLog.shift();
   renderChat();
   if(isEmoji)toast(text);
-  if(!chatOpen&&!mine){chatUnread++;updateChatBadge();}
+  // 패널을 닫아둬도 상대 말이 보이도록 화면에 잠깐 띄운다.
+  if(!chatOpen&&!mine){chatUnread++;updateChatBadge();floatChat(name,text,isEmoji);}
+}
+function floatChat(name,text,isEmoji){
+  const wrap=$('chatFloat');
+  if(!wrap)return;
+  const el=document.createElement('div');
+  el.className='chat-float';
+  el.innerHTML=isEmoji?('<span class="chat-emoji-big">'+text+'</span>')
+    :('<b></b><span></span>');
+  if(!isEmoji){el.querySelector('b').textContent=name;el.querySelector('span').textContent=text;}
+  wrap.appendChild(el);
+  while(wrap.children.length>4)wrap.removeChild(wrap.firstChild);
+  setTimeout(function(){el.classList.add('out');setTimeout(function(){el.remove();},420);},5000);
 }
 function renderChat(){
   const box=$('chatMessages');
@@ -2041,6 +2078,7 @@ function loop(){
   camPush.lerp(camPushTarget,Math.min(1,dtG*3.2));
   for(const d of dice)if(d.wobT<2)d.wobT+=dtG;
   physics(dtG);
+  flushFaceFix();
   updateAnims(dtG);
   updateCup(dtG);
   updateShake();
