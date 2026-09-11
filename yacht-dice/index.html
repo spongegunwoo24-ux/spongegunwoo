@@ -533,7 +533,9 @@ const glowTex=(function(){
 class Die{
   constructor(i){
     this.i=i;
-    this.mesh=new THREE.Mesh(dieGeo,dieMats);
+    this.mats=dieMats.slice();          // 면에 그려진 숫자를 개별로 바꿀 수 있게 주사위마다 따로 둔다
+    this.faceNums=FACE_ORDER.slice();   // mats[i]에 현재 그려져 있는 숫자
+    this.mesh=new THREE.Mesh(dieGeo,this.mats);
     this.mesh.castShadow=true;this.mesh.receiveShadow=true;scene.add(this.mesh);
     this.glow=new THREE.Mesh(new THREE.PlaneGeometry(2.1,2.1),
       new THREE.MeshBasicMaterial({map:glowTex,transparent:true,depthWrite:false,
@@ -546,7 +548,13 @@ class Die{
     this.phase=Math.random()*TAU;this.lastHit=0;this.retry=0;
     this.cupOff=new V3();this.cupVel=new V3();
   }
+  resetFaces(){
+    this.faceNums=FACE_ORDER.slice();
+    this.mats=dieMats.slice();
+    this.mesh.material=this.mats;
+  }
   setValueUp(v){
+    this.resetFaces();
     const d=DIRS.find(function(x){return x[1]===v;})[0];
     this.quat.copy(new Quat().setFromUnitVectors(d,new V3(0,1,0)));
   }
@@ -666,29 +674,39 @@ function readValue(q){
   }
   return val;
 }
-function targetQuat(q,face){
-  let best=null,bd=-1;
-  for(const r of CUBE_ROTS){
-    if(readValue(r)!==face)continue;
-    const dot=Math.abs(q.x*r.x+q.y*r.y+q.z*r.z+q.w*r.w);
-    if(dot>bd){bd=dot;best=r;}
+function upGroup(q){
+  let best=-9,gi=0;
+  for(let i=0;i<DIRS.length;i++){
+    const y=_t.copy(DIRS[i][0]).applyQuaternion(q).y;
+    if(y>best){best=y;gi=i;}
   }
-  return best?best.clone():snapQuat(q);
+  return gi;
+}
+// 주사위를 돌려 맞추면 어느 화면에서든 돌아가는 게 보인다. 그래서 굴러가 멈춘 자세는 그대로 두고,
+// 위로 온 면에 그려진 숫자만 목표 숫자와 맞바꾼다 — 회전이 없으니 튕기거나 뒤집히지 않는다.
+function showFace(d,q,F){
+  const gu=upGroup(q), gf=d.faceNums.indexOf(F);
+  if(gf<0||gf===gu)return;
+  const n=d.faceNums[gu];
+  d.faceNums[gu]=F;d.faceNums[gf]=n;
+  const m=d.mats[gu];
+  d.mats[gu]=d.mats[gf];d.mats[gf]=m;
+  d.mesh.material=d.mats;
 }
 function settle(d){
   // 물리는 기기마다 프레임 간격이 달라 같은 씨앗으로도 결과가 갈린다. 그래서 굴리기 전에 정해둔
   // 눈(G.forcedVals)을 모두가 함께 쓰고, 여기서는 그 면이 위로 오도록 돌려준다. 제자리에서 돌리면
   // 홱 뒤집히는 게 보이므로, 살짝 튀어올라 한 번 더 구르는 동작에 그 회전을 얹는다.
+  const q=snapQuat(d.quat);
+  let v=d.faceNums[upGroup(q)];
   const forced=G.forcedVals&&G.forcedVals[d.i];
-  const q=forced?targetQuat(d.quat,forced):snapQuat(d.quat);
-  d.value=forced||readValue(q);
+  if(forced&&forced!==v){showFace(d,q,forced);v=forced;}
+  d.value=v;
   d.vel.set(0,0,0);d.ang.set(0,0,0);
   const p=d.pos.clone();p.y=HS;
   d.mode='anim';
-  // 완전히 멈추기 전에 넘겨받아, 구르던 흐름 그대로 목표 방향으로 수렴하며 선다.
-  // 다 선 뒤에 돌리는 게 아니라 서는 과정 자체가 목표를 향하므로 튀거나 뒤집히지 않는다.
-  d.anim={t:0,dur:forced?0.3:0.1,delay:0,p0:d.pos.clone(),p1:p,q0:d.quat.clone(),
-    snap:q,axis:null,amt:0,arc:0,wob:forced?0:0.02,onDone:null};
+  d.anim={t:0,dur:0.1,delay:0,p0:d.pos.clone(),p1:p,q0:d.quat.clone(),
+    snap:q,axis:null,amt:0,arc:0,wob:0.02,onDone:null};
 }
 
 let acc=0;
@@ -724,7 +742,7 @@ function physics(dt){
       const still=d.vel.lengthSq()<0.09&&d.ang.lengthSq()<1.1&&d.pos.y<CFG.size*1.05;
       d.sleepT=still?d.sleepT+h:0;
       d.slowT=(d.vel.lengthSq()<0.5&&d.ang.lengthSq()<2.5)?d.slowT+h:0;
-      if(d.sleepT>0.1||d.slowT>0.45){
+      if(d.sleepT>0.25||d.slowT>0.9){
         if(d.pos.y>CFG.size*0.78&&d.retry<2){   // 다른 주사위 위에 얹힘 → 다시 굴림
           d.retry++;d.sleepT=0;
           d.vel.set(rand(-2,2),rand(2,3.5),rand(-2,2));
