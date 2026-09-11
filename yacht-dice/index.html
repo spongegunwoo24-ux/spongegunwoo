@@ -1390,6 +1390,19 @@ function cpuPick(){
 
 /* ---------- 온라인 대전 (PeerJS, 호스트-중계 방식) ---------- */
 const NET={role:'local',peer:null,conns:[],connsByPeer:{},mySeat:0,seats:[],code:null,hostConn:null,myName:'나'};
+// 학교/회사 방화벽처럼 P2P(UDP) 직접 연결이 막힌 망에서는 STUN만으로 연결이 안 된다.
+// TURN 중계 서버를 함께 넘겨서 TCP 443(=일반 HTTPS와 같은 통로)으로 우회하도록 한다.
+const PEER_CONFIG={
+  iceServers:[
+    {urls:'stun:stun.l.google.com:19302'},
+    {urls:'stun:stun1.l.google.com:19302'},
+    {urls:'turn:openrelay.metered.ca:80',username:'openrelayproject',credential:'openrelayproject'},
+    {urls:'turn:openrelay.metered.ca:443',username:'openrelayproject',credential:'openrelayproject'},
+    {urls:'turn:openrelay.metered.ca:443?transport=tcp',username:'openrelayproject',credential:'openrelayproject'},
+    {urls:'turn:staticauth.openrelay.metered.ca:443?transport=tcp',username:'openrelayproject',credential:'openrelayproject'}
+  ],
+  sdpSemantics:'unified-plan'
+};
 function canDrive(){
   if(NET.role==='local')return true;
   if(NET.role==='host'&&cur()&&cur().cpu)return true;
@@ -1459,7 +1472,7 @@ function hostCreateRoom(nick,tries){
   netTeardown();
   NET.myName=nick||'나';
   const code=randCode();
-  const peer=new Peer(code,{debug:0});
+  const peer=new Peer(code,{debug:0,config:PEER_CONFIG});
   NET.peer=peer;
   peer.on('open',function(){
     NET.role='host';NET.mySeat=0;NET.code=code;
@@ -1523,7 +1536,7 @@ function removeSeat(i){
 function guestJoinRoom(code,nick){
   netTeardown();
   NET.myName=nick||'플레이어';
-  const peer=new Peer();
+  const peer=new Peer({debug:0,config:PEER_CONFIG});
   NET.peer=peer;
   peer.on('open',function(){
     const conn=peer.connect(code.trim());
