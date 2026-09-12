@@ -1,0 +1,408 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>선셋 서킷</title>
+<style>
+  html,body{margin:0;padding:0;width:100%;height:100%;background:#000;overflow:hidden;}
+  body{display:flex;align-items:center;justify-content:center;touch-action:none;
+       -webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent;}
+  #c{display:block;background:#000;}
+</style>
+</head>
+<body>
+<canvas id="c" width="1280" height="720"></canvas>
+<script>
+'use strict';
+(function(){
+/* ══════ 기본 ══════ */
+const W=1280, H=720;
+const cv=document.getElementById('c'), ctx=cv.getContext('2d');
+function fit(){ const s=Math.min(innerWidth/W, innerHeight/H);
+  cv.style.width=(W*s)+'px'; cv.style.height=(H*s)+'px'; }
+addEventListener('resize',fit); fit();
+const clamp=(v,a,b)=>v<a?a:v>b?b:v, lerp=(a,b,t)=>a+(b-a)*t;
+
+/* ══════ 트랙 ══════ */
+const SEG_LEN=200, RUMBLE=3, LANES=3, ROAD_W=2200, DRAW=260;
+const CAM_H=1000, CAM_D=0.84, CENTRIFUGAL=0.32;
+const segs=[];
+function lastY(){ return segs.length===0 ? 0 : segs[segs.length-1].p2.world.y; }
+function addSeg(curve, y){
+  const n=segs.length;
+  segs.push({
+    index:n,
+    p1:{ world:{y:lastY(), z:n*SEG_LEN}, camera:{}, screen:{} },
+    p2:{ world:{y:y, z:(n+1)*SEG_LEN}, camera:{}, screen:{} },
+    curve:curve,
+    color: Math.floor(n/RUMBLE)%2 ? 'dark' : 'light',
+    cars:[], sprites:[]
+  });
+}
+const ease=(a,b,p)=>a+(b-a)*(1-Math.cos(p*Math.PI))/2;
+function addRoad(enter, hold, leave, curve, height){
+  const start=lastY(), end=start+height*SEG_LEN;
+  for(let i=0;i<enter;i++) addSeg(ease(0,curve,i/enter), ease(start,end,i/(enter+hold+leave)));
+  for(let i=0;i<hold;i++)  addSeg(curve, ease(start,end,(enter+i)/(enter+hold+leave)));
+  for(let i=0;i<leave;i++) addSeg(ease(curve,0,i/leave), ease(start,end,(enter+hold+i)/(enter+hold+leave)));
+}
+function buildTrack(){
+  segs.length=0;
+  addRoad(50,60,50,0,0);            // 스타트 직선
+  addRoad(60,80,60,-3.2,20);        // 완만한 좌코너 오르막
+  addRoad(40,50,40,4.5,0);          // 우코너
+  addRoad(60,90,60,0,-25);          // 내리막 직선
+  addRoad(40,60,40,-5.5,0);         // 헤어핀 좌
+  addRoad(50,70,50,2.4,30);         // 우 오르막
+  addRoad(60,100,60,0,0);           // 롱 스트레이트
+  addRoad(40,50,40,6.2,-20);        // 급 우코너 내리막
+  addRoad(50,60,50,-2.6,0);
+  addRoad(60,80,60,3.0,15);
+  addRoad(50,70,50,0,-15);
+  // 결승선 구간 표시
+  for(let i=0;i<6;i++) segs[i].color='start';
+  for(let i=segs.length-6;i<segs.length;i++) segs[i].color='finish';
+  // 길가 오브젝트
+  for(let n=20;n<segs.length;n+=7){
+    const side = (n%14<7) ? -1 : 1;
+    segs[n].sprites.push({ x: side*(1.35+Math.random()*1.2), type: n%5===0?'sign':'tree', h: 0.9+Math.random()*0.7 });
+    if (n%21===0) segs[n].sprites.push({ x: -side*(1.5+Math.random()), type:'tree', h:1.1 });
+  }
+}
+buildTrack();
+const TRACK_LEN = segs.length*SEG_LEN;
+const findSeg = z => segs[Math.floor(z/SEG_LEN)%segs.length];
+
+/* ══════ 상대 차 ══════ */
+const RIVAL_COLORS=['#e8483f','#3fa9e8','#f0c227','#8be04e','#c86ee8','#f28b30'];
+let rivals=[];
+function spawnRivals(){
+  rivals=[];
+  for(let i=0;i<14;i++){
+    rivals.push({
+      z: Math.random()*TRACK_LEN,
+      x: (Math.random()*2-1)*0.72,
+      speed: 22000 + Math.random()*13000,
+      color: RIVAL_COLORS[i%RIVAL_COLORS.length],
+      wobble: Math.random()*6.28
+    });
+  }
+}
+spawnRivals();
+
+/* ══════ 상태 ══════ */
+const MAXSPEED = SEG_LEN*62;
+const P = { x:0, z:0, speed:0, steer:0, lap:1, laps:3, lapT:0, best:0, times:[], done:false, offroad:0 };
+const G = { state:'title', t:0, shake:0, msg:'', msgT:0 };
+function reset(){
+  P.x=0; P.z=0; P.speed=0; P.steer=0; P.lap=1; P.lapT=0; P.times=[]; P.done=false;
+  G.state='race'; G.t=0; G.msg='출발!'; G.msgT=1.6; spawnRivals();
+}
+
+/* ══════ 입력 ══════ */
+const key={};
+addEventListener('keydown',e=>{
+  key[e.key]=true;
+  if(['ArrowUp','ArrowDown','ArrowLeft','ArrowRight',' '].includes(e.key)) e.preventDefault();
+  if(G.state!=='race') reset();
+});
+addEventListener('keyup',e=>{ key[e.key]=false; });
+const touch={l:false,r:false,gas:false,brake:false};
+function tp(e){ const r=cv.getBoundingClientRect();
+  return { x:(e.clientX-r.left)/r.width, y:(e.clientY-r.top)/r.height }; }
+function tdown(e){
+  const p=tp(e);
+  if (G.state!=='race'){ reset(); return; }
+  if (p.y>0.78 && p.x>0.38 && p.x<0.62){ touch.brake=true; }
+  else { touch.l = p.x<0.5; touch.r = p.x>=0.5; touch.gas=true; }
+  e.preventDefault();
+}
+cv.addEventListener('pointerdown',tdown);
+cv.addEventListener('pointermove',e=>{ if(touch.l||touch.r){ const p=tp(e); touch.l=p.x<0.5; touch.r=p.x>=0.5; }});
+addEventListener('pointerup',()=>{ touch.l=touch.r=touch.gas=touch.brake=false; });
+addEventListener('pointercancel',()=>{ touch.l=touch.r=touch.gas=touch.brake=false; });
+
+/* ══════ 갱신 ══════ */
+function update(dt){
+  G.t+=dt;
+  if (G.msgT>0) G.msgT-=dt;
+  if (G.shake>0) G.shake-=dt;
+  if (G.state!=='race') return;
+
+  const seg = findSeg(P.z);
+  const speedPct = P.speed/MAXSPEED;
+  const left = key.ArrowLeft||key.a||key.A||touch.l;
+  const right = key.ArrowRight||key.d||key.D||touch.r;
+  const gas = key.ArrowUp||key.w||key.W||touch.gas || (!key.ArrowDown&&!touch.brake&&!key.s&&!key.S);
+  const brake = key.ArrowDown||key.s||key.S||touch.brake;
+
+  // 조향 (속도가 붙을수록 예민)
+  const steerRate = 2.6*dt*(0.4+speedPct);
+  if (left) P.x -= steerRate;
+  else if (right) P.x += steerRate;
+  P.steer = lerp(P.steer, (right?1:0)-(left?1:0), clamp(dt*8,0,1));
+
+  // 원심력: 코너에서 바깥으로 밀린다
+  P.x -= seg.curve * speedPct * CENTRIFUGAL * dt * 2.4;
+
+  // 가속·감속
+  if (brake) P.speed -= MAXSPEED*1.4*dt;
+  else if (gas) P.speed += MAXSPEED*0.52*dt*(1-speedPct*0.72);
+  else P.speed -= MAXSPEED*0.35*dt;
+
+  // 코스 이탈
+  const off = Math.abs(P.x) > 1.0;
+  P.offroad = off ? Math.min(1, P.offroad+dt*4) : Math.max(0, P.offroad-dt*3);
+  if (off){
+    if (P.speed > MAXSPEED*0.38) P.speed -= MAXSPEED*1.1*dt;   // 확 줄지만 완전히 서지는 않는다
+    else P.speed -= MAXSPEED*0.05*dt;
+    P.x = clamp(P.x, -2.0, 2.0);
+    if (P.speed > MAXSPEED*0.25) G.shake = 0.12;
+  }
+  P.speed = clamp(P.speed, 0, MAXSPEED);
+
+  // 상대 차와 접촉
+  for (const r of rivals){
+    const dz = ((r.z - P.z) + TRACK_LEN) % TRACK_LEN;
+    if (dz < SEG_LEN*1.6 && Math.abs(r.x - P.x) < 0.42){
+      P.speed = Math.min(P.speed, r.speed*0.72);
+      P.x += (P.x < r.x ? -1:1) * dt*1.6;
+      G.shake = 0.2; G.msg='접촉!'; G.msgT=0.7;
+    }
+  }
+
+  // 전진 · 랩
+  const prevZ = P.z;
+  P.z = (P.z + P.speed*dt) % TRACK_LEN;
+  P.lapT += dt;
+  if (P.z < prevZ){                                   // 결승선 통과
+    if (P.best===0 || P.lapT<P.best) P.best=P.lapT;
+    P.times.push(P.lapT);
+    P.lap++;
+    if (P.lap > P.laps){ G.state='finish'; P.done=true; }
+    else { G.msg = P.lap+' / '+P.laps+' 랩'; G.msgT=1.8; }
+    P.lapT = 0;
+  }
+
+  // 상대 차 주행
+  for (const r of rivals){
+    const rs = findSeg(r.z);
+    r.z = (r.z + r.speed*dt) % TRACK_LEN;
+    r.x = clamp(r.x - rs.curve*0.0016 + Math.sin(G.t*0.8+r.wobble)*0.0022, -0.85, 0.85);
+  }
+}
+
+/* ══════ 투영 ══════ */
+function project(p, camX, camY, camZ){
+  p.camera.x = (p.world.x||0) - camX;
+  p.camera.y = p.world.y - camY;
+  p.camera.z = p.world.z - camZ;
+  const sc = CAM_D/p.camera.z;
+  p.screen.scale = sc;
+  p.screen.x = Math.round(W/2 + sc*p.camera.x*W/2);
+  p.screen.y = Math.round(H/2 - sc*p.camera.y*H/2);
+  p.screen.w = Math.round(sc*ROAD_W*W/2);
+}
+function poly(x1,y1,x2,y2,x3,y3,x4,y4,color){
+  ctx.fillStyle=color; ctx.beginPath();
+  ctx.moveTo(x1,y1); ctx.lineTo(x2,y2); ctx.lineTo(x3,y3); ctx.lineTo(x4,y4);
+  ctx.closePath(); ctx.fill();
+}
+const COLORS = {
+  light:{ road:'#6b6f78', grass:'#3f7a3a', rumble:'#f2f2f2', lane:'#e8e8e8' },
+  dark: { road:'#63666f', grass:'#387033', rumble:'#c8322f', lane:null },
+  start:{ road:'#8c9098', grass:'#3f7a3a', rumble:'#ffffff', lane:'#ffffff' },
+  finish:{ road:'#2b2d33', grass:'#3f7a3a', rumble:'#ffffff', lane:'#ffffff' }
+};
+
+/* ══════ 그리기 ══════ */
+function drawSky(){
+  const sky=ctx.createLinearGradient(0,0,0,H*0.62);
+  sky.addColorStop(0,'#1b2350'); sky.addColorStop(0.45,'#7a3f6b'); sky.addColorStop(0.8,'#e8794a'); sky.addColorStop(1,'#f7b25f');
+  ctx.fillStyle=sky; ctx.fillRect(0,0,W,H*0.62);
+  const sun = H*0.44;
+  const g=ctx.createRadialGradient(W*0.5,sun,10,W*0.5,sun,190);
+  g.addColorStop(0,'rgba(255,240,180,0.95)'); g.addColorStop(0.5,'rgba(255,160,90,0.5)'); g.addColorStop(1,'rgba(255,120,60,0)');
+  ctx.fillStyle=g; ctx.beginPath(); ctx.arc(W*0.5,sun,190,0,6.3); ctx.fill();
+  ctx.fillStyle='#ffe9a8'; ctx.beginPath(); ctx.arc(W*0.5,sun,86,0,6.3); ctx.fill();
+  ctx.fillStyle='rgba(120,60,90,0.55)';
+  for(let i=0;i<7;i++) ctx.fillRect(W*0.5-90, sun-60+i*22, 180, 8);
+  // 원경 산맥
+  ctx.fillStyle='#2c2a4a'; ctx.beginPath(); ctx.moveTo(0,H*0.62);
+  for(let x=0;x<=W;x+=64){
+    const h = 40+Math.sin(x*0.004+2)*26+Math.sin(x*0.011)*18;
+    ctx.lineTo(x, H*0.62-h);
+  }
+  ctx.lineTo(W,H*0.62); ctx.closePath(); ctx.fill();
+}
+function drawCar(x, y, w, color, brake, steer){
+  const h=w*0.66;
+  ctx.fillStyle='rgba(0,0,0,0.35)';
+  ctx.beginPath(); ctx.ellipse(x, y, w*0.55, h*0.16, 0, 0, 6.3); ctx.fill();
+  ctx.fillStyle='#1b1c22';                                   // 타이어
+  ctx.fillRect(x-w*0.52, y-h*0.42, w*0.16, h*0.42);
+  ctx.fillRect(x+w*0.36, y-h*0.42, w*0.16, h*0.42);
+  ctx.fillStyle=color;                                       // 차체
+  ctx.beginPath();
+  ctx.moveTo(x-w*0.46, y-h*0.10); ctx.lineTo(x+w*0.46, y-h*0.10);
+  ctx.lineTo(x+w*0.40, y-h*0.52); ctx.lineTo(x-w*0.40, y-h*0.52);
+  ctx.closePath(); ctx.fill();
+  ctx.fillStyle='rgba(255,255,255,0.16)';
+  ctx.fillRect(x-w*0.44, y-h*0.30, w*0.88, h*0.06);
+  ctx.fillStyle='#2a3a4a';                                   // 캐빈
+  ctx.beginPath();
+  ctx.moveTo(x-w*0.30, y-h*0.52); ctx.lineTo(x+w*0.30, y-h*0.52);
+  ctx.lineTo(x+w*0.22 - steer*w*0.05, y-h*0.86); ctx.lineTo(x-w*0.22 - steer*w*0.05, y-h*0.86);
+  ctx.closePath(); ctx.fill();
+  ctx.fillStyle = brake ? '#ff4a3a' : '#a8241c';             // 브레이크등
+  ctx.fillRect(x-w*0.40, y-h*0.26, w*0.16, h*0.09);
+  ctx.fillRect(x+w*0.24, y-h*0.26, w*0.16, h*0.09);
+}
+function drawSprite(sp, x, y, roadW){
+  const s = roadW*0.42;
+  if (sp.type==='tree'){
+    const h=s*0.9*sp.h, w=h*0.55;
+    ctx.fillStyle='#3a2a1e'; ctx.fillRect(x-w*0.08, y-h*0.28, w*0.16, h*0.28);
+    ctx.fillStyle='#1f5c2a';
+    ctx.beginPath(); ctx.moveTo(x, y-h); ctx.lineTo(x+w*0.5, y-h*0.24); ctx.lineTo(x-w*0.5, y-h*0.24); ctx.closePath(); ctx.fill();
+    ctx.fillStyle='#2a7a37';
+    ctx.beginPath(); ctx.moveTo(x, y-h*0.86); ctx.lineTo(x+w*0.38, y-h*0.4); ctx.lineTo(x-w*0.38, y-h*0.4); ctx.closePath(); ctx.fill();
+  } else {
+    const h=s*0.42*sp.h, w=h*1.1;
+    ctx.fillStyle='#5a5f68'; ctx.fillRect(x-w*0.04, y-h*0.5, w*0.08, h*0.5);
+    ctx.fillStyle='#f2c94c'; ctx.fillRect(x-w*0.5, y-h, w, h*0.52);
+    ctx.fillStyle='#1b1c22'; ctx.fillRect(x-w*0.34, y-h*0.86, w*0.68, h*0.24);
+  }
+}
+function render(){
+  const base = findSeg(P.z), basePct = (P.z%SEG_LEN)/SEG_LEN;
+  const camY = CAM_H + base.p1.world.y + (base.p2.world.y-base.p1.world.y)*basePct;
+  let x=0, dx=-(base.curve*basePct), maxy=H;
+  drawSky();
+  // 도로
+  const visible=[];
+  for (let n=0;n<DRAW;n++){
+    const s = segs[(base.index+n)%segs.length];
+    s.looped = s.index < base.index;
+    s.clip = maxy;
+    project(s.p1, (P.x*ROAD_W)-x, camY, P.z-(s.looped?TRACK_LEN:0));
+    project(s.p2, (P.x*ROAD_W)-x-dx, camY, P.z-(s.looped?TRACK_LEN:0));
+    x+=dx; dx+=s.curve;
+    if (s.p1.camera.z<=CAM_D || s.p2.screen.y>=s.p1.screen.y || s.p2.screen.y>=maxy) continue;
+    const c=COLORS[s.color]||COLORS.light;
+    const p1=s.p1.screen, p2=s.p2.screen;
+    poly(0,p1.y, W,p1.y, W,p2.y, 0,p2.y, c.grass);
+    const r1=p1.w/Math.max(6,10), r2=p2.w/Math.max(6,10);
+    poly(p1.x-p1.w-r1,p1.y, p1.x-p1.w,p1.y, p2.x-p2.w,p2.y, p2.x-p2.w-r2,p2.y, c.rumble);
+    poly(p1.x+p1.w+r1,p1.y, p1.x+p1.w,p1.y, p2.x+p2.w,p2.y, p2.x+p2.w+r2,p2.y, c.rumble);
+    poly(p1.x-p1.w,p1.y, p1.x+p1.w,p1.y, p2.x+p2.w,p2.y, p2.x-p2.w,p2.y, c.road);
+    if (c.lane){
+      const lw1=p1.w/(LANES*14), lw2=p2.w/(LANES*14);
+      for(let l=1;l<LANES;l++){
+        const lx1=p1.x-p1.w+(p1.w*2)*(l/LANES), lx2=p2.x-p2.w+(p2.w*2)*(l/LANES);
+        poly(lx1-lw1,p1.y, lx1+lw1,p1.y, lx2+lw2,p2.y, lx2-lw2,p2.y, c.lane);
+      }
+    }
+    if (s.color==='finish'){                             // 체커 무늬
+      const cw=(p1.w*2)/8;
+      for(let i=0;i<8;i++){
+        if ((i+Math.floor(s.index))%2) continue;
+        const bx=p1.x-p1.w+cw*i;
+        poly(bx,p1.y, bx+cw,p1.y, bx+cw,p2.y, bx,p2.y, '#e8e8e8');
+      }
+    }
+    maxy = p2.y;
+    visible.push(s);
+  }
+  // 스프라이트·상대차 (먼 것부터)
+  for (let i=visible.length-1;i>=0;i--){
+    const s=visible[i], p=s.p1.screen;
+    for (const sp of s.sprites){
+      const sx = p.x + p.w*sp.x*1.02;
+      if (p.w > 2) drawSprite(sp, sx, p.y, p.w);
+    }
+    for (const r of rivals){
+      if (findSeg(r.z)!==s) continue;
+      const rw = s.p1.screen.w*0.62;
+      const rx = p.x + p.w*r.x;
+      if (rw>1.2) drawCar(rx, p.y, rw, r.color, false, 0);
+    }
+  }
+}
+function drawHUD(){
+  const kmh = Math.round(P.speed/MAXSPEED*300);
+  ctx.textAlign='left';
+  ctx.fillStyle='rgba(0,0,0,0.35)'; ctx.fillRect(24,20,250,96);
+  ctx.fillStyle='#ffe9a8'; ctx.font='800 58px system-ui,sans-serif';
+  ctx.fillText(kmh, 40, 84);
+  ctx.fillStyle='rgba(255,235,190,0.7)'; ctx.font='700 20px system-ui,sans-serif';
+  ctx.fillText('km/h', 40+ctx.measureText(kmh).width+70, 84);
+  ctx.fillText('랩 '+Math.min(P.lap,P.laps)+' / '+P.laps, 40, 44);
+  const fmt=t=>{ const m=Math.floor(t/60), s=(t%60).toFixed(2).padStart(5,'0'); return m+':'+s; };
+  ctx.textAlign='right';
+  ctx.fillStyle='rgba(0,0,0,0.35)'; ctx.fillRect(W-274,20,250,96);
+  ctx.fillStyle='#eaf2ff'; ctx.font='800 40px system-ui,sans-serif';
+  ctx.fillText(fmt(P.lapT), W-40, 66);
+  ctx.fillStyle='rgba(190,215,255,0.75)'; ctx.font='700 18px system-ui,sans-serif';
+  ctx.fillText(P.best? '베스트 '+fmt(P.best) : '베스트 --:--.--', W-40, 96);
+  // 미니 타코미터
+  const bx=W/2-140, by=H-42;
+  ctx.fillStyle='rgba(0,0,0,0.35)'; ctx.fillRect(bx,by,280,22);
+  const pct=P.speed/MAXSPEED;
+  ctx.fillStyle = pct>0.85 ? '#ff6b5a' : '#8be04e';
+  ctx.fillRect(bx+3,by+3,274*pct,16);
+  if (P.offroad>0.05){
+    ctx.textAlign='center'; ctx.fillStyle='rgba(255,120,90,'+(0.5+0.5*Math.sin(G.t*14))+')';
+    ctx.font='800 30px system-ui,sans-serif';
+    ctx.fillText('코스 이탈', W/2, 140);
+  }
+  if (G.msgT>0){
+    ctx.textAlign='center'; ctx.fillStyle='rgba(255,240,200,'+clamp(G.msgT,0,1)+')';
+    ctx.font='800 54px system-ui,sans-serif';
+    ctx.fillText(G.msg, W/2, 200);
+  }
+}
+function drawOverlay(){
+  if (G.state==='race') return;
+  ctx.fillStyle='rgba(4,6,14,0.72)'; ctx.fillRect(0,0,W,H);
+  ctx.textAlign='center'; ctx.fillStyle='#ffe9a8'; ctx.font='800 72px system-ui,sans-serif';
+  ctx.fillText(G.state==='title'?'선셋 서킷':'완주', W/2, 250);
+  ctx.font='600 22px system-ui,sans-serif'; ctx.fillStyle='rgba(220,232,255,0.9)';
+  if (G.state==='title'){
+    ctx.fillText('↑ 가속   ↓ 브레이크   ← → 조향   (모바일: 좌우 터치, 하단 중앙 브레이크)', W/2, 316);
+    ctx.fillText('3랩 · 코스를 벗어나면 느려지고, 앞차에 부딪히면 튕긴다', W/2, 352);
+  } else {
+    const fmt=t=>{ const m=Math.floor(t/60), s=(t%60).toFixed(2).padStart(5,'0'); return m+':'+s; };
+    P.times.forEach((t,i)=>{
+      ctx.fillStyle = (t===P.best)?'#8be04e':'rgba(220,232,255,0.9)';
+      ctx.fillText((i+1)+'랩   '+fmt(t), W/2, 320+i*38);
+    });
+    ctx.fillStyle='#ffe9a8'; ctx.font='800 30px system-ui,sans-serif';
+    ctx.fillText('총 '+fmt(P.times.reduce((a,b)=>a+b,0)), W/2, 320+P.times.length*38+20);
+  }
+  ctx.fillStyle='rgba(255,255,255,'+(0.45+0.4*Math.sin(G.t*3))+')'; ctx.font='800 26px system-ui,sans-serif';
+  ctx.fillText('아무 키나 화면을 누르면 시작', W/2, H-90);
+}
+
+let last=performance.now();
+(function loop(now){
+  let dt=(now-last)/1000; last=now; dt=Math.min(dt||0,0.05);
+  update(dt);
+  ctx.setTransform(1,0,0,1,0,0);
+  ctx.save();
+  if (G.shake>0){ const s=G.shake*16; ctx.translate((Math.random()-.5)*s,(Math.random()-.5)*s); }
+  render();
+  ctx.restore();
+  // 플레이어 차
+  const bounce = (P.offroad>0 ? Math.sin(G.t*40)*3*P.offroad : 0) + Math.sin(G.t*11)*(P.speed/MAXSPEED);
+  drawCar(W/2 + P.steer*26, H-96+bounce, 280, '#f5f5f7',
+          key.ArrowDown||key.s||key.S||touch.brake, P.steer);
+  drawHUD();
+  drawOverlay();
+  requestAnimationFrame(loop);
+})(last);
+})();
+</script>
+</body>
+</html>
