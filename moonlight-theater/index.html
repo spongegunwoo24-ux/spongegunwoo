@@ -291,3 +291,956 @@ const SFX = {
     o.connect(lp); lp.connect(g); g.connect(this.master); o.start(t); o.stop(t+0.9);
   }
 };
+
+/* ═════════ 화면 효과 헬퍼 ═════════ */
+const noiseTiles = [];
+for (let i=0;i<5;i++){
+  const cv = document.createElement('canvas'); cv.width = cv.height = 256;
+  const c2 = cv.getContext('2d'); const img = c2.createImageData(256,256);
+  for (let p=0;p<256*256;p++){
+    const v = (Math.random()*255)|0;
+    img.data[p*4] = img.data[p*4+1] = img.data[p*4+2] = v; img.data[p*4+3] = 255;
+  }
+  c2.putImageData(img,0,0); noiseTiles.push(cv);
+}
+function grain(alpha){
+  const t = noiseTiles[(Math.random()*noiseTiles.length)|0];
+  ctx.save(); ctx.globalAlpha = alpha; ctx.globalCompositeOperation = 'lighter';
+  for (let y=-8;y<H;y+=256) for (let x=-8;x<W;x+=256)
+    ctx.drawImage(t, x + ((Math.random()*8)|0), y + ((Math.random()*8)|0));
+  ctx.restore();
+}
+function vignette(strength){
+  const g = ctx.createRadialGradient(W/2, H/2, H*0.28, W/2, H/2, H*0.92);
+  g.addColorStop(0, 'rgba(0,0,0,0)');
+  g.addColorStop(1, 'rgba(0,0,0,' + strength + ')');
+  ctx.fillStyle = g; ctx.fillRect(0,0,W,H);
+}
+function txt(s, x, y, size, color, align, weight){
+  ctx.fillStyle = color || '#d8dff0';
+  ctx.font = (weight || 600) + ' ' + size + 'px system-ui, -apple-system, "Segoe UI", sans-serif';
+  ctx.textAlign = align || 'left'; ctx.textBaseline = 'alphabetic';
+  ctx.fillText(s, x, y);
+}
+function panel(r, fill, stroke){
+  ctx.fillStyle = fill; ctx.fillRect(r.x, r.y, r.w, r.h);
+  if (stroke){ ctx.strokeStyle = stroke; ctx.lineWidth = 2; ctx.strokeRect(r.x+1, r.y+1, r.w-2, r.h-2); }
+}
+
+/* ═════════ 5. 캐릭터 실루엣 (전부 도형 조합) ═════════ */
+// mode: 'sil' 역광 검은 실루엣 + 얇은 림라이트 / 'cam' 회녹색 저대비 / 'scare' 점프스케어
+function skin(mode){
+  if (mode === 'cam')   return { fill:'#26332c', rim:'rgba(150,196,170,0.42)', hot:'#8fe6b8', dim:'#384a3f' };
+  if (mode === 'scare') return { fill:'#0b0b10', rim:'rgba(255,255,255,0.85)', hot:'#fff4d8', dim:'#1b1b22' };
+  return { fill:'#04050a', rim:'rgba(198,220,255,0.34)', hot:'#ffcf8e', dim:'#0b0d15' };
+}
+function rimPath(sk, w){ ctx.fillStyle = sk.fill; ctx.fill(); ctx.strokeStyle = sk.rim; ctx.lineWidth = w||2; ctx.stroke(); }
+
+/** 비단 — 실에 매달린 마리오네트, 금 간 도자기 가면, 꿰맨 입 */
+function drawBidan(x, base, h, mode, t){
+  const sk = skin(mode), u = h/100, top = base - h;
+  const sway = Math.sin((t||0)*1.2) * 3*u;
+  ctx.save();
+  // 매달린 실
+  ctx.strokeStyle = mode==='cam' ? 'rgba(160,200,180,0.35)' : 'rgba(210,225,255,0.22)';
+  ctx.lineWidth = Math.max(1, u*0.5);
+  [[-26,32],[26,32],[0,16]].forEach(p => {
+    ctx.beginPath(); ctx.moveTo(x + p[0]*u*0.6, top - h*1.3);
+    ctx.lineTo(x + p[0]*u + sway, top + p[1]*u); ctx.stroke();
+  });
+  // 몸통
+  ctx.beginPath();
+  ctx.moveTo(x-20*u+sway, top+34*u); ctx.lineTo(x+20*u+sway, top+34*u);
+  ctx.lineTo(x+13*u+sway, top+68*u); ctx.lineTo(x-13*u+sway, top+68*u);
+  ctx.closePath(); rimPath(sk, u*0.8);
+  // 어깨 가로대
+  ctx.beginPath(); ctx.rect(x-28*u+sway, top+31*u, 56*u, 4.5*u); rimPath(sk, u*0.6);
+  // 늘어진 팔
+  ctx.strokeStyle = sk.fill; ctx.lineWidth = 5*u; ctx.lineCap = 'round';
+  [-1,1].forEach(s => {
+    ctx.beginPath();
+    ctx.moveTo(x + s*26*u + sway, top+34*u);
+    ctx.lineTo(x + s*31*u + sway*1.4, top+54*u);
+    ctx.lineTo(x + s*25*u + sway*1.8, top+74*u); ctx.stroke();
+  });
+  // 다리
+  ctx.lineWidth = 6*u;
+  [-1,1].forEach(s => {
+    ctx.beginPath(); ctx.moveTo(x + s*9*u + sway, top+66*u);
+    ctx.lineTo(x + s*11*u, base); ctx.stroke();
+  });
+  // 가면 머리
+  const hx = x + sway*1.2, hy = top + 17*u;
+  ctx.beginPath(); ctx.ellipse(hx, hy, 14*u, 16*u, 0, 0, Math.PI*2); rimPath(sk, u*0.9);
+  // 금 간 자국
+  ctx.strokeStyle = sk.rim; ctx.lineWidth = Math.max(1, u*0.7);
+  ctx.beginPath(); ctx.moveTo(hx-5*u, hy-14*u); ctx.lineTo(hx-2*u, hy-4*u);
+  ctx.lineTo(hx-6*u, hy+2*u); ctx.lineTo(hx-3*u, hy+9*u); ctx.stroke();
+  // 눈
+  ctx.fillStyle = mode==='cam' ? sk.dim : '#000';
+  [-5,5].forEach(s => { ctx.beginPath(); ctx.ellipse(hx+s*u, hy-3*u, 2.6*u, 3.4*u, 0, 0, Math.PI*2); ctx.fill(); });
+  if (mode === 'scare'){
+    ctx.fillStyle = '#e8e2d0';
+    [-5,5].forEach(s => { ctx.beginPath(); ctx.ellipse(hx+s*u, hy-3*u, 2.6*u, 3.4*u, 0, 0, Math.PI*2); ctx.fill(); });
+    ctx.fillStyle = '#000';
+    [-5,5].forEach(s => { ctx.beginPath(); ctx.arc(hx+s*u, hy-3*u, 1.2*u, 0, Math.PI*2); ctx.fill(); });
+  }
+  // 꿰맨 입
+  ctx.strokeStyle = sk.rim; ctx.lineWidth = Math.max(1, u*0.8);
+  ctx.beginPath(); ctx.moveTo(hx-7*u, hy+8*u); ctx.lineTo(hx+7*u, hy+8*u); ctx.stroke();
+  for (let i=-3;i<=3;i++){
+    ctx.beginPath(); ctx.moveTo(hx+i*2.2*u, hy+6*u); ctx.lineTo(hx+i*2.2*u, hy+10*u); ctx.stroke();
+  }
+  ctx.restore();
+}
+
+/** 초롱 — 등불 머리, 머리 안에서 주황 불빛이 흔들림 */
+function drawChorong(x, base, h, mode, t){
+  const sk = skin(mode), u = h/100, top = base - h;
+  const fl = 0.72 + Math.sin((t||0)*9.1)*0.12 + Math.sin((t||0)*3.3)*0.1;
+  ctx.save();
+  // 장삼 같은 몸통
+  ctx.beginPath();
+  ctx.moveTo(x-15*u, top+34*u); ctx.lineTo(x+15*u, top+34*u);
+  ctx.lineTo(x+26*u, base); ctx.lineTo(x-26*u, base);
+  ctx.closePath(); rimPath(sk, u*0.8);
+  // 소매
+  ctx.strokeStyle = sk.fill; ctx.lineWidth = 7*u; ctx.lineCap = 'round';
+  [-1,1].forEach(s => {
+    ctx.beginPath(); ctx.moveTo(x+s*14*u, top+38*u);
+    ctx.lineTo(x+s*27*u, top+58*u); ctx.lineTo(x+s*21*u, top+72*u); ctx.stroke();
+  });
+  // 등불 머리(육각 등롱)
+  const hy = top + 18*u;
+  ctx.beginPath();
+  ctx.moveTo(x-9*u, hy-18*u); ctx.lineTo(x+9*u, hy-18*u); ctx.lineTo(x+15*u, hy-4*u);
+  ctx.lineTo(x+15*u, hy+10*u); ctx.lineTo(x+9*u, hy+18*u); ctx.lineTo(x-9*u, hy+18*u);
+  ctx.lineTo(x-15*u, hy+10*u); ctx.lineTo(x-15*u, hy-4*u);
+  ctx.closePath();
+  // 내부 불빛
+  const g = ctx.createRadialGradient(x, hy, 1, x, hy, 20*u);
+  if (mode === 'cam'){ g.addColorStop(0,'rgba(190,240,210,'+(0.5*fl)+')'); g.addColorStop(1,'rgba(40,60,50,0.1)'); }
+  else { g.addColorStop(0,'rgba(255,176,72,'+(0.92*fl)+')'); g.addColorStop(0.6,'rgba(214,104,24,'+(0.45*fl)+')'); g.addColorStop(1,'rgba(40,16,6,0.15)'); }
+  ctx.fillStyle = g; ctx.fill();
+  ctx.strokeStyle = sk.rim; ctx.lineWidth = u*0.9; ctx.stroke();
+  // 등롱 살
+  ctx.strokeStyle = mode==='cam' ? 'rgba(20,30,25,0.7)' : 'rgba(20,10,4,0.75)';
+  ctx.lineWidth = u*0.8;
+  for (let i=-2;i<=2;i++){ ctx.beginPath(); ctx.moveTo(x+i*6*u, hy-18*u); ctx.lineTo(x+i*6*u, hy+18*u); ctx.stroke(); }
+  ctx.beginPath(); ctx.moveTo(x-15*u, hy); ctx.lineTo(x+15*u, hy); ctx.stroke();
+  // 고리
+  ctx.strokeStyle = sk.rim; ctx.lineWidth = u*0.8;
+  ctx.beginPath(); ctx.arc(x, hy-21*u, 3.4*u, Math.PI, Math.PI*2); ctx.stroke();
+  ctx.restore();
+}
+
+/** 장승 — 장대 다리, 나무 탈, 벌어진 이빨 */
+function drawJangseung(x, base, h, mode, t){
+  const sk = skin(mode), u = h/100, top = base - h;
+  const sway = Math.sin((t||0)*2.4)*2*u;
+  ctx.save();
+  // 장대 다리
+  ctx.strokeStyle = sk.fill; ctx.lineWidth = 7*u; ctx.lineCap = 'butt';
+  [-1,1].forEach(s => {
+    ctx.beginPath(); ctx.moveTo(x+s*8*u+sway, top+52*u); ctx.lineTo(x+s*13*u, base); ctx.stroke();
+    ctx.strokeStyle = sk.rim; ctx.lineWidth = u*0.7;
+    ctx.beginPath(); ctx.moveTo(x+s*8*u+sway, top+52*u); ctx.lineTo(x+s*13*u, base); ctx.stroke();
+    ctx.strokeStyle = sk.fill; ctx.lineWidth = 7*u;
+  });
+  // 좁은 몸통
+  ctx.beginPath();
+  ctx.moveTo(x-13*u+sway, top+26*u); ctx.lineTo(x+13*u+sway, top+26*u);
+  ctx.lineTo(x+10*u+sway, top+54*u); ctx.lineTo(x-10*u+sway, top+54*u);
+  ctx.closePath(); rimPath(sk, u*0.8);
+  // 긴 팔
+  ctx.strokeStyle = sk.fill; ctx.lineWidth = 5.5*u; ctx.lineCap = 'round';
+  [-1,1].forEach(s => {
+    ctx.beginPath(); ctx.moveTo(x+s*13*u+sway, top+29*u);
+    ctx.lineTo(x+s*22*u+sway, top+50*u); ctx.lineTo(x+s*19*u+sway, top+72*u); ctx.stroke();
+  });
+  // 나무 탈
+  const hy = top + 14*u;
+  ctx.beginPath();
+  ctx.moveTo(x-13*u+sway, hy-14*u); ctx.lineTo(x+13*u+sway, hy-14*u);
+  ctx.lineTo(x+11*u+sway, hy+15*u); ctx.lineTo(x-11*u+sway, hy+15*u);
+  ctx.closePath(); rimPath(sk, u*0.9);
+  // 뿔 같은 상투
+  ctx.beginPath(); ctx.moveTo(x-6*u+sway, hy-14*u); ctx.lineTo(x+sway, hy-24*u);
+  ctx.lineTo(x+6*u+sway, hy-14*u); ctx.closePath(); rimPath(sk, u*0.7);
+  // 눈
+  ctx.fillStyle = mode==='sil' ? '#000' : sk.dim;
+  [-5.5,5.5].forEach(s => { ctx.beginPath(); ctx.ellipse(x+s*u+sway, hy-4*u, 3.2*u, 2.4*u, 0, 0, Math.PI*2); ctx.fill(); });
+  if (mode === 'scare'){
+    ctx.fillStyle = '#f4e9cf';
+    [-5.5,5.5].forEach(s => { ctx.beginPath(); ctx.ellipse(x+s*u+sway, hy-4*u, 3.2*u, 2.4*u, 0, 0, Math.PI*2); ctx.fill(); });
+  }
+  // 벌어진 이빨
+  ctx.fillStyle = mode==='cam' ? '#cfe6d6' : '#e9e0c8';
+  for (let i=-3;i<=3;i++){
+    const tw = 2.3*u, th = (i%2===0 ? 7*u : 5*u);
+    ctx.fillRect(x + i*3.1*u - tw/2 + sway, hy+6*u, tw, th);
+  }
+  ctx.strokeStyle = sk.rim; ctx.lineWidth = u*0.6;
+  ctx.strokeRect(x-11*u+sway, hy+6*u, 22*u, 8*u);
+  ctx.restore();
+}
+
+/** 월광 — 극단장, 실크햇, 초승달 얼굴, 빛나는 두 눈 */
+function drawWolgwang(x, base, h, mode, t, eyesOnly){
+  const sk = skin(mode), u = h/100, top = base - h;
+  const hy = top + 20*u;
+  if (eyesOnly){
+    // 복도등: 두 눈만 보인다
+    const p = 0.7 + Math.sin((t||0)*7)*0.3;
+    [-7,7].forEach(s => {
+      const g = ctx.createRadialGradient(x+s*u, hy-3*u, 0, x+s*u, hy-3*u, 13*u);
+      g.addColorStop(0,'rgba(255,250,214,'+(0.95*p)+')');
+      g.addColorStop(0.25,'rgba(246,226,140,'+(0.5*p)+')');
+      g.addColorStop(1,'rgba(120,100,30,0)');
+      ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x+s*u, hy-3*u, 13*u, 0, Math.PI*2); ctx.fill();
+      ctx.fillStyle = 'rgba(255,253,235,'+p+')';
+      ctx.beginPath(); ctx.ellipse(x+s*u, hy-3*u, 3*u, 2.2*u, 0, 0, Math.PI*2); ctx.fill();
+    });
+    return;
+  }
+  ctx.save();
+  // 연미복 몸통
+  ctx.beginPath();
+  ctx.moveTo(x-17*u, top+36*u); ctx.lineTo(x+17*u, top+36*u);
+  ctx.lineTo(x+21*u, top+78*u); ctx.lineTo(x+8*u, base);
+  ctx.lineTo(x, top+82*u); ctx.lineTo(x-8*u, base); ctx.lineTo(x-21*u, top+78*u);
+  ctx.closePath(); rimPath(sk, u*0.8);
+  // 팔
+  ctx.strokeStyle = sk.fill; ctx.lineWidth = 6*u; ctx.lineCap = 'round';
+  [-1,1].forEach(s => {
+    ctx.beginPath(); ctx.moveTo(x+s*17*u, top+38*u);
+    ctx.lineTo(x+s*26*u, top+58*u); ctx.lineTo(x+s*20*u, top+74*u); ctx.stroke();
+  });
+  // 초승달 얼굴
+  ctx.beginPath(); ctx.arc(x, hy, 14*u, 0, Math.PI*2); rimPath(sk, u*0.9);
+  ctx.save();
+  ctx.globalCompositeOperation = 'source-over';
+  ctx.fillStyle = mode==='cam' ? 'rgba(190,230,205,0.5)' : 'rgba(236,240,255,0.55)';
+  ctx.beginPath(); ctx.arc(x-2*u, hy, 13*u, Math.PI*0.35, Math.PI*1.65); ctx.fill();
+  ctx.fillStyle = sk.fill;
+  ctx.beginPath(); ctx.arc(x-8*u, hy, 13*u, 0, Math.PI*2); ctx.fill();
+  ctx.restore();
+  // 빛나는 두 눈
+  const p = 0.75 + Math.sin((t||0)*6.4)*0.25;
+  [-6,6].forEach(s => {
+    const g = ctx.createRadialGradient(x+s*u, hy-3*u, 0, x+s*u, hy-3*u, 9*u);
+    g.addColorStop(0,'rgba(255,251,220,'+p+')'); g.addColorStop(1,'rgba(180,150,40,0)');
+    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x+s*u, hy-3*u, 9*u, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = 'rgba(255,255,240,'+p+')';
+    ctx.beginPath(); ctx.ellipse(x+s*u, hy-3*u, 2.6*u, 2*u, 0, 0, Math.PI*2); ctx.fill();
+  });
+  // 실크햇
+  ctx.beginPath(); ctx.rect(x-22*u, hy-17*u, 44*u, 4*u); rimPath(sk, u*0.7);
+  ctx.beginPath(); ctx.rect(x-12*u, hy-40*u, 24*u, 23*u); rimPath(sk, u*0.8);
+  ctx.strokeStyle = sk.rim; ctx.lineWidth = u*0.7;
+  ctx.beginPath(); ctx.moveTo(x-12*u, hy-21*u); ctx.lineTo(x+12*u, hy-21*u); ctx.stroke();
+  ctx.restore();
+}
+
+/** 태엽인형 — 작은 인형, 등에 태엽 열쇠 */
+function drawTaeyeop(x, base, h, mode, t){
+  const sk = skin(mode), u = h/100, top = base - h;
+  const tilt = Math.sin((t||0)*4.5)*0.06;
+  ctx.save();
+  ctx.translate(x, base); ctx.rotate(tilt); ctx.translate(-x, -base);
+  // 태엽 열쇠
+  ctx.strokeStyle = sk.rim; ctx.lineWidth = u*1.4;
+  ctx.beginPath(); ctx.arc(x+20*u, top+46*u, 9*u, 0, Math.PI*2); ctx.stroke();
+  for (let i=0;i<4;i++){
+    const a = (t||0)*1.6 + i*Math.PI/2;
+    ctx.beginPath(); ctx.moveTo(x+20*u, top+46*u);
+    ctx.lineTo(x+20*u + Math.cos(a)*9*u, top+46*u + Math.sin(a)*9*u); ctx.stroke();
+  }
+  // 몸통
+  ctx.beginPath(); ctx.ellipse(x, top+52*u, 17*u, 24*u, 0, 0, Math.PI*2); rimPath(sk, u*0.9);
+  // 팔다리
+  ctx.strokeStyle = sk.fill; ctx.lineWidth = 5*u; ctx.lineCap = 'round';
+  [-1,1].forEach(s => {
+    ctx.beginPath(); ctx.moveTo(x+s*15*u, top+46*u); ctx.lineTo(x+s*25*u, top+62*u); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(x+s*8*u, top+74*u); ctx.lineTo(x+s*10*u, base); ctx.stroke();
+  });
+  // 머리
+  const hy = top + 18*u;
+  ctx.beginPath(); ctx.arc(x, hy, 17*u, 0, Math.PI*2); rimPath(sk, u*0.9);
+  ctx.fillStyle = mode==='scare' ? '#f2ead2' : (mode==='cam' ? sk.dim : '#000');
+  [-6,6].forEach(s => { ctx.beginPath(); ctx.arc(x+s*u, hy-2*u, 3.4*u, 0, Math.PI*2); ctx.fill(); });
+  ctx.strokeStyle = sk.rim; ctx.lineWidth = u*0.8;
+  ctx.beginPath(); ctx.arc(x, hy+7*u, 5*u, 0.15*Math.PI, 0.85*Math.PI); ctx.stroke();
+  ctx.restore();
+}
+
+const DRAW = { bidan:drawBidan, chorong:drawChorong, jangseung:drawJangseung, wolgwang:drawWolgwang, taeyeop:drawTaeyeop };
+
+/* ═════════ 레이아웃 상수 ═════════ */
+const DOOR = {                                  // 씬 좌표
+  L:{ x:120,  w:240, y:170, h:450, cx:240  },
+  R:{ x:1400, w:240, y:170, h:450, cx:1520 }
+};
+const SBTN = {                                  // 문 옆 안쪽 벽 버튼(씬 좌표)
+  Ldoor:{x:430, y:300, w:120, h:78}, Llight:{x:430, y:392, w:120, h:78},
+  Rdoor:{x:1210,y:300, w:120, h:78}, Rlight:{x:1210,y:392, w:120, h:78}
+};
+const R_CAMBAR = { x:W/2-140, y:H-54, w:280, h:40 };
+const R_MUTE   = { x:18,     y:14,   w:46,  h:28 };
+const AUX = {                                   // 화면 고정 보조 버튼(모바일/좁은 화면 대응)
+  Ldoor :{x:12,    y:286, w:78, h:56, label:'문 A'},
+  Llight:{x:12,    y:350, w:78, h:56, label:'등 S'},
+  Rlight:{x:W-90,  y:286, w:78, h:56, label:'등 K'},
+  Rdoor :{x:W-90,  y:350, w:78, h:56, label:'문 L'}
+};
+
+/* ═════════ 등장체 정의 / 밤별 AI 레벨 ═════════ */
+const CHAR_DEF = {
+  bidan:    { name:'비단',  path:[1,3,4,5,6], side:'L', interval:4.9 },
+  chorong:  { name:'초롱',  path:[1,3,7,8,9], side:'R', interval:5.2 },
+  wolgwang: { name:'월광',  path:[1,3,7,9],   side:'R', interval:3.4 }
+};
+const NIGHT_LV = [
+  { bidan:2,  chorong:1,  jangseung:1,  wolgwang:0, organ:false },
+  { bidan:4,  chorong:3,  jangseung:3,  wolgwang:1, organ:false },
+  { bidan:6,  chorong:5,  jangseung:5,  wolgwang:2, organ:true  },
+  { bidan:9,  chorong:8,  jangseung:8,  wolgwang:4, organ:true  },
+  { bidan:12, chorong:11, jangseung:11, wolgwang:7, organ:true  }
+];
+const CAUSE = {
+  bidan:    '비단이 좌측 문으로 들어왔다.',
+  chorong:  '초롱이 우측 문으로 들어왔다.',
+  jangseung:'장승이 서쪽 복도를 질주했다. 좌측 문은 열려 있었다.',
+  wolgwang: '월광이 우측 문으로 들어왔다.',
+  blackout: '전력이 끊겼다. 월광은 어둠에서만 움직인다.',
+  taeyeop:  '태엽이 멈췄다. 태엽인형은 노래가 끝나는 것을 싫어한다.'
+};
+const MEMO = [
+  '인수인계 — 읽고 태우든 말든 자유다.',
+  '',
+  '하나. 복도등은 공짜가 아니다. 필요한 순간에만 켜라.',
+  '둘.  문은 마지막 수단이다. 전력은 6 AM까지 버텨야 한다.',
+  '셋.  문 앞에 뭐가 서 있으면, 등을 켜면 보인다.',
+  '넷.  월광은 눈만 보일 거다. 눈이 보이면 이미 늦었다.',
+  '다섯. 전력이 끊기면 기도나 해라. 가끔은 종이 먼저 울린다.',
+  '',
+  '— 전임 경비'
+];
+
+/* ═════════ 게임 상태 ═════════ */
+const G = {
+  state:'title', stateT:0, night:1, cleared:0,
+  P:null, dead:null, fanA:0, titleT:0
+};
+
+function startNight(night){
+  const lv = NIGHT_LV[night-1];
+  const P = {
+    night, k:K_POWER[night-1],
+    organOn:lv.organ, organRate:ORGAN_DRAIN[night-1],
+    time:0, hour:0, power:100, usage:1,
+    doorL:false, doorR:false, lightL:false, lightR:false,
+    cam:false, camRoom:1,
+    panX:PAN_MAX/2,
+    organ:100, organGrace:-1,
+    blackout:false, boT:0, boKill:0, boMusic:false,
+    jang:{ stage:0, timer:5.1, charge:-1, lv:lv.jangseung },
+    chars:{}, flick:0, flickT:rand(1.5,4), shakeT:0, toast:'', toastT:0,
+    slamFlash:0
+  };
+  for (const k in CHAR_DEF){
+    const d = CHAR_DEF[k];
+    P.chars[k] = { key:k, name:d.name, path:d.path, side:d.side, interval:d.interval,
+                   timer:d.interval, pos:0, atDoor:false, patience:0, blockT:-1,
+                   lv:lv[k], warned:false, active:(k!=='wolgwang') };
+  }
+  G.P = P; G.state = 'play'; G.stateT = 0;
+}
+
+function toast(s){ const P=G.P; if(!P) return; P.toast=s; P.toastT=1.6; }
+function kill(key){
+  G.dead = { key:(key==='blackout' ? 'wolgwang' : key), cause:CAUSE[key] || CAUSE.bidan, night:G.P.night };
+  G.state = 'dead'; G.stateT = 0;
+  SFX.scare();
+}
+function win(){ G.state='win'; G.stateT=0; G.cleared=Math.max(G.cleared, G.P.night); SFX.sixAM(); }
+function gotoIntro(night){ G.night=night; G.state='intro'; G.stateT=0; }
+
+/* ═════════ 4·5·6. 시뮬레이션 ═════════ */
+function updatePlay(dt){
+  const P = G.P;
+
+  // 시간
+  P.time += dt;
+  const h = Math.min(6, Math.floor(P.time / HOUR_SEC));
+  if (h !== P.hour){ P.hour = h; if (h < 6) hourBonus(h); }
+  if (P.time >= NIGHT_SEC){ win(); return; }
+
+  // 팬 이동: 마우스 X → panX 0~480 보간(계수 6/초)
+  if (ptr.moved) P.panTarget = clamp(ptr.x / W, 0, 1) * PAN_MAX;
+  P.panX = lerp(P.panX, (P.panTarget === undefined ? PAN_MAX/2 : P.panTarget), clamp(dt*6, 0, 1));
+
+  // 조명 플리커
+  P.flickT -= dt;
+  if (P.flickT <= 0){ P.flick = rand(0.05, 0.2); P.flickT = rand(1.6, 6.5); }
+  if (P.flick > 0) P.flick -= dt;
+  if (P.shakeT > 0) P.shakeT -= dt;
+  if (P.slamFlash > 0) P.slamFlash -= dt;
+  if (P.toastT > 0) P.toastT -= dt;
+
+  // 전력
+  if (!P.blackout){
+    P.usage = 1 + (P.doorL?1:0) + (P.doorR?1:0) + (P.lightL?1:0) + (P.lightR?1:0) + (P.cam?1:0);
+    P.power -= P.k * P.usage * dt;
+    if (P.power <= 0){ P.power = 0; startBlackout(); }
+  }
+
+  // 정전 시퀀스
+  if (P.blackout){
+    P.boT += dt;
+    if (P.boT >= 3 && !P.boMusic){ P.boMusic = true; SFX.musicBox(); }
+    if (P.boT >= P.boKill) kill('blackout');
+    return;                                   // 정전 중에는 다른 AI가 멈춘다
+  }
+
+  // 애니매트로닉스
+  for (const k in P.chars){ const c = P.chars[k]; if (c.active) tickChar(c, dt); }
+}
+
+function hourBonus(h){
+  const P = G.P;
+  if (h>=2 && h<=5){
+    ['bidan','chorong'].forEach(k => { P.chars[k].lv = Math.min(20, P.chars[k].lv + 1); });
+    P.jang.lv = Math.min(20, P.jang.lv + 1);
+  }
+  if (h===3 || h===5) P.chars.wolgwang.lv = Math.min(20, P.chars.wolgwang.lv + 1);
+}
+
+function tickChar(c, dt){
+  const P = G.P;
+  // 문에 막혀 후퇴 대기
+  if (c.blockT >= 0){
+    c.blockT -= dt;
+    if (c.blockT <= 0){
+      SFX.bang(); c.blockT = -1; c.atDoor = false; c.warned = false;
+      c.pos = 0; c.timer = c.interval; P.shakeT = 0.35;
+    }
+    return;
+  }
+  // 문 앞 교전
+  if (c.atDoor){
+    const closed = (c.side === 'L') ? P.doorL : P.doorR;
+    if (closed){ c.blockT = 1.5; return; }
+    c.patience -= dt;
+    if (c.patience < 1.8 && !c.warned){ c.warned = true; SFX.growl(); }   // 직전 단서
+    if (c.patience <= 0) kill(c.key);
+    return;
+  }
+  // 전진 판정
+  c.timer -= dt;
+  if (c.timer > 0) return;
+  c.timer = c.interval;
+  if (c.key === 'wolgwang' && P.cam && P.camRoom === c.path[c.pos]) return;  // 안 볼 때만 다가온다
+  if (!roll20(c.lv)) return;
+  c.pos++;
+  if (c.pos >= c.path.length - 1){ arriveDoor(c); }
+  else { const room = c.path[c.pos]; SFX.step((room===5||room===7) ? 1 : 0.6); }
+}
+function arriveDoor(c){
+  c.pos = c.path.length - 1; c.atDoor = true; c.warned = false;
+  c.patience = (c.key === 'wolgwang') ? rand(4,9) : rand(5,13);
+  SFX.step(1.15);
+}
+function atDoorChar(side){
+  const P = G.P;
+  for (const k in P.chars){
+    const c = P.chars[k];
+    if (c.active && c.atDoor && c.side === side && c.blockT < 0) return c;
+  }
+  return null;
+}
+function startBlackout(){
+  const P = G.P;
+  P.blackout = true; P.boT = 0; P.boKill = 3 + rand(10,20); P.boMusic = false;
+  P.doorL = P.doorR = false; P.lightL = P.lightR = false; P.cam = false;
+  SFX.powerDown();
+}
+
+/* 조작 */
+function toggleDoor(side){
+  const P = G.P; if (!P || G.state!=='play' || P.blackout || P.cam) return;
+  if (side === 'L') P.doorL = !P.doorL; else P.doorR = !P.doorR;
+  SFX.door(side === 'L' ? P.doorL : P.doorR);
+}
+function toggleLight(side){
+  const P = G.P; if (!P || G.state!=='play' || P.blackout) return;
+  if (side === 'L') P.lightL = !P.lightL; else P.lightR = !P.lightR;   // 둘 다 켤 수 있다(전력 사용량 +2)
+  SFX.camSwitch();
+}
+
+/* ═════════ 2·3. 사무실 뷰 렌더 ═════════ */
+function drawOffice(){
+  const P = G.P;
+  const px = Math.round(P.panX);
+  const dim = P.flick > 0 ? 0.45 : 0;
+
+  ctx.save();
+  ctx.translate(-px, 0);
+
+  // 뒷벽
+  const g = ctx.createLinearGradient(0,0,0,H);
+  g.addColorStop(0,'#0a0c13'); g.addColorStop(0.5,'#131620'); g.addColorStop(1,'#06070b');
+  ctx.fillStyle = g; ctx.fillRect(0,0,SCENE_W,H);
+  // 벽 패널
+  ctx.strokeStyle = 'rgba(120,140,180,0.07)'; ctx.lineWidth = 2;
+  for (let x=60;x<SCENE_W;x+=150){ ctx.beginPath(); ctx.moveTo(x,110); ctx.lineTo(x,640); ctx.stroke(); }
+  ctx.strokeStyle = 'rgba(120,140,180,0.10)';
+  ctx.beginPath(); ctx.moveTo(0,118); ctx.lineTo(SCENE_W,118); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(0,636); ctx.lineTo(SCENE_W,636); ctx.stroke();
+
+  drawPoster(520, 205, '월광 인형극장');
+  drawPoster(1040, 215, '금일 공연 없음');
+  drawExitSign(1352, 146);
+  drawFan(760, 74);
+  drawDoorway('L'); drawDoorway('R');
+  drawSideButtons('L'); drawSideButtons('R');
+  drawLamp(660, 566);
+  drawDesk();
+
+  ctx.restore();
+
+  // 조명 플리커 / 장승 충돌 섬광
+  if (dim > 0){ ctx.fillStyle = 'rgba(0,0,0,'+dim+')'; ctx.fillRect(0,0,W,H); }
+  if (P.slamFlash > 0){ ctx.fillStyle = 'rgba(255,220,180,'+(P.slamFlash*0.5)+')'; ctx.fillRect(0,0,W,H); }
+
+  // 문 앞 위협 경고(인내심이 얼마 남지 않았을 때 화면 가장자리)
+  ['L','R'].forEach(side => {
+    const c = atDoorChar(side);
+    if (!c || c.patience > 1.8) return;
+    const a = 0.25 * (1 - c.patience/1.8) * (0.6 + 0.4*Math.sin(G.stateT*22));
+    const gr = ctx.createLinearGradient(side==='L'?0:W, 0, side==='L'?220:W-220, 0);
+    gr.addColorStop(0,'rgba(120,10,14,'+a+')'); gr.addColorStop(1,'rgba(120,10,14,0)');
+    ctx.fillStyle = gr; ctx.fillRect(side==='L'?0:W-220, 0, 220, H);
+  });
+}
+
+function drawPoster(x, y, title){
+  ctx.save();
+  ctx.fillStyle = 'rgba(28,30,42,0.92)'; ctx.fillRect(x, y, 150, 200);
+  ctx.strokeStyle = 'rgba(150,170,210,0.18)'; ctx.lineWidth = 2; ctx.strokeRect(x, y, 150, 200);
+  // 초승달
+  ctx.fillStyle = 'rgba(222,214,170,0.20)';
+  ctx.beginPath(); ctx.arc(x+75, y+70, 34, 0, Math.PI*2); ctx.fill();
+  ctx.fillStyle = 'rgba(28,30,42,0.95)';
+  ctx.beginPath(); ctx.arc(x+60, y+62, 32, 0, Math.PI*2); ctx.fill();
+  txt(title, x+75, y+130, 15, 'rgba(206,214,236,0.45)', 'center');
+  ctx.fillStyle = 'rgba(160,175,205,0.13)';
+  for (let i=0;i<5;i++) ctx.fillRect(x+24, y+148+i*9, 102 - i*11, 3);
+  ctx.restore();
+}
+function drawExitSign(x, y){
+  ctx.save();
+  ctx.fillStyle = 'rgba(60,8,10,0.95)'; ctx.fillRect(x, y, 96, 34);
+  ctx.strokeStyle = 'rgba(255,90,90,0.35)'; ctx.lineWidth = 2; ctx.strokeRect(x, y, 96, 34);
+  const gl = ctx.createRadialGradient(x+48, y+17, 2, x+48, y+17, 70);
+  gl.addColorStop(0,'rgba(255,60,60,0.28)'); gl.addColorStop(1,'rgba(255,60,60,0)');
+  ctx.fillStyle = gl; ctx.fillRect(x-30, y-30, 156, 94);
+  txt('비상구', x+48, y+24, 17, '#ff6b6b', 'center', 700);
+  ctx.restore();
+}
+function drawFan(x, y){
+  ctx.save();
+  ctx.strokeStyle = 'rgba(150,165,195,0.22)'; ctx.lineWidth = 3;
+  ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, y); ctx.stroke();
+  ctx.fillStyle = 'rgba(18,20,28,0.95)';
+  ctx.beginPath(); ctx.arc(x, y, 9, 0, Math.PI*2); ctx.fill();
+  ctx.translate(x, y); ctx.rotate(G.fanA);
+  for (let i=0;i<3;i++){
+    ctx.rotate(Math.PI*2/3);
+    ctx.fillStyle = 'rgba(22,25,34,0.9)';
+    ctx.beginPath(); ctx.ellipse(46, 0, 46, 12, 0, 0, Math.PI*2); ctx.fill();
+    ctx.strokeStyle = 'rgba(150,170,205,0.16)'; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.ellipse(46, 0, 46, 12, 0, 0, Math.PI*2); ctx.stroke();
+  }
+  ctx.restore();
+}
+function drawLamp(x, y){
+  const P = G.P;
+  const on = P.flick <= 0;
+  ctx.save();
+  if (on){
+    const gl = ctx.createRadialGradient(x, y, 4, x, y, 320);
+    gl.addColorStop(0,'rgba(255,226,170,0.34)'); gl.addColorStop(0.4,'rgba(255,200,130,0.10)');
+    gl.addColorStop(1,'rgba(255,190,120,0)');
+    ctx.fillStyle = gl; ctx.beginPath(); ctx.arc(x, y, 320, 0, Math.PI*2); ctx.fill();
+  }
+  ctx.strokeStyle = 'rgba(150,165,195,0.3)'; ctx.lineWidth = 4;
+  ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x+16, y+44); ctx.stroke();
+  ctx.fillStyle = '#0c0e15';
+  ctx.beginPath(); ctx.moveTo(x-26,y); ctx.lineTo(x+26,y); ctx.lineTo(x+16,y-26); ctx.lineTo(x-16,y-26); ctx.closePath(); ctx.fill();
+  ctx.strokeStyle = on ? 'rgba(255,220,160,0.5)' : 'rgba(120,130,160,0.25)';
+  ctx.lineWidth = 2; ctx.stroke();
+  ctx.restore();
+}
+function drawDesk(){
+  ctx.save();
+  ctx.fillStyle = '#04050a';
+  ctx.beginPath();
+  ctx.moveTo(380, H); ctx.lineTo(470, 600); ctx.lineTo(1300, 600); ctx.lineTo(1400, H);
+  ctx.closePath(); ctx.fill();
+  ctx.strokeStyle = 'rgba(160,180,220,0.16)'; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.moveTo(470, 600); ctx.lineTo(1300, 600); ctx.stroke();
+  // 서류 뭉치·컵 실루엣
+  ctx.fillStyle = '#070910';
+  ctx.fillRect(560, 572, 120, 28);
+  ctx.beginPath(); ctx.ellipse(1180, 588, 26, 14, 0, 0, Math.PI*2); ctx.fill();
+  ctx.strokeStyle = 'rgba(160,180,220,0.12)';
+  ctx.strokeRect(560, 572, 120, 28);
+  ctx.restore();
+}
+
+function drawDoorway(side){
+  const P = G.P, d = DOOR[side];
+  const lightOn = side==='L' ? P.lightL : P.lightR;
+  const closed  = side==='L' ? P.doorL  : P.doorR;
+  ctx.save();
+  // 복도 어둠
+  ctx.fillStyle = '#020306'; ctx.fillRect(d.x, d.y, d.w, d.h);
+  if (lightOn){
+    const inner = (side === 'L') ? -1 : 1;          // 복도가 뻗어 나가는 방향
+    const vx = d.cx - inner*72, vy = d.y + d.h*0.42;  // 소실점
+    // 복도 바닥
+    const fg = ctx.createLinearGradient(d.x, d.y+d.h, d.x, vy);
+    fg.addColorStop(0,'rgba(255,226,168,0.20)'); fg.addColorStop(1,'rgba(180,140,80,0.05)');
+    ctx.fillStyle = fg;
+    ctx.beginPath();
+    ctx.moveTo(d.x, d.y+d.h); ctx.lineTo(d.x+d.w, d.y+d.h);
+    ctx.lineTo(vx+58, vy+40); ctx.lineTo(vx-58, vy+40); ctx.closePath(); ctx.fill();
+    // 복도 벽/천장
+    const wg = ctx.createLinearGradient(d.x, d.y, d.x, d.y+d.h);
+    wg.addColorStop(0,'rgba(255,232,180,0.13)'); wg.addColorStop(0.5,'rgba(255,220,160,0.07)');
+    wg.addColorStop(1,'rgba(120,90,50,0.02)');
+    ctx.fillStyle = wg; ctx.fillRect(d.x, d.y, d.w, d.h);
+    // 먼 벽
+    ctx.fillStyle = 'rgba(46,38,28,0.85)';
+    ctx.fillRect(vx-58, vy-96, 116, 136);
+    ctx.strokeStyle = 'rgba(255,226,170,0.13)'; ctx.lineWidth = 2;
+    ctx.strokeRect(vx-58, vy-96, 116, 136);
+    // 원근선
+    ctx.beginPath(); ctx.moveTo(d.x, d.y); ctx.lineTo(vx-58, vy-96); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(d.x+d.w, d.y); ctx.lineTo(vx+58, vy-96); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(d.x, d.y+d.h); ctx.lineTo(vx-58, vy+40); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(d.x+d.w, d.y+d.h); ctx.lineTo(vx+58, vy+40); ctx.stroke();
+    // 바닥 빛 번짐
+    const fl = ctx.createRadialGradient(d.cx, d.y+d.h, 6, d.cx, d.y+d.h, 260);
+    fl.addColorStop(0,'rgba(255,222,164,0.20)'); fl.addColorStop(1,'rgba(255,210,150,0)');
+    ctx.fillStyle = fl; ctx.beginPath(); ctx.arc(d.cx, d.y+d.h, 260, 0, Math.PI*2); ctx.fill();
+    // 문 앞 개체
+    const c = atDoorChar(side);
+    if (c){
+      if (c.key === 'wolgwang') drawWolgwang(d.cx, d.y+d.h-6, 430, 'sil', G.stateT, true);
+      else DRAW[c.key](d.cx, d.y+d.h-6, 430, 'sil', G.stateT);
+    }
+  }
+  // 셔터(문)
+  if (closed){
+    ctx.fillStyle = '#0a0c13'; ctx.fillRect(d.x-8, d.y-8, d.w+16, d.h+16);
+    ctx.strokeStyle = 'rgba(150,170,210,0.2)'; ctx.lineWidth = 2;
+    for (let y=d.y; y<d.y+d.h; y+=22){
+      ctx.beginPath(); ctx.moveTo(d.x-6, y); ctx.lineTo(d.x+d.w+6, y); ctx.stroke();
+    }
+    ctx.fillStyle = 'rgba(60,70,92,0.9)';
+    ctx.fillRect(d.cx-34, d.y+d.h-46, 68, 14);
+  }
+  // 문틀
+  ctx.strokeStyle = 'rgba(150,170,210,0.26)'; ctx.lineWidth = 8;
+  ctx.strokeRect(d.x-10, d.y-10, d.w+20, d.h+20);
+  ctx.restore();
+}
+
+function drawSideButtons(side){
+  const P = G.P;
+  const db = SBTN[side+'door'], lb = SBTN[side+'light'];
+  const dOn = side==='L' ? P.doorL : P.doorR;
+  const lOn = side==='L' ? P.lightL : P.lightR;
+  [[db,'문',dOn,'#e2604a'],[lb,'등',lOn,'#ffd27d']].forEach(([r,label,on,col]) => {
+    ctx.save();
+    ctx.fillStyle = '#0b0d14'; ctx.fillRect(r.x-6, r.y-6, r.w+12, r.h+12);
+    ctx.strokeStyle = 'rgba(150,170,210,0.2)'; ctx.lineWidth = 2;
+    ctx.strokeRect(r.x-6, r.y-6, r.w+12, r.h+12);
+    if (on){
+      const gl = ctx.createRadialGradient(r.x+r.w/2, r.y+r.h/2, 2, r.x+r.w/2, r.y+r.h/2, 130);
+      gl.addColorStop(0,'rgba(255,220,160,0.28)');
+      gl.addColorStop(1,'rgba(255,220,160,0)');
+      ctx.fillStyle = gl; ctx.beginPath(); ctx.arc(r.x+r.w/2, r.y+r.h/2, 130, 0, Math.PI*2); ctx.fill();
+    }
+    ctx.fillStyle = on ? col : '#1a1f2b';
+    ctx.fillRect(r.x, r.y, r.w, r.h);
+    ctx.strokeStyle = on ? 'rgba(255,255,255,0.55)' : 'rgba(150,170,210,0.26)';
+    ctx.strokeRect(r.x, r.y, r.w, r.h);
+    txt(label, r.x+r.w/2, r.y+r.h/2+9, 26, on ? '#1a1208' : '#8e9bb8', 'center', 800);
+    ctx.restore();
+  });
+}
+
+/* ═════════ 정전 ═════════ */
+function drawBlackout(){
+  const P = G.P;
+  ctx.fillStyle = '#000'; ctx.fillRect(0,0,W,H);
+  if (P.boT >= 3){
+    // 좌측 문가에서 월광의 얼굴이 깜빡인다
+    const on = (Math.sin(P.boT*9.3) > 0.25) || (Math.random() < 0.05);
+    if (on){
+      const x = DOOR.L.cx - Math.round(P.panX);
+      ctx.save(); ctx.globalAlpha = 0.75 + Math.random()*0.25;
+      drawWolgwang(x, 618, 470, 'sil', P.boT);
+      ctx.restore();
+    }
+  }
+  grain(0.05);
+}
+
+/* ═════════ HUD ═════════ */
+function drawHUD(){
+  const P = G.P;
+  // 시계
+  const hr = P.hour === 0 ? 12 : P.hour;
+  txt(hr + ' AM', W-24, 58, 40, P.blackout ? '#5a6274' : '#e7ecf8', 'right', 800);
+  txt(P.night + ' 박', W-24, 82, 17, 'rgba(190,202,226,0.6)', 'right', 600);
+  // 전력
+  const pw = Math.ceil(P.power);
+  const low = pw <= 20;
+  txt('전력 ' + pw + '%', 26, H-62, 26, P.blackout ? '#8a3c3c' : (low ? '#ff8f6a' : '#e7ecf8'), 'left', 800);
+  txt('사용량', 26, H-16, 14, 'rgba(190,202,226,0.55)', 'left', 600);
+  const bars = clamp(P.usage, 1, 5);
+  for (let i=0;i<5;i++){
+    const r = { x:92+i*26, y:H-34, w:20, h:22 };
+    ctx.fillStyle = i < bars ? (bars>=4 ? '#ff7a54' : (bars===3 ? '#ffc46b' : '#6ee7a8')) : 'rgba(120,135,165,0.18)';
+    ctx.fillRect(r.x, r.y, r.w, r.h);
+  }
+  // 카메라 바 (이번 빌드는 점검 중)
+  panel(R_CAMBAR, 'rgba(12,14,20,0.8)', 'rgba(150,170,210,0.2)');
+  txt('카메라 · 점검 중', R_CAMBAR.x+R_CAMBAR.w/2, R_CAMBAR.y+27, 18, 'rgba(150,165,195,0.5)', 'center', 700);
+  // 음소거
+  panel(R_MUTE, 'rgba(12,14,20,0.8)', 'rgba(150,170,210,0.2)');
+  txt(SFX.muted ? '🔇' : '🔊', R_MUTE.x+R_MUTE.w/2, R_MUTE.y+21, 17, '#c8d2e6', 'center', 700);
+  // 보조 버튼
+  for (const k in AUX){
+    const r = AUX[k], P2 = G.P;
+    const on = (k==='Ldoor'&&P2.doorL)||(k==='Rdoor'&&P2.doorR)||(k==='Llight'&&P2.lightL)||(k==='Rlight'&&P2.lightR);
+    panel(r, on ? 'rgba(226,126,74,0.85)' : 'rgba(12,14,20,0.72)', 'rgba(150,170,210,0.22)');
+    txt(r.label, r.x+r.w/2, r.y+34, 16, on ? '#1a1208' : 'rgba(190,202,226,0.75)', 'center', 700);
+  }
+  // 토스트
+  if (P.toastT > 0){
+    txt(P.toast, W/2, H-80, 18, 'rgba(226,234,250,' + clamp(P.toastT,0,1) + ')', 'center', 700);
+  }
+}
+
+/* ═════════ 8. 사망 연출 ═════════ */
+function drawDead(){
+  const t = G.stateT, d = G.dead;
+  ctx.fillStyle = '#000'; ctx.fillRect(0,0,W,H);
+  if (t < 0.9){
+    // 화면 흔들림 + 캐릭터 가득 + 노이즈 폭발
+    const s = 26 * (1 - t/0.9);
+    ctx.save();
+    ctx.translate(rand(-s,s), rand(-s,s));
+    ctx.scale(1 + 0.06*Math.sin(t*40), 1 + 0.06*Math.sin(t*37));
+    DRAW[d.key](W/2, H+70, 1040, 'scare', t*6);
+    ctx.restore();
+    if (Math.random() < 0.5){ ctx.fillStyle = 'rgba(255,255,255,' + (0.14*(1-t/0.9)) + ')'; ctx.fillRect(0,0,W,H); }
+    grain(0.3 * (1 - t/0.9) + 0.08);
+  } else {
+    const a = clamp((t-0.9)/0.6, 0, 1);
+    txt('폐업한 극장에는 관객이 없다', W/2, 300, 26, 'rgba(190,200,222,'+(a*0.75)+')', 'center', 600);
+    txt(d.cause, W/2, 352, 21, 'rgba(226,110,90,'+a+')', 'center', 700);
+    txt(d.night + ' 박 실패', W/2, 232, 48, 'rgba(232,238,250,'+a+')', 'center', 800);
+    const r = { x:W/2-130, y:430, w:260, h:62 };
+    panel(r, 'rgba(22,26,36,'+a+')', 'rgba(150,170,210,'+(a*0.4)+')');
+    txt('다시 시도', W/2, 470, 24, 'rgba(232,238,250,'+a+')', 'center', 800);
+    grain(0.03);
+  }
+}
+
+/* ═════════ 승리 / 인트로 / 타이틀 ═════════ */
+function drawWin(){
+  const t = G.stateT;
+  ctx.fillStyle = '#05070c'; ctx.fillRect(0,0,W,H);
+  const a = clamp(t/0.8, 0, 1);
+  // 창밖 새벽빛
+  const g = ctx.createRadialGradient(W/2, H*0.95, 20, W/2, H*0.95, 700);
+  g.addColorStop(0,'rgba(255,214,150,'+(0.35*a)+')'); g.addColorStop(1,'rgba(255,190,120,0)');
+  ctx.fillStyle = g; ctx.fillRect(0,0,W,H);
+  txt('6 AM', W/2, 268, 124, 'rgba(255,240,210,'+a+')', 'center', 800);
+  txt(G.P.night + ' 박 생존', W/2, 340, 32, 'rgba(226,234,250,'+a+')', 'center', 700);
+  txt('남은 전력 ' + Math.ceil(G.P.power) + '%', W/2, 386, 20, 'rgba(190,202,226,'+(a*0.8)+')', 'center', 600);
+  if (t > 1.6){
+    const r = { x:W/2-150, y:450, w:300, h:64 };
+    panel(r, 'rgba(22,26,36,0.9)', 'rgba(150,170,210,0.4)');
+    txt(G.P.night >= 5 ? '극단의 끝을 본다' : (G.P.night+1) + ' 박으로', W/2, 491, 23, '#e8eefa', 'center', 800);
+  }
+  grain(0.03); vignette(0.5);
+}
+
+function drawIntro(){
+  const t = G.stateT;
+  ctx.fillStyle = '#000'; ctx.fillRect(0,0,W,H);
+  const a = clamp(t/0.7, 0, 1);
+  txt(G.night + ' 박', W/2, G.night === 1 ? 150 : H/2+20, 108, 'rgba(232,238,250,'+a+')', 'center', 800);
+  if (G.night === 1){
+    // 인수인계 메모 타이핑
+    const speed = 34;                         // 글자/초
+    let budget = Math.max(0, (t - 0.8)) * speed;
+    ctx.textAlign = 'left';
+    for (let i=0;i<MEMO.length;i++){
+      const line = MEMO[i];
+      if (budget <= 0) break;
+      const shown = line.slice(0, Math.floor(budget));
+      txt(shown, 300, 240 + i*38, 20, 'rgba(206,216,238,0.9)', 'left', 500);
+      budget -= line.length + 4;
+    }
+    if (t > 0.8 + 26){ /* 여유 */ }
+  } else {
+    const hint = ['', '', '전력 계수가 올라간다. 등은 짧게.', '오르골실을 잊지 마라.',
+                  '극단장이 눈을 떴다.', '오늘 밤은 전부 움직인다.'][G.night] || '';
+    txt(hint, W/2, H/2+90, 22, 'rgba(190,202,226,'+(a*0.8)+')', 'center', 600);
+  }
+  if (t > 1.4){
+    const blink = 0.45 + 0.35*Math.sin(t*3.2);
+    txt('화면을 누르면 시작', W/2, H-70, 20, 'rgba(226,234,250,'+blink+')', 'center', 700);
+  }
+  grain(0.03);
+}
+
+function drawTitle(){
+  const t = G.titleT;
+  ctx.fillStyle = '#05060b'; ctx.fillRect(0,0,W,H);
+  // 배경: 커튼과 달
+  const g = ctx.createRadialGradient(W/2, 210, 10, W/2, 210, 420);
+  g.addColorStop(0,'rgba(226,216,176,0.16)'); g.addColorStop(1,'rgba(226,216,176,0)');
+  ctx.fillStyle = g; ctx.fillRect(0,0,W,H);
+  ctx.fillStyle = 'rgba(224,214,176,0.18)';
+  ctx.beginPath(); ctx.arc(W/2, 205, 96, 0, Math.PI*2); ctx.fill();
+  ctx.fillStyle = '#05060b';
+  ctx.beginPath(); ctx.arc(W/2-36, 192, 92, 0, Math.PI*2); ctx.fill();
+  // 좌우 커튼
+  for (const s of [-1, 1]){
+    ctx.fillStyle = '#0a0b12';
+    ctx.beginPath();
+    const bx = s < 0 ? 0 : W;
+    ctx.moveTo(bx, 0); ctx.lineTo(bx + s*330, 0);
+    ctx.quadraticCurveTo(bx + s*190, H/2, bx + s*300, H); ctx.lineTo(bx, H);
+    ctx.closePath(); ctx.fill();
+    ctx.strokeStyle = 'rgba(150,170,210,0.08)'; ctx.lineWidth = 2;
+    for (let i=1;i<5;i++){
+      ctx.beginPath(); ctx.moveTo(bx + s*i*60, 0);
+      ctx.quadraticCurveTo(bx + s*(i*42), H/2, bx + s*i*56, H); ctx.stroke();
+    }
+  }
+  // 실루엣 한 명
+  drawBidan(W/2 + 250, 700, 330, 'sil', t);
+  txt('월광 인형극장', W/2, 360, 64, '#e8eefa', 'center', 800);
+  txt('5일간의 야간 경비', W/2, 404, 21, 'rgba(190,202,226,0.72)', 'center', 600);
+  const r = { x:W/2-140, y:450, w:280, h:64 };
+  panel(r, 'rgba(22,26,36,0.9)', 'rgba(150,170,210,0.4)');
+  txt('근무 시작', W/2, 491, 24, '#e8eefa', 'center', 800);
+  txt('A 좌측 문   S 좌측 등   K 우측 등   L 우측 문   Space 카메라   M 음소거',
+      W/2, 572, 16, 'rgba(160,175,205,0.6)', 'center', 600);
+  txt('마우스를 좌우로 움직여 사무실을 둘러본다', W/2, 600, 16, 'rgba(160,175,205,0.5)', 'center', 600);
+  if (G.cleared >= 5) txt('커스텀 나이트는 다음 빌드에서 해금된다', W/2, 634, 15, 'rgba(160,175,205,0.45)', 'center', 600);
+  grain(0.03); vignette(0.55);
+}
+
+/* ═════════ 입력 라우팅 ═════════ */
+function onKey(k){
+  if (G.state === 'play'){
+    if (k === 'a') toggleDoor('L');
+    else if (k === 'l') toggleDoor('R');
+    else if (k === 's') toggleLight('L');
+    else if (k === 'k') toggleLight('R');
+    else if (k === ' ') toast('카메라 계통 점검 중');
+    else if (k === 'm') SFX.setMuted(!SFX.muted);
+  } else if (k === 'm') SFX.setMuted(!SFX.muted);
+  else if (k === ' ' || k === 'enter') advanceScreen();
+}
+function advanceScreen(){
+  if (G.state === 'title') gotoIntro(1);
+  else if (G.state === 'intro') startNight(G.night);
+  else if (G.state === 'win'){
+    if (G.stateT <= 1.6) return;
+    if (G.P.night >= 5){ G.state = 'title'; G.titleT = 0; }
+    else gotoIntro(G.P.night + 1);
+  } else if (G.state === 'dead'){
+    if (G.stateT <= 1.1) return;
+    gotoIntro(G.dead.night);
+  }
+}
+function routeClicks(){
+  for (let i=0;i<clicks.length;i++){
+    const c = clicks[i];
+    if (G.state === 'play'){
+      if (hit(R_MUTE, c.x, c.y)){ SFX.setMuted(!SFX.muted); continue; }
+      if (hit(R_CAMBAR, c.x, c.y)){ toast('카메라 계통 점검 중'); continue; }
+      let used = false;
+      for (const k in AUX){
+        if (hit(AUX[k], c.x, c.y)){
+          if (k === 'Ldoor') toggleDoor('L');
+          else if (k === 'Rdoor') toggleDoor('R');
+          else if (k === 'Llight') toggleLight('L');
+          else toggleLight('R');
+          used = true; break;
+        }
+      }
+      if (used) continue;
+      // 씬 좌표 버튼(화면 좌표 + panX)
+      const sx = c.x + G.P.panX, sy = c.y;
+      if (hit(SBTN.Ldoor, sx, sy)) toggleDoor('L');
+      else if (hit(SBTN.Llight, sx, sy)) toggleLight('L');
+      else if (hit(SBTN.Rdoor, sx, sy)) toggleDoor('R');
+      else if (hit(SBTN.Rlight, sx, sy)) toggleLight('R');
+    } else {
+      if (hit(R_MUTE, c.x, c.y)){ SFX.setMuted(!SFX.muted); continue; }
+      advanceScreen();
+    }
+  }
+  clicks.length = 0;
+}
+
+/* ═════════ 메인 루프 ═════════ */
+let last = performance.now();
+function frame(now){
+  let dt = (now - last) / 1000;
+  last = now;
+  if (!(dt > 0)) dt = 0;
+  dt = Math.min(dt, 0.05);              // 탭 전환 시 시간 폭주 방지
+
+  G.stateT += dt; G.titleT += dt; G.fanA += dt * 3.1;
+  routeClicks();
+
+  if (G.state === 'play') updatePlay(dt);
+
+  ctx.setTransform(1,0,0,1,0,0);
+  ctx.fillStyle = '#000'; ctx.fillRect(0,0,W,H);
+  if (G.state === 'title') drawTitle();
+  else if (G.state === 'intro') drawIntro();
+  else if (G.state === 'play'){
+    const P = G.P;
+    ctx.save();
+    if (P.shakeT > 0){ const s = P.shakeT * 14; ctx.translate(rand(-s,s), rand(-s,s)); }
+    if (P.blackout) drawBlackout(); else drawOffice();
+    ctx.restore();
+    drawHUD();
+    grain(0.035 + Math.random()*0.015);
+    vignette(0.6);
+  }
+  else if (G.state === 'win') drawWin();
+  else if (G.state === 'dead') drawDead();
+
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
