@@ -630,14 +630,15 @@ const MEMO = [
 /* ═════════ 게임 상태 ═════════ */
 const G = {
   state:'title', stateT:0, night:1, cleared:0,
-  P:null, dead:null, fanA:0, titleT:0
+  P:null, dead:null, fanA:0, titleT:0, drag:-1, endingKind:'night5'
 };
 
-function startNight(night){
-  const lv = NIGHT_LV[night-1];
+function startNight(night, cfg){
+  const lv = cfg || NIGHT_LV[night-1];
   const P = {
-    night, k:K_POWER[night-1],
-    organOn:lv.organ, organRate:ORGAN_DRAIN[night-1],
+    night, custom:!!cfg,
+    k: cfg ? 0.16 : K_POWER[night-1],
+    organOn:lv.organ, organRate: cfg ? 2.4 : ORGAN_DRAIN[night-1],
     time:0, hour:0, power:100, usage:1,
     doorL:false, doorR:false, lightL:false, lightR:false,
     cam:false, camRoom:1,
@@ -646,24 +647,34 @@ function startNight(night){
     blackout:false, boT:0, boKill:0, boMusic:false,
     jang:{ stage:0, timer:5.1, charge:-1, lv:lv.jangseung },
     chars:{}, flick:0, flickT:rand(1.5,4), shakeT:0, toast:'', toastT:0,
-    slamFlash:0
+    slamFlash:0, camFlash:0, windHold:false
   };
   for (const k in CHAR_DEF){
     const d = CHAR_DEF[k];
     P.chars[k] = { key:k, name:d.name, path:d.path, side:d.side, interval:d.interval,
                    timer:d.interval, pos:0, atDoor:false, patience:0, blockT:-1,
-                   lv:lv[k], warned:false, active:(k!=='wolgwang') };
+                   lv:lv[k], warned:false, active:true };
   }
   G.P = P; G.state = 'play'; G.stateT = 0;
 }
 
 function toast(s){ const P=G.P; if(!P) return; P.toast=s; P.toastT=1.6; }
 function kill(key){
-  G.dead = { key:(key==='blackout' ? 'wolgwang' : key), cause:CAUSE[key] || CAUSE.bidan, night:G.P.night };
+  G.dead = { key:(key==='blackout' ? 'wolgwang' : key), cause:CAUSE[key] || CAUSE.bidan,
+             night:G.P.night, custom:G.P.custom,
+             label:(G.P.custom ? '커스텀 나이트 실패' : G.P.night + ' 박 실패') };
   G.state = 'dead'; G.stateT = 0;
   SFX.scare();
 }
-function win(){ G.state='win'; G.stateT=0; G.cleared=Math.max(G.cleared, G.P.night); SFX.sixAM(); }
+function win(){
+  G.state='win'; G.stateT=0;
+  if (!G.P.custom) G.cleared = Math.max(G.cleared, G.P.night);
+  SFX.sixAM();
+}
+function startCustom(){
+  startNight(6, { bidan:CUSTOM.bidan, chorong:CUSTOM.chorong, jangseung:CUSTOM.jangseung,
+                  wolgwang:CUSTOM.wolgwang, organ:CUSTOM.organ });
+}
 function gotoIntro(night){ G.night=night; G.state='intro'; G.stateT=0; }
 
 /* ═════════ 4·5·6. 시뮬레이션 ═════════ */
@@ -703,8 +714,77 @@ function updatePlay(dt){
     return;                                   // 정전 중에는 다른 AI가 멈춘다
   }
 
+  // 카메라 전환 플래시
+  if (P.camFlash > 0) P.camFlash -= dt;
+
+  // 감기 버튼 홀드 판정
+  P.windHold = !!(P.cam && P.camRoom === 8 && ptr.down && hit(R_WIND, ptr.x, ptr.y));
+
+  // 태엽 오르골
+  if (P.organOn){
+    const winding = P.cam && P.camRoom === 8 && P.windHold;
+    if (winding){
+      P.organ = Math.min(100, P.organ + 40*dt);
+      if (Math.random() < dt*16) SFX.wind();
+    } else {
+      P.organ -= P.organRate * dt;
+    }
+    if (P.organ <= 0){
+      P.organ = 0;
+      if (P.organGrace < 0){ P.organGrace = 10; SFX.growl(); }
+      P.organGrace -= dt;
+      if (P.organGrace <= 0){ kill('taeyeop'); return; }
+    } else if (P.organGrace >= 0){
+      P.organGrace = -1;
+    }
+  }
+
   // 애니매트로닉스
   for (const k in P.chars){ const c = P.chars[k]; if (c.active) tickChar(c, dt); }
+  tickJang(dt);
+}
+
+/* 장승: 커튼 뒤에서 단계 진행 → 서쪽 복도 돌진 */
+function tickJang(dt){
+  const P = G.P, j = P.jang;
+  if (j.charge >= 0){
+    j.charge -= dt;
+    if (j.charge <= 0){
+      j.charge = -1;
+      SFX.charge();
+      if (P.doorL){                                   // 막았다 — 전력을 대신 가져간다
+        j.stage = 0; j.timer = 5.1;
+        P.power = Math.max(0, P.power - (5 + P.night));
+        P.slamFlash = 0.5; P.shakeT = 0.5;
+        SFX.bang();
+        toast('장승이 좌측 문을 들이받았다 — 전력 ' + (5 + P.night) + '% 손실');
+        if (P.power <= 0) startBlackout();
+      } else {
+        kill('jangseung');
+      }
+    }
+    return;
+  }
+  if (P.cam && P.camRoom === 2){ j.timer = 5.1; return; }   // 보는 동안 진행 정지 + 타이머 리셋
+  j.timer -= dt;
+  if (j.timer > 0) return;
+  j.timer = 5.1;
+  if (!roll20(j.lv)) return;
+  j.stage++;
+  if (j.stage >= 3){ j.stage = 3; j.charge = rand(2,6); SFX.growl(); }
+  else SFX.step(0.75);
+}
+
+/* 카메라 */
+function toggleCam(){
+  const P = G.P; if (!P || G.state !== 'play' || P.blackout) return;
+  P.cam = !P.cam; P.camFlash = 0.3; P.windHold = false;
+  SFX.camSwitch();
+}
+function setCamRoom(n){
+  const P = G.P; if (!P.cam || P.camRoom === n) return;
+  P.camRoom = n; P.camFlash = 0.3; P.windHold = false;
+  SFX.camSwitch();
 }
 
 function hourBonus(h){
@@ -1000,13 +1080,206 @@ function drawBlackout(){
   grain(0.05);
 }
 
+
+/* ═════════ 4. 카메라 시스템 ═════════ */
+const ROOMS = { 1:'무대', 2:'커튼 뒤', 3:'객석', 4:'분장실', 5:'서쪽 복도',
+                6:'서쪽 모서리', 7:'동쪽 복도', 8:'오르골실', 9:'동쪽 모서리' };
+const MINI = { x:W-440, y:H-320, w:420, h:300 };
+const R_WIND = { x:70, y:H-210, w:260, h:104 };
+
+function miniRect(n){
+  const i = n-1, cx = i%3, cy = (i/3)|0;
+  return { x:MINI.x+22 + cx*126, y:MINI.y+52 + cy*78, w:116, h:68 };
+}
+function roomOf(c){ return c.path[c.pos]; }
+
+/* 방 배경 — 전부 도형으로 그린다 */
+function drawRoomBG(n, t){
+  ctx.fillStyle = '#070910'; ctx.fillRect(0,0,W,H);
+  const floorY = 470;
+  // 공통 바닥
+  const fg = ctx.createLinearGradient(0, floorY, 0, H);
+  fg.addColorStop(0,'#1b241f'); fg.addColorStop(1,'#0b0f0d');
+  ctx.fillStyle = fg; ctx.fillRect(0, floorY, W, H-floorY);
+  ctx.strokeStyle = 'rgba(150,190,170,0.10)'; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.moveTo(0, floorY); ctx.lineTo(W, floorY); ctx.stroke();
+
+  const wall = (a) => { ctx.fillStyle = 'rgba(56,78,66,'+a+')'; ctx.fillRect(0,0,W,floorY); };
+
+  if (n === 1){                                   // 무대
+    wall(0.5);
+    ctx.fillStyle = 'rgba(18,26,22,0.95)';
+    for (let x=0;x<W;x+=46){
+      ctx.beginPath(); ctx.moveTo(x, 0);
+      ctx.quadraticCurveTo(x+14, 220, x+6, 430); ctx.lineTo(x+34, 430);
+      ctx.quadraticCurveTo(x+40, 220, x+34, 0); ctx.closePath(); ctx.fill();
+    }
+    ctx.fillStyle = 'rgba(120,170,145,0.14)';
+    for (let x=60;x<W;x+=110) ctx.beginPath(), ctx.ellipse(x, floorY+26, 24, 9, 0, 0, Math.PI*2), ctx.fill();
+    ctx.fillStyle = 'rgba(150,190,170,0.06)'; ctx.fillRect(0, floorY-8, W, 10);
+  } else if (n === 2){                            // 커튼 뒤
+    wall(0.35);
+    ctx.fillStyle = 'rgba(14,20,17,0.95)';
+    for (let x=-40;x<W;x+=120){
+      ctx.beginPath(); ctx.moveTo(x, 0);
+      ctx.quadraticCurveTo(x+58, 260, x+20, 520); ctx.lineTo(x+96, 520);
+      ctx.quadraticCurveTo(x+124, 260, x+96, 0); ctx.closePath(); ctx.fill();
+    }
+    ctx.strokeStyle = 'rgba(150,190,170,0.16)'; ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.moveTo(0, 44); ctx.lineTo(W, 30); ctx.stroke();
+    ctx.fillStyle = 'rgba(26,36,30,0.9)';        // 궤짝
+    ctx.fillRect(90, floorY-70, 150, 70); ctx.fillRect(1010, floorY-52, 190, 52);
+    ctx.strokeStyle = 'rgba(150,190,170,0.14)'; ctx.lineWidth = 2;
+    ctx.strokeRect(90, floorY-70, 150, 70); ctx.strokeRect(1010, floorY-52, 190, 52);
+  } else if (n === 3){                            // 객석
+    wall(0.28);
+    for (let r=0;r<5;r++){
+      const y = 330 + r*74, sc = 1 + r*0.16;
+      ctx.fillStyle = 'rgba(34,50,42,'+(0.62+r*0.08)+')';
+      for (let x=-40;x<W+40;x+=104*sc){
+        ctx.beginPath(); ctx.ellipse(x, y, 40*sc, 26*sc, 0, Math.PI, 0); ctx.fill();
+      }
+      ctx.strokeStyle = 'rgba(150,190,170,0.07)'; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.moveTo(0, y+18*sc); ctx.lineTo(W, y+18*sc); ctx.stroke();
+    }
+  } else if (n === 4){                            // 분장실
+    wall(0.4);
+    ctx.fillStyle = 'rgba(24,34,30,0.95)'; ctx.fillRect(120, 120, 380, 330);
+    ctx.strokeStyle = 'rgba(160,200,180,0.25)'; ctx.lineWidth = 4; ctx.strokeRect(120, 120, 380, 330);
+    ctx.fillStyle = 'rgba(190,230,205,0.22)';
+    for (let i=0;i<7;i++){ ctx.beginPath(); ctx.arc(140+i*56, 106, 9, 0, Math.PI*2); ctx.fill(); }
+    ctx.strokeStyle = 'rgba(150,190,170,0.3)'; ctx.lineWidth = 3;   // 옷걸이
+    ctx.beginPath(); ctx.moveTo(720, 150); ctx.lineTo(1180, 150); ctx.stroke();
+    ctx.fillStyle = 'rgba(16,24,20,0.9)';
+    for (let i=0;i<5;i++){ ctx.fillRect(752+i*86, 150, 62, 240); }
+    ctx.fillStyle = 'rgba(26,36,30,0.9)'; ctx.fillRect(150, 430, 320, 40);
+  } else if (n === 5 || n === 7){                 // 서쪽/동쪽 복도
+    const dir = (n === 5) ? -1 : 1;
+    wall(0.32);
+    const vx = W/2 + dir*150, vy = 330;
+    ctx.fillStyle = 'rgba(12,18,15,0.95)';
+    ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(vx-90, vy-120); ctx.lineTo(vx-90, vy+150); ctx.lineTo(0, H); ctx.closePath(); ctx.fill();
+    ctx.beginPath(); ctx.moveTo(W,0); ctx.lineTo(vx+90, vy-120); ctx.lineTo(vx+90, vy+150); ctx.lineTo(W, H); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = 'rgba(30,42,36,0.9)'; ctx.fillRect(vx-90, vy-120, 180, 270);
+    ctx.strokeStyle = 'rgba(150,190,170,0.18)'; ctx.lineWidth = 2;
+    ctx.strokeRect(vx-90, vy-120, 180, 270);
+    ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(vx-90, vy-120); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(W,0); ctx.lineTo(vx+90, vy-120); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(0,H); ctx.lineTo(vx-90, vy+150); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(W,H); ctx.lineTo(vx+90, vy+150); ctx.stroke();
+    ctx.fillStyle = 'rgba(190,230,205,0.10)';    // 천장등
+    for (let i=1;i<=3;i++){ const w0=200/i; ctx.fillRect(vx-w0/2, 40+i*26, w0, 8); }
+  } else if (n === 6 || n === 9){                 // 서쪽/동쪽 모서리
+    const dir = (n === 6) ? 1 : -1;
+    wall(0.42);
+    const dx = (dir > 0) ? W-360 : 60;
+    ctx.fillStyle = 'rgba(10,14,12,0.95)'; ctx.fillRect(dx, 110, 300, 400);
+    ctx.strokeStyle = 'rgba(160,200,180,0.28)'; ctx.lineWidth = 6; ctx.strokeRect(dx, 110, 300, 400);
+    txt('경비실', dx+150, 92, 20, 'rgba(150,190,170,0.5)', 'center', 700);
+    ctx.strokeStyle = 'rgba(150,190,170,0.14)'; ctx.lineWidth = 8;   // 배관
+    ctx.beginPath(); ctx.moveTo(0, 90); ctx.lineTo(W, 130); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(0, 140); ctx.lineTo(W, 178); ctx.stroke();
+  } else if (n === 8){                            // 오르골실
+    wall(0.38);
+    ctx.strokeStyle = 'rgba(150,190,170,0.2)'; ctx.lineWidth = 3;    // 선반
+    for (let r=0;r<3;r++){
+      const y = 170 + r*100;
+      ctx.beginPath(); ctx.moveTo(60, y); ctx.lineTo(560, y); ctx.stroke();
+      ctx.fillStyle = 'rgba(20,30,25,0.9)';
+      for (let i=0;i<6;i++){ ctx.fillRect(76+i*80, y-52, 34, 52); ctx.beginPath(); ctx.arc(93+i*80, y-62, 15, 0, Math.PI*2); ctx.fill(); }
+    }
+    // 큰 오르골 통
+    const cx = 900, cy = 380;
+    ctx.fillStyle = 'rgba(26,36,30,0.95)'; ctx.fillRect(cx-150, cy-60, 300, 150);
+    ctx.strokeStyle = 'rgba(160,200,180,0.3)'; ctx.lineWidth = 3; ctx.strokeRect(cx-150, cy-60, 300, 150);
+    ctx.save(); ctx.translate(cx, cy);
+    const spin = (G.P && G.P.organ > 0) ? t*1.6 : 0;
+    ctx.rotate(spin);
+    ctx.strokeStyle = 'rgba(190,230,205,0.35)'; ctx.lineWidth = 4;
+    ctx.beginPath(); ctx.arc(0, 0, 44, 0, Math.PI*2); ctx.stroke();
+    for (let i=0;i<6;i++){
+      const a = i*Math.PI/3;
+      ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(Math.cos(a)*44, Math.sin(a)*44); ctx.stroke();
+    }
+    ctx.restore();
+  }
+}
+
+function drawCam(){
+  const P = G.P, t = G.stateT;
+  drawRoomBG(P.camRoom, t);
+
+  // 방 안의 등장체
+  let slot = 0;
+  for (const k in P.chars){
+    const c = P.chars[k];
+    if (!c.active || roomOf(c) !== P.camRoom) continue;
+    const x = 300 + slot*280 + ((P.camRoom*83) % 160);
+    DRAW[k](x, 610, 380, 'cam', t);
+    slot++;
+  }
+  if (P.camRoom === 2 && P.jang.charge < 0){        // 장승: 단계가 오를수록 다가온다
+    const st = P.jang.stage;
+    drawJangseung(280 + st*250, 620, 320 + st*80, 'cam', t);
+  }
+  if (P.camRoom === 8 && P.organOn){                // 태엽인형
+    const agit = (100 - P.organ) / 100;
+    drawTaeyeop(430 + agit*180, 640, 210 + agit*70, 'cam', t*(1 + agit*3));
+  }
+
+  // 카메라 화면 처리
+  grain(0.12);
+  ctx.fillStyle = 'rgba(0,0,0,0.12)';
+  for (let y=0;y<H;y+=3) ctx.fillRect(0, y, W, 1);
+  for (let i=0;i<2;i++){                            // 약간의 왜곡
+    const y = (Math.random()*H)|0, h = 4 + ((Math.random()*20)|0), dx = ((Math.random()*16)-8)|0;
+    ctx.drawImage(canvas, 0, y, W, h, dx, y, W, h);
+  }
+  vignette(0.55);
+
+  txt('CAM ' + P.camRoom + ' · ' + ROOMS[P.camRoom], 30, 54, 26, 'rgba(200,236,216,0.85)', 'left', 800);
+  if (Math.sin(t*3.4) > 0){
+    ctx.fillStyle = '#e2604a'; ctx.beginPath(); ctx.arc(38, 82, 9, 0, Math.PI*2); ctx.fill();
+    txt('REC', 56, 90, 18, 'rgba(226,96,74,0.9)', 'left', 700);
+  }
+
+  // 미니맵
+  panel(MINI, 'rgba(8,12,10,0.82)', 'rgba(150,190,170,0.3)');
+  txt('카메라 배치도', MINI.x+18, MINI.y+32, 17, 'rgba(190,226,206,0.7)', 'left', 700);
+  for (let n=1;n<=9;n++){
+    const r = miniRect(n), on = (P.camRoom === n);
+    panel(r, on ? 'rgba(120,200,160,0.24)' : 'rgba(20,30,25,0.85)',
+             on ? 'rgba(170,236,200,0.8)' : 'rgba(150,190,170,0.22)');
+    txt('CAM ' + n, r.x+r.w/2, r.y+27, 15, on ? '#d8f6e6' : 'rgba(190,226,206,0.6)', 'center', 800);
+    txt(ROOMS[n], r.x+r.w/2, r.y+50, 14, on ? 'rgba(216,246,230,0.9)' : 'rgba(160,196,176,0.5)', 'center', 600);
+  }
+
+  // 오르골실: 감기 버튼
+  if (P.camRoom === 8 && P.organOn){
+    const held = P.windHold;
+    panel(R_WIND, held ? 'rgba(226,180,90,0.85)' : 'rgba(18,26,22,0.9)', 'rgba(190,226,206,0.4)');
+    txt(held ? '감는 중…' : '태엽 감기 (누르고 있기)', R_WIND.x+R_WIND.w/2, R_WIND.y+46,
+        19, held ? '#20180a' : 'rgba(216,246,230,0.9)', 'center', 800);
+    const bx = R_WIND.x+22, by = R_WIND.y+62, bw = R_WIND.w-44;
+    ctx.fillStyle = 'rgba(150,190,170,0.2)'; ctx.fillRect(bx, by, bw, 16);
+    ctx.fillStyle = P.organ < 25 ? '#e2604a' : '#8fe6b8';
+    ctx.fillRect(bx, by, bw*(P.organ/100), 16);
+  }
+
+  if (P.camFlash > 0){                              // 전환 순간 화이트노이즈 플래시
+    grain(0.55 * (P.camFlash/0.3));
+    ctx.fillStyle = 'rgba(220,235,228,' + (0.22*(P.camFlash/0.3)) + ')';
+    ctx.fillRect(0,0,W,H);
+  }
+}
+
 /* ═════════ HUD ═════════ */
 function drawHUD(){
   const P = G.P;
   // 시계
   const hr = P.hour === 0 ? 12 : P.hour;
   txt(hr + ' AM', W-24, 58, 40, P.blackout ? '#5a6274' : '#e7ecf8', 'right', 800);
-  txt(P.night + ' 박', W-24, 82, 17, 'rgba(190,202,226,0.6)', 'right', 600);
+  txt(P.custom ? '커스텀' : P.night + ' 박', W-24, 82, 17, 'rgba(190,202,226,0.6)', 'right', 600);
   // 전력
   const pw = Math.ceil(P.power);
   const low = pw <= 20;
@@ -1018,9 +1291,26 @@ function drawHUD(){
     ctx.fillStyle = i < bars ? (bars>=4 ? '#ff7a54' : (bars===3 ? '#ffc46b' : '#6ee7a8')) : 'rgba(120,135,165,0.18)';
     ctx.fillRect(r.x, r.y, r.w, r.h);
   }
-  // 카메라 바 (이번 빌드는 점검 중)
-  panel(R_CAMBAR, 'rgba(12,14,20,0.8)', 'rgba(150,170,210,0.2)');
-  txt('카메라 · 점검 중', R_CAMBAR.x+R_CAMBAR.w/2, R_CAMBAR.y+27, 18, 'rgba(150,165,195,0.5)', 'center', 700);
+  // 카메라 바
+  const camReady = !P.blackout;
+  panel(R_CAMBAR, P.cam ? 'rgba(60,120,95,0.55)' : 'rgba(12,14,20,0.8)',
+        camReady ? 'rgba(150,190,170,0.35)' : 'rgba(120,60,60,0.35)');
+  txt(P.cam ? '닫기 (Space)' : (camReady ? '카메라 (Space)' : '카메라 사망'),
+      R_CAMBAR.x+R_CAMBAR.w/2, R_CAMBAR.y+27, 18,
+      camReady ? 'rgba(216,240,228,0.9)' : 'rgba(180,90,90,0.7)', 'center', 700);
+  // 태엽 게이지
+  if (P.organOn){
+    const org = Math.max(0, Math.ceil(P.organ));
+    const warn = org < 25;
+    txt('태엽 ' + org + '%', 78, 36, 22, P.organGrace >= 0 ? '#ff6b52' : (warn ? '#ffb46b' : '#cfe3f5'), 'left', 800);
+    ctx.fillStyle = 'rgba(120,135,165,0.2)'; ctx.fillRect(78, 46, 190, 12);
+    ctx.fillStyle = P.organGrace >= 0 ? '#ff6b52' : (warn ? '#ffb46b' : '#8fe6b8');
+    ctx.fillRect(78, 46, 190*(P.organ/100), 12);
+    if (P.organGrace >= 0){
+      txt('태엽이 멈췄다 — ' + P.organGrace.toFixed(1) + '초', 78, 82, 18,
+          'rgba(255,107,82,' + (0.55 + 0.45*Math.sin(G.stateT*12)) + ')', 'left', 800);
+    }
+  }
   // 음소거
   panel(R_MUTE, 'rgba(12,14,20,0.8)', 'rgba(150,170,210,0.2)');
   txt(SFX.muted ? '🔇' : '🔊', R_MUTE.x+R_MUTE.w/2, R_MUTE.y+21, 17, '#c8d2e6', 'center', 700);
@@ -1055,7 +1345,7 @@ function drawDead(){
     const a = clamp((t-0.9)/0.6, 0, 1);
     txt('폐업한 극장에는 관객이 없다', W/2, 300, 26, 'rgba(190,200,222,'+(a*0.75)+')', 'center', 600);
     txt(d.cause, W/2, 352, 21, 'rgba(226,110,90,'+a+')', 'center', 700);
-    txt(d.night + ' 박 실패', W/2, 232, 48, 'rgba(232,238,250,'+a+')', 'center', 800);
+    txt(d.label, W/2, 232, 48, 'rgba(232,238,250,'+a+')', 'center', 800);
     const r = { x:W/2-130, y:430, w:260, h:62 };
     panel(r, 'rgba(22,26,36,'+a+')', 'rgba(150,170,210,'+(a*0.4)+')');
     txt('다시 시도', W/2, 470, 24, 'rgba(232,238,250,'+a+')', 'center', 800);
@@ -1073,12 +1363,13 @@ function drawWin(){
   g.addColorStop(0,'rgba(255,214,150,'+(0.35*a)+')'); g.addColorStop(1,'rgba(255,190,120,0)');
   ctx.fillStyle = g; ctx.fillRect(0,0,W,H);
   txt('6 AM', W/2, 268, 124, 'rgba(255,240,210,'+a+')', 'center', 800);
-  txt(G.P.night + ' 박 생존', W/2, 340, 32, 'rgba(226,234,250,'+a+')', 'center', 700);
+  txt(G.P.custom ? '커스텀 나이트 생존' : G.P.night + ' 박 생존', W/2, 340, 32, 'rgba(226,234,250,'+a+')', 'center', 700);
   txt('남은 전력 ' + Math.ceil(G.P.power) + '%', W/2, 386, 20, 'rgba(190,202,226,'+(a*0.8)+')', 'center', 600);
   if (t > 1.6){
     const r = { x:W/2-150, y:450, w:300, h:64 };
     panel(r, 'rgba(22,26,36,0.9)', 'rgba(150,170,210,0.4)');
-    txt(G.P.night >= 5 ? '극단의 끝을 본다' : (G.P.night+1) + ' 박으로', W/2, 491, 23, '#e8eefa', 'center', 800);
+    txt(G.P.custom ? '설정으로 돌아가기' : (G.P.night >= 5 ? '극단의 끝을 본다' : (G.P.night+1) + ' 박으로'),
+        W/2, 491, 23, '#e8eefa', 'center', 800);
   }
   grain(0.03); vignette(0.5);
 }
@@ -1142,14 +1433,96 @@ function drawTitle(){
   drawBidan(W/2 + 250, 700, 330, 'sil', t);
   txt('월광 인형극장', W/2, 360, 64, '#e8eefa', 'center', 800);
   txt('5일간의 야간 경비', W/2, 404, 21, 'rgba(190,202,226,0.72)', 'center', 600);
-  const r = { x:W/2-140, y:450, w:280, h:64 };
-  panel(r, 'rgba(22,26,36,0.9)', 'rgba(150,170,210,0.4)');
+  panel(R_TITLE_GO, 'rgba(22,26,36,0.9)', 'rgba(150,170,210,0.4)');
   txt('근무 시작', W/2, 491, 24, '#e8eefa', 'center', 800);
+  if (G.cleared >= 5){
+    panel(R_TITLE_CUS, 'rgba(22,26,36,0.9)', 'rgba(226,96,74,0.5)');
+    txt('커스텀 나이트', W/2, 562, 20, '#f0c9bd', 'center', 800);
+  }
   txt('A 좌측 문   S 좌측 등   K 우측 등   L 우측 문   Space 카메라   M 음소거',
-      W/2, 572, 16, 'rgba(160,175,205,0.6)', 'center', 600);
-  txt('마우스를 좌우로 움직여 사무실을 둘러본다', W/2, 600, 16, 'rgba(160,175,205,0.5)', 'center', 600);
-  if (G.cleared >= 5) txt('커스텀 나이트는 다음 빌드에서 해금된다', W/2, 634, 15, 'rgba(160,175,205,0.45)', 'center', 600);
+      W/2, 616, 16, 'rgba(160,175,205,0.6)', 'center', 600);
+  txt('마우스를 좌우로 움직여 사무실을 둘러본다', W/2, 644, 16, 'rgba(160,175,205,0.5)', 'center', 600);
   grain(0.03); vignette(0.55);
+}
+
+
+/* ═════════ 10. 커스텀 나이트 / 엔딩 ═════════ */
+const CUSTOM = { bidan:10, chorong:10, jangseung:10, wolgwang:10, organ:true };
+const SLIDERS = [
+  { k:'bidan',     label:'비단',  desc:'좌측 문' },
+  { k:'chorong',   label:'초롱',  desc:'우측 문' },
+  { k:'jangseung', label:'장승',  desc:'서쪽 복도 돌진' },
+  { k:'wolgwang',  label:'월광',  desc:'우측 문 · 정전' }
+];
+function sliderTrack(i){ return { x:430, y:214 + i*72, w:500, h:14 }; }
+function sliderHit(i){ const t = sliderTrack(i); return { x:t.x-16, y:t.y-24, w:t.w+32, h:62 }; }
+const R_ORGAN_TOG = { x:430, y:508, w:220, h:56 };
+const R_CUSTOM_GO = { x:700, y:508, w:230, h:56 };
+const R_TITLE_GO  = { x:W/2-140, y:450, w:280, h:64 };
+const R_TITLE_CUS = { x:W/2-140, y:528, w:280, h:52 };
+
+function drawCustom(){
+  ctx.fillStyle = '#05070c'; ctx.fillRect(0,0,W,H);
+  txt('커스텀 나이트', W/2, 118, 46, '#e8eefa', 'center', 800);
+  txt('전력 계수는 0.16 고정. 네 개 모두 20이면 볼 것이 하나 더 있다.',
+      W/2, 156, 17, 'rgba(180,194,220,0.65)', 'center', 600);
+  SLIDERS.forEach((sl, i) => {
+    const t = sliderTrack(i), v = CUSTOM[sl.k];
+    txt(sl.label, 300, t.y+10, 24, '#e8eefa', 'left', 800);
+    txt(sl.desc, 300, t.y+32, 14, 'rgba(160,175,205,0.6)', 'left', 600);
+    ctx.fillStyle = 'rgba(120,135,165,0.22)'; ctx.fillRect(t.x, t.y, t.w, t.h);
+    ctx.fillStyle = v >= 20 ? '#e2604a' : (v >= 13 ? '#ffb46b' : '#6ee7a8');
+    ctx.fillRect(t.x, t.y, t.w*(v/20), t.h);
+    const kx = t.x + t.w*(v/20);
+    ctx.fillStyle = '#e8eefa'; ctx.fillRect(kx-7, t.y-11, 14, 36);
+    txt(String(v), t.x + t.w + 34, t.y+14, 24, '#e8eefa', 'right', 800);
+  });
+  panel(R_ORGAN_TOG, CUSTOM.organ ? 'rgba(110,231,168,0.22)' : 'rgba(22,26,36,0.9)', 'rgba(150,170,210,0.4)');
+  txt('오르골 ' + (CUSTOM.organ ? 'ON' : 'OFF'), R_ORGAN_TOG.x+R_ORGAN_TOG.w/2, R_ORGAN_TOG.y+36, 21,
+      CUSTOM.organ ? '#bff5da' : 'rgba(190,202,226,0.7)', 'center', 800);
+  panel(R_CUSTOM_GO, 'rgba(22,26,36,0.9)', 'rgba(150,170,210,0.5)');
+  txt('근무 시작', R_CUSTOM_GO.x+R_CUSTOM_GO.w/2, R_CUSTOM_GO.y+36, 22, '#e8eefa', 'center', 800);
+  txt('슬라이더를 끌어 0~20 사이로 맞춘다', W/2, 610, 16, 'rgba(160,175,205,0.5)', 'center', 600);
+  grain(0.03); vignette(0.5);
+}
+
+const ENDING = [
+  '6 AM. 다섯 번째 밤이 끝났다.',
+  '',
+  '극단장의 사무실에는 아무도 없었고,',
+  '책상 위에는 다섯 개의 실이 가지런히 놓여 있었다.',
+  '실 끝에는 이름표가 하나씩 붙어 있었다.',
+  '비단, 초롱, 장승, 월광 — 그리고 마지막 하나는 비어 있었다.',
+  '',
+  '월광 인형극장은 오늘 밤에도 폐업 상태다.',
+  '무대는 언제나 한 자리를 비워 둔다.'
+];
+const ENDING_20 = [
+  '20/20/20/20.',
+  '',
+  '무대 조명이 전부 켜졌다. 객석에는 다섯이 나란히 앉아 있었다.',
+  '누구도 움직이지 않았다. 오늘은 당신이 무대에 섰기 때문이다.',
+  '',
+  '— 마지막 실은 결국 채워졌다.'
+];
+function drawEnding(){
+  const lines = G.endingKind === 'custom20' ? ENDING_20 : ENDING;
+  ctx.fillStyle = '#000'; ctx.fillRect(0,0,W,H);
+  const budget = Math.max(0, G.stateT - 0.4) * 30;
+  let used = 0;
+  ctx.textAlign = 'left';
+  for (let i=0;i<lines.length;i++){
+    const line = lines[i];
+    if (used > budget) break;
+    txt(line.slice(0, Math.max(0, Math.floor(budget - used))), 300, 190 + i*40, 21,
+        'rgba(216,226,246,0.92)', 'left', 500);
+    used += line.length + 5;
+  }
+  if (G.stateT > 3){
+    txt('화면을 누르면 커스텀 나이트', W/2, H-70, 19,
+        'rgba(226,234,250,' + (0.45 + 0.35*Math.sin(G.stateT*3)) + ')', 'center', 700);
+  }
+  grain(0.03);
 }
 
 /* ═════════ 입력 라우팅 ═════════ */
@@ -1159,7 +1532,7 @@ function onKey(k){
     else if (k === 'l') toggleDoor('R');
     else if (k === 's') toggleLight('L');
     else if (k === 'k') toggleLight('R');
-    else if (k === ' ') toast('카메라 계통 점검 중');
+    else if (k === ' ') toggleCam();
     else if (k === 'm') SFX.setMuted(!SFX.muted);
   } else if (k === 'm') SFX.setMuted(!SFX.muted);
   else if (k === ' ' || k === 'enter') advanceScreen();
@@ -1169,11 +1542,20 @@ function advanceScreen(){
   else if (G.state === 'intro') startNight(G.night);
   else if (G.state === 'win'){
     if (G.stateT <= 1.6) return;
-    if (G.P.night >= 5){ G.state = 'title'; G.titleT = 0; }
+    if (G.P.custom){
+      const all20 = SLIDERS.every(sl => CUSTOM[sl.k] === 20);
+      if (all20){ G.endingKind = 'custom20'; G.state = 'ending'; G.stateT = 0; }
+      else { G.state = 'custom'; G.stateT = 0; }
+    }
+    else if (G.P.night >= 5){ G.endingKind = 'night5'; G.state = 'ending'; G.stateT = 0; }
     else gotoIntro(G.P.night + 1);
+  } else if (G.state === 'ending'){
+    if (G.stateT <= 3) return;
+    G.state = 'custom'; G.stateT = 0;
   } else if (G.state === 'dead'){
     if (G.stateT <= 1.1) return;
-    gotoIntro(G.dead.night);
+    if (G.dead.custom){ G.state = 'custom'; G.stateT = 0; }
+    else gotoIntro(G.dead.night);
   }
 }
 function routeClicks(){
@@ -1181,7 +1563,17 @@ function routeClicks(){
     const c = clicks[i];
     if (G.state === 'play'){
       if (hit(R_MUTE, c.x, c.y)){ SFX.setMuted(!SFX.muted); continue; }
-      if (hit(R_CAMBAR, c.x, c.y)){ toast('카메라 계통 점검 중'); continue; }
+      if (hit(R_CAMBAR, c.x, c.y)){ toggleCam(); continue; }
+      if (G.P.cam){
+        let picked = false;
+        for (let n=1;n<=9;n++){ if (hit(miniRect(n), c.x, c.y)){ setCamRoom(n); picked = true; break; } }
+        if (picked || hit(MINI, c.x, c.y) || hit(R_WIND, c.x, c.y)) continue;
+        // 카메라를 보는 동안 복도등은 조작 가능, 문은 불가
+        if (hit(AUX.Llight, c.x, c.y)) toggleLight('L');
+        else if (hit(AUX.Rlight, c.x, c.y)) toggleLight('R');
+        else if (hit(AUX.Ldoor, c.x, c.y) || hit(AUX.Rdoor, c.x, c.y)) toast('카메라를 보는 중에는 문을 조작할 수 없다');
+        continue;
+      }
       let used = false;
       for (const k in AUX){
         if (hit(AUX[k], c.x, c.y)){
@@ -1199,8 +1591,23 @@ function routeClicks(){
       else if (hit(SBTN.Llight, sx, sy)) toggleLight('L');
       else if (hit(SBTN.Rdoor, sx, sy)) toggleDoor('R');
       else if (hit(SBTN.Rlight, sx, sy)) toggleLight('R');
+    } else if (G.state === 'custom'){
+      if (hit(R_MUTE, c.x, c.y)){ SFX.setMuted(!SFX.muted); continue; }
+      let si = -1;
+      for (let i=0;i<SLIDERS.length;i++){ if (hit(sliderHit(i), c.x, c.y)){ si = i; break; } }
+      if (si >= 0){
+        const tr = sliderTrack(si);
+        G.drag = si;
+        CUSTOM[SLIDERS[si].k] = clamp(Math.round((c.x - tr.x) / tr.w * 20), 0, 20);
+        continue;
+      }
+      if (hit(R_ORGAN_TOG, c.x, c.y)){ CUSTOM.organ = !CUSTOM.organ; continue; }
+      if (hit(R_CUSTOM_GO, c.x, c.y)){ startCustom(); continue; }
     } else {
       if (hit(R_MUTE, c.x, c.y)){ SFX.setMuted(!SFX.muted); continue; }
+      if (G.state === 'title' && G.cleared >= 5 && hit(R_TITLE_CUS, c.x, c.y)){
+        G.state = 'custom'; G.stateT = 0; continue;
+      }
       advanceScreen();
     }
   }
@@ -1218,6 +1625,15 @@ function frame(now){
   G.stateT += dt; G.titleT += dt; G.fanA += dt * 3.1;
   routeClicks();
 
+  // 커스텀 나이트 슬라이더 드래그
+  if (G.state === 'custom'){
+    if (!ptr.down) G.drag = -1;
+    if (G.drag >= 0){
+      const tr = sliderTrack(G.drag);
+      CUSTOM[SLIDERS[G.drag].k] = clamp(Math.round((ptr.x - tr.x) / tr.w * 20), 0, 20);
+    }
+  } else G.drag = -1;
+
   if (G.state === 'play') updatePlay(dt);
 
   ctx.setTransform(1,0,0,1,0,0);
@@ -1228,7 +1644,9 @@ function frame(now){
     const P = G.P;
     ctx.save();
     if (P.shakeT > 0){ const s = P.shakeT * 14; ctx.translate(rand(-s,s), rand(-s,s)); }
-    if (P.blackout) drawBlackout(); else drawOffice();
+    if (P.blackout) drawBlackout();
+    else if (P.cam) drawCam();
+    else drawOffice();
     ctx.restore();
     drawHUD();
     grain(0.035 + Math.random()*0.015);
@@ -1236,6 +1654,8 @@ function frame(now){
   }
   else if (G.state === 'win') drawWin();
   else if (G.state === 'dead') drawDead();
+  else if (G.state === 'ending') drawEnding();
+  else if (G.state === 'custom') drawCustom();
 
   requestAnimationFrame(frame);
 }
