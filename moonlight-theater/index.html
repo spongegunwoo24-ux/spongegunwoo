@@ -1008,7 +1008,7 @@ function startNight(night, cfg){
     doorL:false, doorR:false, lightL:false, lightR:false,
     cam:false, camRoom:1,
     panX:PAN_MAX/2,
-    organ:100, organGrace:-1, seen:{},
+    organ:100, organGrace:-1,
     blackout:false, boT:0, boKill:0, boMusic:false,
     jang:{ stage:0, timer:5.1, charge:-1, lv:lv.jangseung },
     chars:{}, flick:0, flickT:rand(1.5,4), shakeT:0, toast:'', toastT:0,
@@ -1680,6 +1680,7 @@ function doorPoint(side, area){
 /* 도면 한 장을 그린다. area = {x,y,w,h}. small이면 카메라 패널용 축소판 */
 function drawPlan(area, opt){
   const small = !!(opt && opt.small);
+  const showRoutes = !!(opt && opt.routes);      // 경로는 타이틀 브리핑에서만
   const P = G.P;
   const fs = small ? 12 : 17;
 
@@ -1701,8 +1702,8 @@ function drawPlan(area, opt){
     ctx.beginPath(); ctx.moveTo(corner.x, corner.y); ctx.lineTo(dp.x, dp.y); ctx.stroke();
   });
 
-  // 경로선 — 겹치지 않게 조금씩 어긋나게 그린다
-  ROUTES.forEach((rt, i) => {
+  // 경로선 — 겹치지 않게 조금씩 어긋나게 그린다 (인게임에서는 그리지 않는다)
+  if (showRoutes) ROUTES.forEach((rt, i) => {
     const off = (i - 1.5) * (small ? 3.4 : 6);
     ctx.strokeStyle = rt.color;
     ctx.globalAlpha = 0.85;
@@ -1742,20 +1743,6 @@ function drawPlan(area, opt){
     txt(ROOMS[n], r.x + r.w/2, r.y + (small ? 31 : 46), fs,
         on ? 'rgba(226,250,238,0.95)' : 'rgba(176,208,190,0.72)', 'center', 600);
 
-    // 마지막으로 본 위치 (본 것만 기억한다 — 실시간 위치는 알려주지 않는다)
-    if (P && P.seen){
-      ROUTES.forEach((rt, i) => {
-        const sn = P.seen[rt.key];
-        if (!sn || sn.room !== n) return;
-        const age = clamp(1 - (P.time - sn.t)/25, 0, 1);
-        if (age <= 0) return;
-        ctx.globalAlpha = 0.25 + age*0.75;
-        ctx.fillStyle = rt.color;
-        const dx = r.x + 10 + i*(small ? 11 : 16), dy = r.y + r.h - (small ? 9 : 12);
-        ctx.beginPath(); ctx.arc(dx, dy, small ? 4 : 6, 0, Math.PI*2); ctx.fill();
-        ctx.globalAlpha = 1;
-      });
-    }
   }
 
   // 경비실
@@ -1891,13 +1878,11 @@ function drawCam(){
   for (const k in P.chars){
     const c = P.chars[k];
     if (!c.active || roomOf(c) !== P.camRoom) continue;
-    P.seen[k] = { room:P.camRoom, t:P.time };        // 직접 본 것만 도면에 남는다
     const x = 300 + slot*280 + ((P.camRoom*83) % 160);
     DRAW[k](x, 610, 380, 'cam', t);
     slot++;
   }
   if (P.camRoom === 2 && P.jang.charge < 0){        // 장승: 단계가 오를수록 다가온다
-    P.seen.jangseung = { room:2, t:P.time };
     const st = P.jang.stage;
     drawJangseung(280 + st*250, 620, 320 + st*80, 'cam', t);
   }
@@ -1929,16 +1914,10 @@ function drawCam(){
 
   // 극장 도면
   panel(MINI, 'rgba(8,12,10,0.86)', 'rgba(150,190,170,0.3)');
-  txt('극장 도면', MINI.x+18, MINI.y+28, 16, 'rgba(190,226,206,0.72)', 'left', 700);
-  ROUTES.forEach((rt, i) => {                       // 범례
-    const lx = MINI.x + 118 + i*98;
-    ctx.strokeStyle = rt.color; ctx.lineWidth = 3;
-    ctx.setLineDash(rt.rush ? [7,5] : []);
-    ctx.beginPath(); ctx.moveTo(lx, MINI.y+23); ctx.lineTo(lx+22, MINI.y+23); ctx.stroke();
-    ctx.setLineDash([]);
-    txt(rt.name, lx+27, MINI.y+28, 13, rt.color, 'left', 700);
-  });
-  drawPlan(MINI_AREA, { small:true });
+  txt('극장 배치도', MINI.x+18, MINI.y+28, 16, 'rgba(190,226,206,0.72)', 'left', 700);
+  txt('누가 어디 있는지는 직접 봐야 안다', MINI.x+MINI.w-18, MINI.y+28, 13,
+      'rgba(150,180,166,0.5)', 'right', 600);
+  drawPlan(MINI_AREA, { small:true });        // 경로선·목격 표시 없음
 
   // 오르골실: 감기 버튼
   if (P.camRoom === 8 && P.organOn){
@@ -2320,7 +2299,7 @@ const ROUTE_TEXT = [
 function drawMapScreen(){
   ctx.fillStyle = '#06080c'; ctx.fillRect(0,0,W,H);
   txt('월광 인형극장 · 극장 도면', 60, 68, 30, '#e8eefa', 'left', 800);
-  txt('도면에는 실시간 위치가 뜨지 않는다. 카메라로 직접 본 것만 잠깐 점으로 남는다.',
+  txt('근무 전 브리핑. 인게임 배치도에는 이 경로가 표시되지 않는다.',
       60, 96, 15, 'rgba(160,180,205,0.6)', 'left', 600);
   ROUTE_TEXT.forEach((r, i) => {
     const y = 150 + i*100;
@@ -2329,7 +2308,7 @@ function drawMapScreen(){
     txt(r.line, 80, y+28, 15, 'rgba(214,226,244,0.85)', 'left', 600);
     txt(r.tip,  80, y+50, 14, 'rgba(160,180,205,0.62)', 'left', 500);
   });
-  drawPlan(MAP_AREA, { small:false });
+  drawPlan(MAP_AREA, { small:false, routes:true });
   txt('화면을 누르면 돌아간다', W/2, H-22, 16,
       'rgba(190,206,230,' + (0.45 + 0.3*Math.sin(G.stateT*3)) + ')', 'center', 700);
   grain(0.02);
