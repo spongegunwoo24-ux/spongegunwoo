@@ -48,6 +48,8 @@ const roll20 = lvl => randi(1,20) <= lvl;            // random(1,20) <= AI레벨
 const pick = arr => arr[(Math.random()*arr.length)|0];
 function hit(r, x, y){ return x>=r.x && x<=r.x+r.w && y>=r.y && y<=r.y+r.h; }
 
+
+
 /* ═════════ 1. 입력 (마우스 + 터치 + 키보드) ═════════ */
 const ptr = { x: W/2, y: H/2, down:false, moved:false };
 const clicks = [];        // 이번 프레임에 처리할 탭/클릭
@@ -408,7 +410,9 @@ const SFX = {
      구성: (1) 지속되는 패드 화음  (2) 느린 베이스 진행  (3) 드문드문 떨어지는 단음
            (4) 시간이 갈수록 빨라지는 맥박  (5) 5 AM의 초침
      밤이 깊을수록 층이 하나씩 늘어난다. */
-  music:{ on:true, next:0, step:0, root:0, pad:null, padGain:null, padFilter:null },
+  music:{ mode:0, next:0, step:0, root:0, pad:null, padGain:null, padFilter:null },
+  MUSIC_MODES: ['켬', '끔'],
+
   MUSIC_SCALE: [0, 3, 5, 7, 10, 12, 15],          // 단조 펜타 계열
   MUSIC_BASS:  [-24, -22, -19, -17],
 
@@ -435,9 +439,8 @@ const SFX = {
     this.music.pad = oscs; this.music.padGain = g; this.music.padFilter = f;
   },
   musicToggle(){
-    this.music.on = !this.music.on;
-    if (!this.music.on && this.music.padGain) this.music.padGain.gain.setTargetAtTime(0, this.t, 0.4);
-    return this.music.on;
+    this.music.mode = (this.music.mode + 1) % 2;
+    return this.MUSIC_MODES[this.music.mode];
   },
   musicNote(t, semi, dur, vol, type){
     const ac = this.ac;
@@ -454,12 +457,22 @@ const SFX = {
     if (!this.ac) return;
     this.musicInit();
     const M = this.music;
-    const active = M.on && !blackout;
     const layer = clamp(hour, 0, 5);                       // 시간이 갈수록 두꺼워진다
+    const synthMode = (M.mode === 0);
     if (M.padGain){
-      M.padGain.gain.setTargetAtTime(active ? 0.05 + layer*0.012 + dread*0.03 : 0, this.t, 1.2);
+      M.padGain.gain.setTargetAtTime(
+        (synthMode && !blackout) ? 0.05 + layer*0.012 + dread*0.03 : 0, this.t, 1.2);
     }
-    if (!active) return;
+    // 5 AM 초침
+    if (synthMode && hour >= 5 && !blackout){
+      if (M.tick === undefined || M.tick < this.t){
+        M.tick = (M.tick === undefined ? this.t : M.tick) + 1.0;
+        const o = this.ac.createOscillator(); o.type = 'square'; o.frequency.value = 1750;
+        const g = this.ac.createGain(); this._env(g, this.t, 0.035, 0.05, 0.001);
+        o.connect(g); g.connect(this.master); o.start(this.t); o.stop(this.t + 0.06);
+      }
+    }
+    if (!synthMode || blackout) return;
     const stepDur = 1.05 - layer*0.075 - dread*0.12;       // 갈수록 빨라진다
     if (M.next < this.t) M.next = this.t + 0.1;
     while (M.next < this.t + 0.7){
@@ -477,12 +490,6 @@ const SFX = {
       if (Math.random() < 0.2 + layer*0.07 + dread*0.15){
         const sc = this.MUSIC_SCALE[(Math.random()*this.MUSIC_SCALE.length)|0];
         this.musicNote(t + stepDur*0.5*Math.random(), sc, stepDur*(1.6 + Math.random()), 0.055, 'triangle');
-      }
-      // 5 AM 초침
-      if (hour >= 5){
-        const o = this.ac.createOscillator(); o.type = 'square'; o.frequency.value = 1750;
-        const g = this.ac.createGain(); this._env(g, t, 0.035, 0.05, 0.001);
-        o.connect(g); g.connect(this.master); o.start(t); o.stop(t + 0.06);
       }
       M.next += stepDur;
       M.step = (s + 1) % 16;
@@ -1092,8 +1099,12 @@ const MEMO = [
 const G = {
   state:'title', stateT:0, night:1, cleared:0,
   P:null, dead:null, fanA:0, titleT:0, drag:-1, endingKind:'night5',
-  fear:2                    // 공포 강도 0 순함 / 1 보통 / 2 강함
+  fear:2,                   // 공포 강도 0 순함 / 1 보통 / 2 강함
+  dim:0                     // 암도 0 칠흑 / 1 어두움 / 2 보통
 };
+const DIM_NAMES = ['칠흑', '어두움', '보통'];
+const DIM_ALPHA = [0.52, 0.34, 0.12];
+function cycleDim(){ G.dim = (G.dim + 1) % 3; }
 const FEAR_NAMES = ['순함', '보통', '강함'];
 const FEAR_DESC = [
   '점프스케어·환영·심장박동 없음. 규칙과 긴장만 남는다',
@@ -1578,10 +1589,10 @@ function drawLamp(x, y){
   const on = P.flick <= 0;
   ctx.save();
   if (on){
-    const gl = ctx.createRadialGradient(x, y, 4, x, y, 230);
-    gl.addColorStop(0,'rgba(255,222,166,0.17)'); gl.addColorStop(0.35,'rgba(255,196,126,0.05)');
+    const gl = ctx.createRadialGradient(x, y, 4, x, y, 190);
+    gl.addColorStop(0,'rgba(255,222,166,0.11)'); gl.addColorStop(0.35,'rgba(255,196,126,0.03)');
     gl.addColorStop(1,'rgba(255,190,120,0)');
-    ctx.fillStyle = gl; ctx.beginPath(); ctx.arc(x, y, 230, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = gl; ctx.beginPath(); ctx.arc(x, y, 190, 0, Math.PI*2); ctx.fill();
   }
   ctx.strokeStyle = 'rgba(150,165,195,0.3)'; ctx.lineWidth = 4;
   ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x+16, y+44); ctx.stroke();
@@ -1876,12 +1887,12 @@ function drawRoomBG(n, t){
   ctx.fillStyle = '#070910'; ctx.fillRect(0,0,W,H);
   const floorY = 470;
   const fg = ctx.createLinearGradient(0, floorY, 0, H);
-  fg.addColorStop(0,'#0c110e'); fg.addColorStop(1,'#050706');
+  fg.addColorStop(0,'#080c0a'); fg.addColorStop(1,'#030404');
   ctx.fillStyle = fg; ctx.fillRect(0, floorY, W, H-floorY);
   ctx.strokeStyle = 'rgba(150,190,170,0.06)'; ctx.lineWidth = 2;
   ctx.beginPath(); ctx.moveTo(0, floorY); ctx.lineTo(W, floorY); ctx.stroke();
 
-  const wall = (a) => { ctx.fillStyle = 'rgba(34,48,40,'+(a*0.62)+')'; ctx.fillRect(0,0,W,floorY); };
+  const wall = (a) => { ctx.fillStyle = 'rgba(30,42,35,'+(a*0.45)+')'; ctx.fillRect(0,0,W,floorY); };
 
   if (n === 1){                                   // 무대
     wall(0.5);
@@ -2210,7 +2221,7 @@ function drawFear(){
     grain(0.18);
   }
   // 심장박동에 맞춰 조여드는 시야
-  vignette(0.42 + d*0.3 + Math.max(0, P.hbPulse)*0.1);
+  vignette(0.56 + d*0.26 + Math.max(0, P.hbPulse)*0.1);
 }
 
 /* ═════════ 승리 / 인트로 / 타이틀 ═════════ */
@@ -2292,22 +2303,28 @@ function drawTitle(){
   // 실루엣 한 명
   drawBidan(W/2 + 250, 700, 330, 'sil', t);
   txt('월광 인형극장', W/2, 360, 64, '#e8eefa', 'center', 800);
-  txt('5일간의 야간 경비', W/2, 404, 21, 'rgba(190,202,226,0.72)', 'center', 600);
+  txt('5일간의 야간 경비', W/2, 382, 20, 'rgba(190,202,226,0.72)', 'center', 600);
   panel(R_TITLE_GO, 'rgba(22,26,36,0.9)', 'rgba(150,170,210,0.4)');
-  txt('근무 시작', W/2, 464, 23, '#e8eefa', 'center', 800);
+  txt('근무 시작', W/2, 437, 23, '#e8eefa', 'center', 800);
   panel(R_TITLE_MAP, 'rgba(18,24,22,0.9)', 'rgba(150,190,170,0.45)');
-  txt('극장 도면 — 얘들이 어디로 오는가', W/2, 519, 17, '#bfe4d2', 'center', 700);
+  txt('극장 도면 — 얘들이 어디로 오는가', W/2, 490, 16, '#bfe4d2', 'center', 700);
   if (G.cleared >= 5){
     panel(R_TITLE_CUS, 'rgba(22,26,36,0.9)', 'rgba(226,96,74,0.5)');
-    txt('커스텀 나이트', W/2, 571, 18, '#f0c9bd', 'center', 800);
+    txt('커스텀 나이트', W/2, 538, 18, '#f0c9bd', 'center', 800);
   }
-  drawFearButton(R_TITLE_FEAR, true);
+  panel(R_TITLE_DIM, 'rgba(18,22,30,0.9)', 'rgba(150,170,210,0.3)');
+  txt('화면 밝기', R_TITLE_DIM.x+18, R_TITLE_DIM.y+24, 15, 'rgba(180,194,220,0.7)', 'left', 700);
+  txt(DIM_NAMES[G.dim], R_TITLE_DIM.x+R_TITLE_DIM.w-18, R_TITLE_DIM.y+26, 17,
+      ['#7fc4ff','#9fd8bb','#ffc46b'][G.dim], 'right', 800);
+  drawFearButton(R_TITLE_FEAR, false);
   panel(R_TITLE_MUSIC, 'rgba(18,22,30,0.9)', 'rgba(150,170,210,0.35)');
-  txt('음악 ' + (SFX.music.on ? '켬' : '끔'), R_TITLE_MUSIC.x + R_TITLE_MUSIC.w/2,
-      R_TITLE_MUSIC.y + 27, 16, SFX.music.on ? '#9fd8bb' : 'rgba(150,165,195,0.6)', 'center', 700);
+  txt('음악 ' + SFX.MUSIC_MODES[SFX.music.mode], R_TITLE_MUSIC.x + R_TITLE_MUSIC.w/2,
+      R_TITLE_MUSIC.y + 26, 15,
+      SFX.music.mode === 1 ? 'rgba(150,165,195,0.6)' : '#9fd8bb', 'center', 700);
   txt('A 좌측 문   S 좌측 등   K 우측 등   L 우측 문   Space 카메라   M 음소거   F 공포 강도',
-      W/2, 682, 14, 'rgba(160,175,205,0.55)', 'center', 600);
-  txt('B 배경 음악', W/2, 704, 14, 'rgba(160,175,205,0.45)', 'center', 600);
+      W/2, 674, 13, 'rgba(160,175,205,0.5)', 'center', 600);
+  txt('B 배경 음악    V 화면 밝기    ' + FEAR_DESC[G.fear], W/2, 698, 13,
+      'rgba(160,175,205,0.4)', 'center', 600);
 
   grain(0.03); vignette(0.55);
 }
@@ -2325,11 +2342,12 @@ function sliderTrack(i){ return { x:430, y:214 + i*72, w:500, h:14 }; }
 function sliderHit(i){ const t = sliderTrack(i); return { x:t.x-16, y:t.y-24, w:t.w+32, h:62 }; }
 const R_ORGAN_TOG = { x:430, y:508, w:220, h:56 };
 const R_CUSTOM_GO = { x:700, y:508, w:230, h:56 };
-const R_TITLE_GO  = { x:W/2-140, y:428, w:280, h:54 };
-const R_TITLE_MAP = { x:W/2-140, y:492, w:280, h:42 };
-const R_TITLE_CUS = { x:W/2-140, y:544, w:280, h:42 };
-const R_TITLE_FEAR = { x:W/2-190, y:596, w:246, h:42 };
-const R_TITLE_MUSIC = { x:W/2+62,  y:596, w:128, h:42 };
+const R_TITLE_GO  = { x:W/2-140, y:404, w:280, h:52 };
+const R_TITLE_MAP = { x:W/2-140, y:464, w:280, h:40 };
+const R_TITLE_CUS = { x:W/2-140, y:512, w:280, h:40 };
+const R_TITLE_FEAR = { x:W/2-190, y:560, w:246, h:40 };
+const R_TITLE_MUSIC = { x:W/2+62,  y:560, w:128, h:40 };
+const R_TITLE_DIM  = { x:W/2-190, y:608, w:380, h:38 };
 const R_CUSTOM_FEAR = { x:300, y:590, w:340, h:44 };
 
 function drawCustom(){
@@ -2436,7 +2454,7 @@ function drawFearButton(r, withDesc){
   panel(r, 'rgba(18,22,30,0.9)', 'rgba(150,170,210,0.35)');
   txt('공포 강도', r.x+18, r.y+r.h/2+7, 17, 'rgba(180,194,220,0.75)', 'left', 700);
   txt(FEAR_NAMES[G.fear], r.x+r.w-18, r.y+r.h/2+8, 21, col, 'right', 800);
-  const bx = r.x + r.w/2 - 30;
+  const bx = r.x + r.w*0.56;
   for (let i=0;i<3;i++){
     ctx.fillStyle = i <= G.fear ? col : 'rgba(120,135,165,0.25)';
     ctx.fillRect(bx + i*18, r.y+r.h/2-6, 12, 12);
@@ -2454,10 +2472,12 @@ function onKey(k){
     else if (k === ' ') toggleCam();
     else if (k === 'm') SFX.setMuted(!SFX.muted);
     else if (k === 'f'){ cycleFear(); toast('공포 강도: ' + FEAR_NAMES[G.fear]); }
-    else if (k === 'b') toast('배경 음악: ' + (SFX.musicToggle() ? '켬' : '끔'));
+    else if (k === 'b') toast('배경 음악: ' + SFX.musicToggle());
+    else if (k === 'v'){ cycleDim(); toast('화면 밝기: ' + DIM_NAMES[G.dim]); }
   } else if (k === 'm') SFX.setMuted(!SFX.muted);
   else if (k === 'f') cycleFear();
   else if (k === 'b') SFX.musicToggle();
+  else if (k === 'v') cycleDim();
   else if (k === ' ' || k === 'enter') advanceScreen();
 }
 function advanceScreen(){
@@ -2531,6 +2551,7 @@ function routeClicks(){
     } else {
       if (G.state !== 'dead' && hit(R_MUTE, c.x, c.y)){ SFX.setMuted(!SFX.muted); continue; }
       if (G.state === 'title'){
+        if (hit(R_TITLE_DIM, c.x, c.y)){ cycleDim(); continue; }
         if (hit(R_TITLE_MUSIC, c.x, c.y)){ SFX.musicToggle(); continue; }
         if (hit(R_TITLE_FEAR, c.x, c.y)){ cycleFear(); continue; }
         if (hit(R_TITLE_MAP, c.x, c.y)){ G.state = 'map'; G.stateT = 0; continue; }
@@ -2582,6 +2603,10 @@ function frame(now){
     else if (P.cam) drawCam();
     else drawOffice();
     ctx.restore();
+    if (!P.blackout){                       // 전역 암막 — 극장은 폐업했고 전기는 아깝다
+      ctx.fillStyle = 'rgba(0,0,0,' + DIM_ALPHA[G.dim] + ')';
+      ctx.fillRect(0, 0, W, H);
+    }
     drawHUD();
     grain(0.035 + Math.random()*0.015 + P.dread*0.02);
     drawFear();
