@@ -1008,11 +1008,11 @@ function startNight(night, cfg){
     doorL:false, doorR:false, lightL:false, lightR:false,
     cam:false, camRoom:1,
     panX:PAN_MAX/2,
-    organ:100, organGrace:-1,
+    organ:100, organGrace:-1, seen:{},
     blackout:false, boT:0, boKill:0, boMusic:false,
     jang:{ stage:0, timer:5.1, charge:-1, lv:lv.jangseung },
     chars:{}, flick:0, flickT:rand(1.5,4), shakeT:0, toast:'', toastT:0,
-    slamFlash:0, camFlash:0, windHold:false,
+    slamFlash:0, camFlash:0, windHold:false, warnFlash:0,
     // 공포 레이어
     dread:0, hbT:0, hbPulse:0, whisT:rand(8,18), scrapeT:rand(5,12),
     subT:rand(20,40), sub:0, subKey:'bidan',
@@ -1081,7 +1081,16 @@ function updatePlay(dt){
   // 전력
   if (!P.blackout){
     P.usage = 1 + (P.doorL?1:0) + (P.doorR?1:0) + (P.lightL?1:0) + (P.lightR?1:0) + (P.cam?1:0);
+    const before = P.power;
     P.power -= P.k * P.usage * dt;
+    [25, 15, 8, 3].forEach(mark => {                 // 정전은 예고 없이 오지 않는다
+      if (before > mark && P.power <= mark){
+        toast('전력 ' + mark + '% — 문과 등을 줄여라');
+        P.warnFlash = 1.2;
+        SFX.growl(0);
+      }
+    });
+    if (P.warnFlash > 0) P.warnFlash -= dt;
     if (P.power <= 0){ P.power = 0; startBlackout(); }
   }
 
@@ -1222,13 +1231,7 @@ function updateDread(dt){
   if (P.fanStutT <= 0){ P.fanStutT = rand(22, 55); P.fanSpeed = 0; }
   P.fanSpeed = lerp(P.fanSpeed, 1, clamp(dt*0.9, 0, 1));
 
-  // 카메라 신호 유실
-  if (P.lostT > 0) P.lostT -= dt;
-  else if (P.cam && Math.random() < dt*(0.05 + P.dread*0.12)) P.lostT = rand(0.25, 0.8);
-
-  // 월광을 계속 쳐다보면 렌즈 쪽으로 다가온다
-  if (P.cam && P.chars.wolgwang.active && roomOf(P.chars.wolgwang) === P.camRoom) P.camStare += dt;
-  else P.camStare = Math.max(0, P.camStare - dt*2);
+  P.lostT = 0;      // 무작위 신호 유실은 쓰지 않는다(플레이어를 속이는 노이즈)
 }
 
 /* 장승: 커튼 뒤에서 단계 진행 → 서쪽 복도 돌진 */
@@ -1337,7 +1340,13 @@ function startBlackout(){
 
 /* 조작 */
 function toggleDoor(side){
-  const P = G.P; if (!P || G.state!=='play' || P.blackout || P.cam) return;
+  const P = G.P; if (!P || G.state !== 'play' || P.blackout) return;
+  if (P.cam){
+    // 카메라를 보는 동안에는 문을 조작할 수 없다. 조용히 씹지 말고 분명히 알린다.
+    toast('카메라를 보는 중에는 문을 조작할 수 없다 — Space로 사무실 복귀');
+    SFX.scrape(side === 'L' ? -0.6 : 0.6);
+    return;
+  }
   if (side === 'L') P.doorL = !P.doorL; else P.doorR = !P.doorR;
   SFX.door(side === 'L' ? P.doorL : P.doorR);
 }
@@ -1397,6 +1406,10 @@ function drawOffice(){
   // 조명 플리커 / 장승 충돌 섬광
   if (dim > 0){ ctx.fillStyle = 'rgba(0,0,0,'+dim+')'; ctx.fillRect(0,0,W,H); }
   if (P.slamFlash > 0){ ctx.fillStyle = 'rgba(255,220,180,'+(P.slamFlash*0.5)+')'; ctx.fillRect(0,0,W,H); }
+  if (P.warnFlash > 0){
+    ctx.fillStyle = 'rgba(226,80,60,' + (0.16*P.warnFlash*(0.5+0.5*Math.sin(G.stateT*18))) + ')';
+    ctx.fillRect(0,0,W,H);
+  }
 
   // 문 앞 위협 경고(인내심이 얼마 남지 않았을 때 화면 가장자리)
   ['L','R'].forEach(side => {
@@ -1620,14 +1633,145 @@ function drawBlackout(){
 /* ═════════ 4. 카메라 시스템 ═════════ */
 const ROOMS = { 1:'무대', 2:'커튼 뒤', 3:'객석', 4:'분장실', 5:'서쪽 복도',
                 6:'서쪽 모서리', 7:'동쪽 복도', 8:'오르골실', 9:'동쪽 모서리' };
-const MINI = { x:W-440, y:H-320, w:420, h:300 };
+const MINI = { x:W-536, y:H-392, w:520, h:376 };
 const R_WIND = { x:70, y:H-210, w:260, h:104 };
 
-function miniRect(n){
-  const i = n-1, cx = i%3, cy = (i/3)|0;
-  return { x:MINI.x+22 + cx*126, y:MINI.y+52 + cy*78, w:116, h:68 };
-}
+const MINI_AREA = { x:MINI.x+16, y:MINI.y+42, w:MINI.w-32, h:MINI.h-58 };
+function miniRect(n){ return planRect(PLAN[n], MINI_AREA); }
 function roomOf(c){ return c.path[c.pos]; }
+
+/* ═════════ 극장 도면 ═════════
+   방 번호만으로는 "얘들이 어디로 오는지"를 알 수 없다.
+   실제 배치대로 놓고, 각자의 경로를 도면 위에 그린다. */
+const PLAN = {                                   // 중심 좌표(0~1) + 크기(0~1)
+  2:{ x:0.50, y:0.09, w:0.24, h:0.10 },          // 커튼 뒤
+  1:{ x:0.50, y:0.25, w:0.32, h:0.11 },          // 무대
+  3:{ x:0.50, y:0.45, w:0.32, h:0.12 },          // 객석
+  4:{ x:0.15, y:0.30, w:0.22, h:0.11 },          // 분장실
+  5:{ x:0.13, y:0.55, w:0.20, h:0.11 },          // 서쪽 복도
+  6:{ x:0.15, y:0.80, w:0.22, h:0.11 },          // 서쪽 모서리
+  7:{ x:0.86, y:0.45, w:0.20, h:0.11 },          // 동쪽 복도
+  8:{ x:0.87, y:0.64, w:0.22, h:0.11 },          // 오르골실
+  9:{ x:0.85, y:0.80, w:0.22, h:0.11 }           // 동쪽 모서리
+};
+const PLAN_OFFICE = { x:0.50, y:0.86, w:0.26, h:0.12 };
+const PLAN_EDGES = [[2,1],[1,3],[3,4],[4,5],[5,6],[3,7],[7,8],[8,9]];
+const ROUTES = [
+  { key:'bidan',     name:'비단',  color:'#7fc4ff', path:[1,3,4,5,6], door:'L' },
+  { key:'chorong',   name:'초롱',  color:'#ffb46b', path:[1,3,7,8,9], door:'R' },
+  { key:'wolgwang',  name:'월광',  color:'#f2df8a', path:[1,3,7,9],   door:'R' },
+  { key:'jangseung', name:'장승',  color:'#c99a63', path:[2,5],       door:'L', rush:true }
+];
+
+function planRect(box, area){
+  return { x: area.x + (box.x - box.w/2)*area.w, y: area.y + (box.y - box.h/2)*area.h,
+           w: box.w*area.w, h: box.h*area.h };
+}
+function planCenter(n, area){
+  const b = PLAN[n];
+  return { x: area.x + b.x*area.w, y: area.y + b.y*area.h };
+}
+function officeRect(area){ return planRect(PLAN_OFFICE, area); }
+function doorPoint(side, area){
+  const r = officeRect(area);
+  return { x: side === 'L' ? r.x + r.w*0.18 : r.x + r.w*0.82, y: r.y };
+}
+
+/* 도면 한 장을 그린다. area = {x,y,w,h}. small이면 카메라 패널용 축소판 */
+function drawPlan(area, opt){
+  const small = !!(opt && opt.small);
+  const P = G.P;
+  const fs = small ? 12 : 17;
+
+  // 건물 외곽
+  ctx.save();
+  ctx.strokeStyle = 'rgba(150,190,170,0.22)'; ctx.lineWidth = small ? 2 : 3;
+  ctx.strokeRect(area.x + area.w*0.02, area.y + area.h*0.02, area.w*0.96, area.h*0.96);
+
+  // 통로
+  ctx.strokeStyle = 'rgba(150,190,170,0.30)';
+  ctx.lineWidth = small ? 5 : 9;
+  ctx.lineCap = 'round';
+  PLAN_EDGES.forEach(([a, b]) => {
+    const p1 = planCenter(a, area), p2 = planCenter(b, area);
+    ctx.beginPath(); ctx.moveTo(p1.x, p1.y); ctx.lineTo(p2.x, p2.y); ctx.stroke();
+  });
+  ['L','R'].forEach(side => {
+    const corner = planCenter(side === 'L' ? 6 : 9, area), dp = doorPoint(side, area);
+    ctx.beginPath(); ctx.moveTo(corner.x, corner.y); ctx.lineTo(dp.x, dp.y); ctx.stroke();
+  });
+
+  // 경로선 — 겹치지 않게 조금씩 어긋나게 그린다
+  ROUTES.forEach((rt, i) => {
+    const off = (i - 1.5) * (small ? 3.4 : 6);
+    ctx.strokeStyle = rt.color;
+    ctx.globalAlpha = 0.85;
+    ctx.lineWidth = small ? 2 : 3;
+    ctx.setLineDash(rt.rush ? [small?7:12, small?5:8] : []);
+    ctx.beginPath();
+    const pts = rt.path.map(n => planCenter(n, area));
+    pts.push(doorPoint(rt.door, area));
+    pts.forEach((p, j) => {
+      const x = p.x + off, y = p.y + off*0.35;
+      if (j === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+    });
+    ctx.stroke();
+    // 진행 방향 화살촉
+    for (let j=1;j<pts.length;j++){
+      const a = pts[j-1], b = pts[j];
+      const mx = (a.x+b.x)/2 + off, my = (a.y+b.y)/2 + off*0.35;
+      const ang = Math.atan2(b.y-a.y, b.x-a.x), L = small ? 5 : 9;
+      ctx.beginPath();
+      ctx.moveTo(mx, my);
+      ctx.lineTo(mx - Math.cos(ang-0.45)*L, my - Math.sin(ang-0.45)*L);
+      ctx.moveTo(mx, my);
+      ctx.lineTo(mx - Math.cos(ang+0.45)*L, my - Math.sin(ang+0.45)*L);
+      ctx.stroke();
+    }
+    ctx.setLineDash([]); ctx.globalAlpha = 1;
+  });
+
+  // 방
+  for (let n=1;n<=9;n++){
+    const r = planRect(PLAN[n], area);
+    const on = P && P.cam && P.camRoom === n;
+    panel(r, on ? 'rgba(120,200,160,0.26)' : 'rgba(14,20,17,0.92)',
+             on ? 'rgba(170,236,200,0.85)' : 'rgba(150,190,170,0.3)');
+    txt('CAM ' + n, r.x + r.w/2, r.y + (small ? 17 : 24), small ? 11 : 15,
+        on ? '#d8f6e6' : 'rgba(190,226,206,0.62)', 'center', 800);
+    txt(ROOMS[n], r.x + r.w/2, r.y + (small ? 31 : 46), fs,
+        on ? 'rgba(226,250,238,0.95)' : 'rgba(176,208,190,0.72)', 'center', 600);
+
+    // 마지막으로 본 위치 (본 것만 기억한다 — 실시간 위치는 알려주지 않는다)
+    if (P && P.seen){
+      ROUTES.forEach((rt, i) => {
+        const sn = P.seen[rt.key];
+        if (!sn || sn.room !== n) return;
+        const age = clamp(1 - (P.time - sn.t)/25, 0, 1);
+        if (age <= 0) return;
+        ctx.globalAlpha = 0.25 + age*0.75;
+        ctx.fillStyle = rt.color;
+        const dx = r.x + 10 + i*(small ? 11 : 16), dy = r.y + r.h - (small ? 9 : 12);
+        ctx.beginPath(); ctx.arc(dx, dy, small ? 4 : 6, 0, Math.PI*2); ctx.fill();
+        ctx.globalAlpha = 1;
+      });
+    }
+  }
+
+  // 경비실
+  const orc = officeRect(area);
+  panel(orc, 'rgba(40,30,18,0.92)', 'rgba(226,180,90,0.55)');
+  txt('경비실', orc.x + orc.w/2, orc.y + orc.h/2 + (small ? 5 : 7), small ? 13 : 19,
+      '#f0d9a8', 'center', 800);
+  ['L','R'].forEach(side => {
+    const dp = doorPoint(side, area);
+    const closed = P ? (side === 'L' ? P.doorL : P.doorR) : false;
+    ctx.fillStyle = closed ? '#e2604a' : 'rgba(150,190,170,0.45)';
+    ctx.fillRect(dp.x - (small?9:14), dp.y - (small?3:4), small?18:28, small?6:8);
+  });
+  ctx.restore();
+}
+
 
 /* 방 배경 — 전부 도형으로 그린다 */
 function drawRoomBG(n, t){
@@ -1747,18 +1891,13 @@ function drawCam(){
   for (const k in P.chars){
     const c = P.chars[k];
     if (!c.active || roomOf(c) !== P.camRoom) continue;
+    P.seen[k] = { room:P.camRoom, t:P.time };        // 직접 본 것만 도면에 남는다
     const x = 300 + slot*280 + ((P.camRoom*83) % 160);
-    if (k === 'wolgwang' && G.fear > 0 && P.camStare > 2.2){
-      // 계속 쳐다보면 렌즈 쪽으로 다가온다. 시선을 떼면 방을 옮긴다. 어느 쪽도 좋지 않다.
-      const lean = Math.min(3.2, 1 + (P.camStare - 2.2)*0.42);
-      drawWolgwang(W/2, 640 + lean*60, 380*lean, 'cam', t);
-      if (P.camStare > 5.4 && Math.random() < 0.25) grain(0.3);
-    } else {
-      DRAW[k](x, 610, 380, 'cam', t);
-    }
+    DRAW[k](x, 610, 380, 'cam', t);
     slot++;
   }
   if (P.camRoom === 2 && P.jang.charge < 0){        // 장승: 단계가 오를수록 다가온다
+    P.seen.jangseung = { room:2, t:P.time };
     const st = P.jang.stage;
     drawJangseung(280 + st*250, 620, 320 + st*80, 'cam', t);
   }
@@ -1778,21 +1917,28 @@ function drawCam(){
   vignette(0.55);
 
   txt('CAM ' + P.camRoom + ' · ' + ROOMS[P.camRoom], 30, 54, 26, 'rgba(200,236,216,0.85)', 'left', 800);
+  // 카메라를 보는 동안 문은 잠긴다 — 항상 보이게 적어 둔다
+  const lockMsg = '문 조작 불가 · Space로 사무실 복귀   |   좌문 ' + (P.doorL ? '닫힘' : '열림') +
+                  ' · 우문 ' + (P.doorR ? '닫힘' : '열림');
+  txt(lockMsg, W/2, 34, 16,
+      (P.doorL || P.doorR) ? 'rgba(226,180,120,0.85)' : 'rgba(226,120,100,0.85)', 'center', 700);
   if (Math.sin(t*3.4) > 0){
     ctx.fillStyle = '#e2604a'; ctx.beginPath(); ctx.arc(38, 82, 9, 0, Math.PI*2); ctx.fill();
     txt('REC', 56, 90, 18, 'rgba(226,96,74,0.9)', 'left', 700);
   }
 
-  // 미니맵
-  panel(MINI, 'rgba(8,12,10,0.82)', 'rgba(150,190,170,0.3)');
-  txt('카메라 배치도', MINI.x+18, MINI.y+32, 17, 'rgba(190,226,206,0.7)', 'left', 700);
-  for (let n=1;n<=9;n++){
-    const r = miniRect(n), on = (P.camRoom === n);
-    panel(r, on ? 'rgba(120,200,160,0.24)' : 'rgba(20,30,25,0.85)',
-             on ? 'rgba(170,236,200,0.8)' : 'rgba(150,190,170,0.22)');
-    txt('CAM ' + n, r.x+r.w/2, r.y+27, 15, on ? '#d8f6e6' : 'rgba(190,226,206,0.6)', 'center', 800);
-    txt(ROOMS[n], r.x+r.w/2, r.y+50, 14, on ? 'rgba(216,246,230,0.9)' : 'rgba(160,196,176,0.5)', 'center', 600);
-  }
+  // 극장 도면
+  panel(MINI, 'rgba(8,12,10,0.86)', 'rgba(150,190,170,0.3)');
+  txt('극장 도면', MINI.x+18, MINI.y+28, 16, 'rgba(190,226,206,0.72)', 'left', 700);
+  ROUTES.forEach((rt, i) => {                       // 범례
+    const lx = MINI.x + 118 + i*98;
+    ctx.strokeStyle = rt.color; ctx.lineWidth = 3;
+    ctx.setLineDash(rt.rush ? [7,5] : []);
+    ctx.beginPath(); ctx.moveTo(lx, MINI.y+23); ctx.lineTo(lx+22, MINI.y+23); ctx.stroke();
+    ctx.setLineDash([]);
+    txt(rt.name, lx+27, MINI.y+28, 13, rt.color, 'left', 700);
+  });
+  drawPlan(MINI_AREA, { small:true });
 
   // 오르골실: 감기 버튼
   if (P.camRoom === 8 && P.organOn){
@@ -1812,12 +1958,6 @@ function drawCam(){
     drawFace(P.camGhost, H*0.44, 880, 'cam', t);
     ctx.restore();
     grain(0.35);
-  }
-  // 신호 유실
-  if (P.lostT > 0){
-    grain(0.5);
-    ctx.fillStyle = 'rgba(0,0,0,0.55)'; ctx.fillRect(0,0,W,H);
-    txt('신호 없음', W/2, H/2, 40, 'rgba(200,236,216,0.5)', 'center', 800);
   }
   if (P.camFlash > 0){                              // 전환 순간 화이트노이즈 플래시
     grain(0.55 * (P.camFlash/0.3));
@@ -1846,6 +1986,20 @@ function drawHUD(){
     ctx.fillStyle = i < bars ? (bars>=4 ? '#ff7a54' : (bars===3 ? '#ffc46b' : '#6ee7a8')) : 'rgba(120,135,165,0.18)';
     ctx.fillRect(r.x, r.y, r.w, r.h);
   }
+  // 문·등 상태 표시 — 어느 화면에서도 지금 무엇이 닫혀 있는지 알 수 있게
+  const chips = [
+    { label:'좌문', on:P.doorL, x:26 },
+    { label:'좌등', on:P.lightL, x:96 },
+    { label:'우등', on:P.lightR, x:166 },
+    { label:'우문', on:P.doorR, x:236 }
+  ];
+  chips.forEach(ch => {
+    const r = { x:ch.x, y:H-152, w:62, h:32 };
+    panel(r, ch.on ? 'rgba(226,126,74,0.85)' : 'rgba(16,20,28,0.8)',
+          ch.on ? 'rgba(255,214,170,0.6)' : 'rgba(150,170,210,0.22)');
+    txt(ch.label, r.x+r.w/2, r.y+21, 15, ch.on ? '#1a1208' : 'rgba(170,185,212,0.7)', 'center', 800);
+  });
+
   // 카메라 바
   const camReady = !P.blackout;
   panel(R_CAMBAR, P.cam ? 'rgba(60,120,95,0.55)' : 'rgba(12,14,20,0.8)',
@@ -2050,15 +2204,17 @@ function drawTitle(){
   txt('월광 인형극장', W/2, 360, 64, '#e8eefa', 'center', 800);
   txt('5일간의 야간 경비', W/2, 404, 21, 'rgba(190,202,226,0.72)', 'center', 600);
   panel(R_TITLE_GO, 'rgba(22,26,36,0.9)', 'rgba(150,170,210,0.4)');
-  txt('근무 시작', W/2, 489, 24, '#e8eefa', 'center', 800);
+  txt('근무 시작', W/2, 464, 23, '#e8eefa', 'center', 800);
+  panel(R_TITLE_MAP, 'rgba(18,24,22,0.9)', 'rgba(150,190,170,0.45)');
+  txt('극장 도면 — 얘들이 어디로 오는가', W/2, 519, 17, '#bfe4d2', 'center', 700);
   if (G.cleared >= 5){
     panel(R_TITLE_CUS, 'rgba(22,26,36,0.9)', 'rgba(226,96,74,0.5)');
-    txt('커스텀 나이트', W/2, 551, 20, '#f0c9bd', 'center', 800);
+    txt('커스텀 나이트', W/2, 571, 18, '#f0c9bd', 'center', 800);
   }
   drawFearButton(R_TITLE_FEAR, true);
   txt('A 좌측 문   S 좌측 등   K 우측 등   L 우측 문   Space 카메라   M 음소거   F 공포 강도',
-      W/2, 668, 15, 'rgba(160,175,205,0.55)', 'center', 600);
-  txt('마우스를 좌우로 움직여 사무실을 둘러본다', W/2, 694, 15, 'rgba(160,175,205,0.45)', 'center', 600);
+      W/2, 682, 14, 'rgba(160,175,205,0.55)', 'center', 600);
+  txt('마우스를 좌우로 움직여 사무실을 둘러본다', W/2, 704, 14, 'rgba(160,175,205,0.45)', 'center', 600);
   grain(0.03); vignette(0.55);
 }
 
@@ -2075,9 +2231,10 @@ function sliderTrack(i){ return { x:430, y:214 + i*72, w:500, h:14 }; }
 function sliderHit(i){ const t = sliderTrack(i); return { x:t.x-16, y:t.y-24, w:t.w+32, h:62 }; }
 const R_ORGAN_TOG = { x:430, y:508, w:220, h:56 };
 const R_CUSTOM_GO = { x:700, y:508, w:230, h:56 };
-const R_TITLE_GO  = { x:W/2-140, y:450, w:280, h:64 };
-const R_TITLE_CUS = { x:W/2-140, y:520, w:280, h:48 };
-const R_TITLE_FEAR = { x:W/2-190, y:572, w:380, h:46 };
+const R_TITLE_GO  = { x:W/2-140, y:428, w:280, h:54 };
+const R_TITLE_MAP = { x:W/2-140, y:492, w:280, h:42 };
+const R_TITLE_CUS = { x:W/2-140, y:544, w:280, h:42 };
+const R_TITLE_FEAR = { x:W/2-190, y:596, w:380, h:42 };
 const R_CUSTOM_FEAR = { x:300, y:590, w:340, h:44 };
 
 function drawCustom(){
@@ -2145,6 +2302,39 @@ function drawEnding(){
   grain(0.03);
 }
 
+
+/* 전체화면 극장 도면 — 동선을 한 장으로 설명한다 */
+const MAP_AREA = { x:560, y:76, w:690, h:600 };
+const ROUTE_TEXT = [
+  { name:'비단',      color:'#7fc4ff', line:'무대 › 객석 › 분장실 › 서쪽 복도 › 서쪽 모서리 › 좌측 문',
+    tip:'가장 먼저 움직인다. 좌측 복도등으로 확인하고 좌측 문을 닫는다.' },
+  { name:'초롱',      color:'#ffb46b', line:'무대 › 객석 › 동쪽 복도 › 오르골실 › 동쪽 모서리 › 우측 문',
+    tip:'오르골실을 지나온다. CAM 8에서 태엽을 감다 마주치기 쉽다.' },
+  { name:'월광',      color:'#f2df8a', line:'무대 › 객석 › 동쪽 복도 › 동쪽 모서리 › 우측 문',
+    tip:'카메라로 그 방을 보고 있는 동안에는 움직이지 않는다. 복도등에는 두 눈만 보인다.' },
+  { name:'장승',      color:'#c99a63', line:'커튼 뒤에서 3단계까지 준비 › 서쪽 복도를 질주 › 좌측 문',
+    tip:'CAM 2를 보고 있으면 준비가 멈춘다. 막아도 전력 5+밤수 %를 가져간다.' },
+  { name:'태엽인형',  color:'#9fe0c0', line:'오르골실에서 나오지 않는다',
+    tip:'태엽이 0이 되면 10초 뒤 어디에 있든 온다. 문으로 막을 수 없다.' }
+];
+function drawMapScreen(){
+  ctx.fillStyle = '#06080c'; ctx.fillRect(0,0,W,H);
+  txt('월광 인형극장 · 극장 도면', 60, 68, 30, '#e8eefa', 'left', 800);
+  txt('도면에는 실시간 위치가 뜨지 않는다. 카메라로 직접 본 것만 잠깐 점으로 남는다.',
+      60, 96, 15, 'rgba(160,180,205,0.6)', 'left', 600);
+  ROUTE_TEXT.forEach((r, i) => {
+    const y = 150 + i*100;
+    ctx.fillStyle = r.color; ctx.fillRect(60, y-14, 6, 58);
+    txt(r.name, 80, y+4, 21, r.color, 'left', 800);
+    txt(r.line, 80, y+28, 15, 'rgba(214,226,244,0.85)', 'left', 600);
+    txt(r.tip,  80, y+50, 14, 'rgba(160,180,205,0.62)', 'left', 500);
+  });
+  drawPlan(MAP_AREA, { small:false });
+  txt('화면을 누르면 돌아간다', W/2, H-22, 16,
+      'rgba(190,206,230,' + (0.45 + 0.3*Math.sin(G.stateT*3)) + ')', 'center', 700);
+  grain(0.02);
+}
+
 /* 공포 강도 버튼 — 무서운 게 부담스러우면 여기서 낮춘다 */
 function drawFearButton(r, withDesc){
   const col = ['#6ee7a8', '#ffc46b', '#e2604a'][G.fear];
@@ -2174,6 +2364,7 @@ function onKey(k){
   else if (k === ' ' || k === 'enter') advanceScreen();
 }
 function advanceScreen(){
+  if (G.state === 'map'){ G.state = 'title'; G.stateT = 0; return; }
   if (G.state === 'title') gotoIntro(1);
   else if (G.state === 'intro') startNight(G.night);
   else if (G.state === 'win'){
@@ -2244,6 +2435,7 @@ function routeClicks(){
       if (G.state !== 'dead' && hit(R_MUTE, c.x, c.y)){ SFX.setMuted(!SFX.muted); continue; }
       if (G.state === 'title'){
         if (hit(R_TITLE_FEAR, c.x, c.y)){ cycleFear(); continue; }
+        if (hit(R_TITLE_MAP, c.x, c.y)){ G.state = 'map'; G.stateT = 0; continue; }
         if (G.cleared >= 5 && hit(R_TITLE_CUS, c.x, c.y)){ G.state = 'custom'; G.stateT = 0; continue; }
       }
       advanceScreen();
@@ -2300,6 +2492,7 @@ function frame(now){
   else if (G.state === 'dead') drawDead();
   else if (G.state === 'ending') drawEnding();
   else if (G.state === 'custom') drawCustom();
+  else if (G.state === 'map') drawMapScreen();
 
   requestAnimationFrame(frame);
 }
