@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>월광 인형극장</title>
+<style>
+  html, body { margin:0; padding:0; width:100%; height:100%; background:#000; overflow:hidden; }
+  body { display:flex; align-items:center; justify-content:center;
+         touch-action:none; -webkit-user-select:none; user-select:none;
+         -webkit-tap-highlight-color:transparent; }
+  #c { display:block; background:#000; image-rendering:auto; }
+</style>
+</head>
+<body>
+<canvas id="c" width="1280" height="720"></canvas>
+<script>
+'use strict';
+(function(){
+/* ═════════ 0. 기본 상수 / 캔버스 ═════════ */
+const W = 1280, H = 720;              // 내부 고정 해상도
+const SCENE_W = 1760;                 // 사무실 씬 폭
+const PAN_MAX = SCENE_W - W;          // 0 ~ 480
+const HOUR_SEC = 50;                  // 1시간 = 50초
+const NIGHT_SEC = HOUR_SEC * 6;       // 한 밤 = 300초
+const K_POWER = [0.10, 0.115, 0.13, 0.145, 0.16];
+const ORGAN_DRAIN = [0, 0, 1.6, 2.0, 2.4];
+
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+
+function fitCanvas(){
+  const s = Math.min(window.innerWidth / W, window.innerHeight / H);
+  canvas.style.width  = Math.floor(W * s) + 'px';
+  canvas.style.height = Math.floor(H * s) + 'px';
+}
+window.addEventListener('resize', fitCanvas);
+window.addEventListener('orientationchange', fitCanvas);
+fitCanvas();
+
+/* ═════════ 유틸 ═════════ */
+const clamp = (v,a,b) => v<a?a:(v>b?b:v);
+const lerp  = (a,b,t) => a+(b-a)*t;
+const rand  = (a,b) => a + Math.random()*(b-a);
+const randi = (a,b) => Math.floor(rand(a,b+1));      // 양끝 포함
+const roll20 = lvl => randi(1,20) <= lvl;            // random(1,20) <= AI레벨
+const pick = arr => arr[(Math.random()*arr.length)|0];
+function hit(r, x, y){ return x>=r.x && x<=r.x+r.w && y>=r.y && y<=r.y+r.h; }
+
+/* ═════════ 1. 입력 (마우스 + 터치 + 키보드) ═════════ */
+const ptr = { x: W/2, y: H/2, down:false, moved:false };
+const clicks = [];        // 이번 프레임에 처리할 탭/클릭
+const keys = {};
+
+function toCanvas(clientX, clientY){
+  const r = canvas.getBoundingClientRect();
+  return { x:(clientX - r.left) * (W / r.width), y:(clientY - r.top) * (H / r.height) };
+}
+function pDown(cx, cy){
+  SFX.ensure();
+  const p = toCanvas(cx, cy);
+  ptr.x = p.x; ptr.y = p.y; ptr.down = true; ptr.moved = true;
+  clicks.push({ x:p.x, y:p.y });
+}
+function pMove(cx, cy){
+  const p = toCanvas(cx, cy);
+  ptr.x = p.x; ptr.y = p.y; ptr.moved = true;
+}
+if (window.PointerEvent){
+  canvas.addEventListener('pointerdown', e => { pDown(e.clientX, e.clientY); e.preventDefault(); });
+  window.addEventListener('pointermove', e => pMove(e.clientX, e.clientY));
+  window.addEventListener('pointerup',     () => { ptr.down = false; });
+  window.addEventListener('pointercancel', () => { ptr.down = false; });
+} else {
+  canvas.addEventListener('mousedown', e => { pDown(e.clientX, e.clientY); e.preventDefault(); });
+  window.addEventListener('mousemove', e => pMove(e.clientX, e.clientY));
+  window.addEventListener('mouseup',   () => { ptr.down = false; });
+  canvas.addEventListener('touchstart', e => { const t=e.changedTouches[0]; pDown(t.clientX,t.clientY); e.preventDefault(); }, {passive:false});
+  canvas.addEventListener('touchmove',  e => { const t=e.changedTouches[0]; pMove(t.clientX,t.clientY); e.preventDefault(); }, {passive:false});
+  window.addEventListener('touchend',   () => { ptr.down = false; });
+}
+window.addEventListener('keydown', e => {
+  const k = e.key.toLowerCase();
+  if (k === ' ' || k === 'spacebar') e.preventDefault();
+  if (keys[k]) return;
+  keys[k] = true;
+  SFX.ensure();
+  onKey(k);
+});
+window.addEventListener('keyup', e => { keys[e.key.toLowerCase()] = false; });
+
+/* ═════════ 9. WebAudio 합성 사운드 (외부 음원 없음) ═════════ */
+const SFX = {
+  ac:null, master:null, muted:false, noiseBuf:null, fanGain:null,
+
+  ensure(){
+    if (this.ac){ if (this.ac.state === 'suspended') this.ac.resume(); return; }
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if (!AC) return;
+    try { this.ac = new AC(); } catch(e){ return; }
+    this.master = this.ac.createGain();
+    this.master.gain.value = this.muted ? 0 : 0.9;
+    this.master.connect(this.ac.destination);
+    this.noiseBuf = this._noise(2);
+    this._ambient();
+  },
+  setMuted(m){ this.muted = m; if (this.master) this.master.gain.value = m ? 0 : 0.9; },
+  get t(){ return this.ac ? this.ac.currentTime : 0; },
+
+  _noise(sec){
+    const ac = this.ac, n = Math.floor(ac.sampleRate*sec);
+    const buf = ac.createBuffer(1, n, ac.sampleRate), d = buf.getChannelData(0);
+    for (let i=0;i<n;i++) d[i] = Math.random()*2-1;
+    return buf;
+  },
+  _src(loop){ const s = this.ac.createBufferSource(); s.buffer = this.noiseBuf; s.loop = !!loop; return s; },
+  _env(g, t, peak, dur, atk){
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.linearRampToValueAtTime(peak, t + (atk||0.01));
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+  },
+
+  /* 환경음: 노이즈 → lowpass 300Hz (gain 0.04) + 60Hz 험 + 환풍기 */
+  _ambient(){
+    const ac = this.ac;
+    const n = this._src(true), lp = ac.createBiquadFilter();
+    lp.type = 'lowpass'; lp.frequency.value = 300;
+    const g = ac.createGain(); g.gain.value = 0.04;
+    n.connect(lp); lp.connect(g); g.connect(this.master); n.start();
+
+    const hum = ac.createOscillator(); hum.type = 'sine'; hum.frequency.value = 60;
+    const hg = ac.createGain(); hg.gain.value = 0.018;
+    hum.connect(hg); hg.connect(this.master); hum.start();
+
+    // 환풍기: 노이즈 → bandpass 800Hz + 느린 LFO
+    const fn = this._src(true), bp = ac.createBiquadFilter();
+    bp.type = 'bandpass'; bp.frequency.value = 800; bp.Q.value = 1.1;
+    const fg = ac.createGain(); fg.gain.value = 0.022;
+    fn.connect(bp); bp.connect(fg); fg.connect(this.master); fn.start();
+    const lfo = ac.createOscillator(); lfo.type = 'sine'; lfo.frequency.value = 0.9;
+    const lg = ac.createGain(); lg.gain.value = 0.013;
+    lfo.connect(lg); lg.connect(fg.gain); lfo.start();
+    this.fanGain = fg;
+  },
+
+  /* 문 여닫힘: 60Hz 사인 감쇠 + lowpass 노이즈 버스트 */
+  door(closing){
+    if (!this.ac) return; const ac = this.ac, t = this.t;
+    const o = ac.createOscillator(); o.type = 'sine';
+    o.frequency.setValueAtTime(closing ? 78 : 58, t);
+    o.frequency.exponentialRampToValueAtTime(36, t+0.34);
+    const g = ac.createGain(); this._env(g, t, 0.55, 0.42, 0.005);
+    o.connect(g); g.connect(this.master); o.start(t); o.stop(t+0.5);
+    const n = this._src(), lp = ac.createBiquadFilter();
+    lp.type = 'lowpass'; lp.frequency.value = 430;
+    const ng = ac.createGain(); this._env(ng, t, 0.32, 0.26, 0.004);
+    n.connect(lp); lp.connect(ng); ng.connect(this.master); n.start(t); n.stop(t+0.3);
+  },
+  /* 카메라 전환: 0.15초 highpass 노이즈 */
+  camSwitch(){
+    if (!this.ac) return; const ac = this.ac, t = this.t;
+    const n = this._src(), hp = ac.createBiquadFilter();
+    hp.type = 'highpass'; hp.frequency.value = 2400;
+    const g = ac.createGain(); this._env(g, t, 0.3, 0.15, 0.003);
+    n.connect(hp); hp.connect(g); g.connect(this.master); n.start(t); n.stop(t+0.18);
+  },
+  /* 복도 발소리: 저역 임팩트 */
+  step(vol){
+    if (!this.ac) return; const ac = this.ac, t = this.t;
+    const o = ac.createOscillator(); o.type = 'sine';
+    o.frequency.setValueAtTime(rand(90,130), t);
+    o.frequency.exponentialRampToValueAtTime(42, t+0.18);
+    const g = ac.createGain(); this._env(g, t, 0.24*(vol||1), 0.22, 0.004);
+    o.connect(g); g.connect(this.master); o.start(t); o.stop(t+0.26);
+    const n = this._src(), lp = ac.createBiquadFilter();
+    lp.type = 'lowpass'; lp.frequency.value = 900;
+    const ng = ac.createGain(); this._env(ng, t, 0.12*(vol||1), 0.14, 0.003);
+    n.connect(lp); lp.connect(ng); ng.connect(this.master); n.start(t); n.stop(t+0.16);
+  },
+  /* 문에 막혀 후퇴할 때의 쾅 */
+  bang(){
+    if (!this.ac) return; const ac = this.ac, t = this.t;
+    const o = ac.createOscillator(); o.type = 'triangle';
+    o.frequency.setValueAtTime(120, t); o.frequency.exponentialRampToValueAtTime(34, t+0.5);
+    const g = ac.createGain(); this._env(g, t, 0.6, 0.6, 0.003);
+    o.connect(g); g.connect(this.master); o.start(t); o.stop(t+0.66);
+    const n = this._src(), lp = ac.createBiquadFilter();
+    lp.type = 'lowpass'; lp.frequency.value = 1600;
+    const ng = ac.createGain(); this._env(ng, t, 0.45, 0.35, 0.002);
+    n.connect(lp); lp.connect(ng); ng.connect(this.master); n.start(t); n.stop(t+0.4);
+  },
+  /* 장승 돌진: 빠른 연속 타격음 + 상승 노이즈 */
+  charge(){
+    if (!this.ac) return; const ac = this.ac, t0 = this.t;
+    for (let i=0;i<9;i++){
+      const t = t0 + i*0.085;
+      const o = ac.createOscillator(); o.type = 'square';
+      o.frequency.setValueAtTime(160 + i*14, t);
+      o.frequency.exponentialRampToValueAtTime(60, t+0.07);
+      const g = ac.createGain(); this._env(g, t, 0.22, 0.09, 0.002);
+      o.connect(g); g.connect(this.master); o.start(t); o.stop(t+0.1);
+    }
+    const n = this._src(), bp = ac.createBiquadFilter();
+    bp.type = 'bandpass'; bp.Q.value = 0.8;
+    bp.frequency.setValueAtTime(300, t0); bp.frequency.exponentialRampToValueAtTime(3600, t0+0.8);
+    const g = ac.createGain(); this._env(g, t0, 0.35, 0.9, 0.2);
+    n.connect(bp); bp.connect(g); g.connect(this.master); n.start(t0); n.stop(t0+1.0);
+  },
+  /* 오르골: triangle 단조 8마디, 점점 느려짐 */
+  musicBox(){
+    if (!this.ac) return 0; const ac = this.ac; let t = this.t + 0.05;
+    const seq = [69,72,76,81, 79,76,72,71, 69,72,76,79, 77,76,74,72,
+                 69,71,72,74, 76,74,72,71, 69,64,67,69, 72,69,68,69];
+    let step = 0.30;
+    for (let i=0;i<seq.length;i++){
+      const f = 440*Math.pow(2,(seq[i]-69)/12);
+      const o = ac.createOscillator(); o.type = 'triangle'; o.frequency.value = f;
+      const g = ac.createGain(); this._env(g, t, 0.17, step*1.7, 0.008);
+      o.connect(g); g.connect(this.master); o.start(t); o.stop(t+step*1.9);
+      const o2 = ac.createOscillator(); o2.type = 'triangle'; o2.frequency.value = f*2;
+      const g2 = ac.createGain(); this._env(g2, t, 0.05, step*1.2, 0.008);
+      o2.connect(g2); g2.connect(this.master); o2.start(t); o2.stop(t+step*1.4);
+      t += step; step *= 1.035;              // 점점 느려짐
+    }
+    return t - this.t;
+  },
+  /* 태엽 감는 소리 */
+  wind(){
+    if (!this.ac) return; const ac = this.ac, t = this.t;
+    const o = ac.createOscillator(); o.type = 'square'; o.frequency.value = rand(700,980);
+    const g = ac.createGain(); this._env(g, t, 0.05, 0.05, 0.002);
+    o.connect(g); g.connect(this.master); o.start(t); o.stop(t+0.06);
+  },
+  /* 점프스케어: 디튠 saw 3개 하강 + 노이즈 + waveshaper 디스토션, 1.2초 */
+  scare(){
+    if (!this.ac) return; const ac = this.ac, t = this.t, D = 1.2;
+    const ws = ac.createWaveShaper();
+    const curve = new Float32Array(1024);
+    for (let i=0;i<1024;i++){ const x = i/512 - 1; curve[i] = Math.tanh(x*6); }
+    ws.curve = curve; ws.oversample = '2x';
+    const g = ac.createGain();
+    g.gain.setValueAtTime(0.55, t);
+    g.gain.setValueAtTime(0.55, t+D*0.75);
+    g.gain.exponentialRampToValueAtTime(0.0005, t+D);
+    ws.connect(g); g.connect(this.master);
+    [0, 14, -19].forEach(det => {
+      const o = ac.createOscillator(); o.type = 'sawtooth'; o.detune.value = det;
+      o.frequency.setValueAtTime(760, t);
+      o.frequency.exponentialRampToValueAtTime(42, t+D);
+      o.connect(ws); o.start(t); o.stop(t+D);
+    });
+    const n = this._src(), hp = ac.createBiquadFilter();
+    hp.type = 'highpass'; hp.frequency.value = 180;
+    const ng = ac.createGain(); this._env(ng, t, 0.5, D, 0.004);
+    n.connect(hp); hp.connect(ng); ng.connect(this.master); n.start(t); n.stop(t+D);
+  },
+  /* 정전 */
+  powerDown(){
+    if (!this.ac) return; const ac = this.ac, t = this.t;
+    const o = ac.createOscillator(); o.type = 'sawtooth';
+    o.frequency.setValueAtTime(180, t); o.frequency.exponentialRampToValueAtTime(18, t+1.6);
+    const lp = ac.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 700;
+    const g = ac.createGain(); this._env(g, t, 0.3, 1.8, 0.02);
+    o.connect(lp); lp.connect(g); g.connect(this.master); o.start(t); o.stop(t+1.9);
+  },
+  /* 6 AM: 벨 사인 + 노이즈 환호 */
+  sixAM(){
+    if (!this.ac) return; const ac = this.ac, t0 = this.t;
+    for (let i=0;i<4;i++){
+      const t = t0 + i*0.62;
+      [1, 2.01, 3.02, 4.4].forEach((h, j) => {
+        const o = ac.createOscillator(); o.type = 'sine'; o.frequency.value = 523.25*h;
+        const g = ac.createGain(); this._env(g, t, 0.22/(j+1), 1.5, 0.004);
+        o.connect(g); g.connect(this.master); o.start(t); o.stop(t+1.6);
+      });
+    }
+    const n = this._src(true), bp = ac.createBiquadFilter();
+    bp.type = 'bandpass'; bp.frequency.value = 1500; bp.Q.value = 0.6;
+    const g = ac.createGain();
+    g.gain.setValueAtTime(0.0001, t0);
+    g.gain.linearRampToValueAtTime(0.1, t0+0.7);
+    g.gain.linearRampToValueAtTime(0.0001, t0+3.4);
+    n.connect(bp); bp.connect(g); g.connect(this.master); n.start(t0); n.stop(t0+3.6);
+  },
+  /* 문 앞 위협 경고(직전 단서) */
+  growl(){
+    if (!this.ac) return; const ac = this.ac, t = this.t;
+    const o = ac.createOscillator(); o.type = 'sawtooth'; o.frequency.value = rand(58,74);
+    const lp = ac.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 260;
+    const g = ac.createGain(); this._env(g, t, 0.2, 0.8, 0.12);
+    o.connect(lp); lp.connect(g); g.connect(this.master); o.start(t); o.stop(t+0.9);
+  }
+};
