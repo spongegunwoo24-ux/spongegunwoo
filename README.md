@@ -51,4 +51,18 @@
 - 목록과 설정은 브라우저 `localStorage`에 저장됩니다.
 - 라이트·다크 테마, 모바일 폭 대응.
 
-GitHub Pages를 켜면 `https://<사용자>.github.io/spongegunwoo/mixtape/check.html` 처럼 어디서든 열 수 있습니다.
+### 중요 — `index.html`은 웹 주소로 열어야 합니다
+
+유튜브 임베드 플레이어는 `http://` 또는 `https://` 출처를 요구합니다. 파일을 더블클릭해서
+`file://` 로 열면 유튜브가 출처를 확인하지 못해 **오류 153 (동영상 플레이어 구성 오류)** 이 나고
+어떤 곡도 재생되지 않습니다. 네트워크 차단과는 다른 문제이며, 페이지가 이 상태를 감지해 안내합니다.
+
+해결 방법 둘 중 하나:
+
+- **GitHub Pages** — 저장소 Settings → Pages 에서 브랜치를 지정하면
+  `https://<사용자>.github.io/spongegunwoo/mixtape/index.html` 로 열립니다.
+- **로컬 서버** — 파일이 있는 폴더에서 `python3 -m http.server 8000` 을 실행하고
+  `http://localhost:8000/index.html` 로 엽니다.
+
+`files.html` · `links.html` · `check.html` 은 `file://` 로 열어도 정상 동작합니다
+(단 `check.html` 의 유튜브 재생 검사만 위와 같은 이유로 153이 납니다).

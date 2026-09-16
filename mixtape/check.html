@@ -165,6 +165,9 @@ footer{max-width:1180px;margin:0 auto;padding:0 16px 40px;font-size:12px;color:v
 .verdict h2{margin:0 0 6px;font-size:16px}
 .verdict p{margin:0;font-size:13.5px;color:var(--muted)}
 .verdict.good{border-color:var(--ok)} .verdict.bad{border-color:var(--bad)} .verdict.mid{border-color:var(--warn)}
+.notice{border:1px solid var(--warn);background:color-mix(in srgb, var(--warn) 10%, transparent);border-radius:5px;padding:12px 14px;font-size:13px;margin:0 0 18px}
+.notice b{color:var(--warn)}
+.notice code{font-family:"IBM Plex Mono",monospace;font-size:12px;background:var(--panel-2);padding:1px 5px;border-radius:3px}
 .yt-stage{position:relative;aspect-ratio:16/9;max-width:100%;background:var(--screen);border-radius:3px;overflow:hidden;border:1px solid var(--screen-line);margin-top:10px}
 .yt-stage>div{position:absolute;inset:0;width:100%;height:100%}
 </style>
@@ -174,6 +177,8 @@ footer{max-width:1180px;margin:0 auto;padding:0 16px 40px;font-size:12px;color:v
 <nav class="nav"><div class="nav-in"><a href="index.html">유튜브</a><a href="files.html">내 음악 파일</a><a href="links.html">링크 · 라디오</a><a href="check.html" aria-current="page">진단</a></div></nav>
 <main class="wrap">
   <p class="lead">지금 이 컴퓨터·이 네트워크에서 <b>무엇이 실제로 재생되는지</b> 하나씩 확인합니다. 결과를 보고 어떤 플레이어를 쓸지 정하면 돼요. 학교·회사망은 보통 특정 주소나 영상 데이터만 골라서 막기 때문에, 막연히 “유튜브가 안 된다”보다 어디서 막히는지 아는 게 중요합니다.</p>
+
+  <p class="notice" id="proto" hidden></p>
 
   <div class="verdict" id="verdict">
     <h2>아직 검사하지 않았어요</h2>
@@ -375,11 +380,12 @@ $("#yt-run").addEventListener("click", function(){
         },
         onError:function(e){
           var c = e.data, msg;
-          if(c === 101 || c === 150) msg = "이 영상은 외부 재생이 금지돼 있어요. 다른 영상으로 다시 해 보세요 (네트워크 문제는 아닙니다).";
+          if(c === 153) msg = "오류 153 — 유튜브가 이 페이지의 출처를 확인하지 못했어요. 네트워크 차단이 아니라, 파일을 직접 열어서(file://) 생기는 문제입니다. 웹 주소(http/https)로 열면 재생됩니다.";
+          else if(c === 101 || c === 150) msg = "이 영상은 외부 재생이 금지돼 있어요. 다른 영상으로 다시 해 보세요 (네트워크 문제는 아닙니다).";
           else if(c === 100) msg = "영상을 찾을 수 없어요. 비공개이거나 삭제된 영상입니다.";
           else if(c === 2) msg = "영상 주소가 잘못됐어요.";
           else msg = "플레이어가 오류를 냈어요 (코드 " + c + "). 영상 데이터가 막혔을 가능성이 큽니다.";
-          ytFinish(msg, c === 101 || c === 150 || c === 100 || c === 2 ? "warn" : "bad");
+          ytFinish(msg, c === 153 || c === 101 || c === 150 || c === 100 || c === 2 ? "warn" : "bad");
         }
       }
     });
@@ -461,6 +467,14 @@ $("#fi").addEventListener("change", function(e){
   e.target.value = "";
 });
 
+/* 유튜브 임베드는 http/https 출처를 요구한다 */
+if(location.protocol === "file:"){
+  var pr = document.getElementById("proto");
+  pr.hidden = false;
+  pr.innerHTML = "<b>지금 이 페이지는 <code>file://</code> 로 열려 있어요.</b> 이 상태에서는 유튜브 재생 검사가 항상 <b>오류 153</b>(출처 확인 실패)으로 끝납니다 — 네트워크 차단과는 다른 문제예요. " +
+    "유튜브 재생이 되는지 제대로 보려면 웹 주소로 열어야 합니다: 저장소에서 GitHub Pages를 켜거나, 이 폴더에서 <code>python3 -m http.server 8000</code> 을 실행하고 <code>http://localhost:8000/check.html</code> 로 여세요. " +
+    "1 · 3 · 4번 검사는 지금 이대로도 정확합니다.";
+}
 buildRows();
 })();
 </script>

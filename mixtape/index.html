@@ -302,6 +302,9 @@ details.keybox[open] summary::before{transform:rotate(90deg)}
 .lead{font-size:13.5px;color:var(--muted);max-width:70ch;margin:0 0 18px}
 .notice{border:1px solid var(--warn);background:color-mix(in srgb, var(--warn) 10%, transparent);border-radius:5px;padding:12px 14px;font-size:13px;margin:0 0 18px}
 .notice b{color:var(--warn)}
+.notice.bad{border-color:var(--bad);background:color-mix(in srgb, var(--bad) 10%, transparent)}
+.notice.bad b{color:var(--bad)}
+.notice code{font-family:"IBM Plex Mono",monospace;font-size:12px;background:var(--panel-2);padding:1px 5px;border-radius:3px}
 .seg{display:flex;gap:0}
 .seg-btn{border-radius:0;padding:5px 10px;font-size:12.5px}
 .seg-btn:first-child{border-radius:4px 0 0 4px}
@@ -356,7 +359,7 @@ footer{
 <nav class="nav"><div class="nav-in"><a href="index.html" aria-current="page">유튜브</a><a href="files.html">내 음악 파일</a><a href="links.html">링크 · 라디오</a><a href="check.html">진단</a></div></nav>
 
 <main class="wrap">
-  <p class="notice"><b>유튜브가 막힌 망이라면 이 페이지는 동작하지 않습니다.</b> 영상 데이터가 유튜브 서버에서 와야 하는데 그 경로가 막히면 곡마다 재생에 실패해요. <a href="check.html">진단</a>에서 먼저 확인하고, 안 되면 <a href="files.html">내 음악 파일</a>을 쓰세요.</p>
+  <p class="notice" id="notice"><b>유튜브가 막힌 망이라면 이 페이지는 동작하지 않습니다.</b> 영상 데이터가 유튜브 서버에서 와야 하는데 그 경로가 막히면 곡마다 재생에 실패해요. <a href="check.html">진단</a>에서 먼저 확인하고, 안 되면 <a href="files.html">내 음악 파일</a>을 쓰세요.</p>
   <div class="deck">
 
     <section class="screen-shell" aria-label="플레이어">
@@ -836,15 +839,44 @@ function onStateChange(e){
   syncPlayButton();
   updateLamp();
 }
-function onPlayerError(){
+function onPlayerError(e){
+  var code = e && e.data;
   var t = byId(currentId);
+  var note = "이 영상을 재생할 수 없어요.";
+  if(code === 153) note = "출처 오류 (153) — 파일을 직접 열어서 생긴 문제예요.";
+  else if(code === 101 || code === 150) note = "이 영상은 외부 재생이 금지돼 있어요.";
+  else if(code === 100) note = "영상을 찾을 수 없어요 (비공개이거나 삭제됨).";
+  else if(code === 2) note = "영상 주소가 잘못됐어요.";
+  else if(code === 5) note = "플레이어 오류 (5).";
   if(t){
     t.status = "failed";
-    t.note = "이 영상을 재생할 수 없어요.";
-    if(t.query){ delete cache[t.query.toLowerCase()]; lsSet(K.cache, cache); }
+    t.note = note;
+    /* 153은 영상 잘못이 아니므로 검색 결과를 버리지 않는다 */
+    if(t.query && code !== 153){ delete cache[t.query.toLowerCase()]; lsSet(K.cache, cache); }
     render(); save();
   }
+  /* 153은 곡을 바꿔도 똑같이 실패하니 넘기지 않고 바로 멈춘다 */
+  if(code === 153){
+    strikes = 0;
+    stopPlayback();
+    showOriginNotice();
+    toast("오류 153 — 이 파일을 웹 주소로 열어야 유튜브가 재생됩니다. 위쪽 안내를 보세요.", 9000);
+    return;
+  }
   bailOrSkip(t);
+}
+/* 유튜브 임베드는 http/https 출처를 요구한다. file:// 로 열면 153이 난다. */
+function showOriginNotice(){
+  var n = $("#notice");
+  if(!n || n.dataset.origin) return;
+  n.dataset.origin = "1";
+  n.className = "notice bad";
+  n.innerHTML = "<b>이 파일을 웹 주소로 열어야 유튜브가 재생됩니다.</b> 지금은 <code>" +
+    (location.protocol === "file:" ? "file://" : location.protocol) +
+    "</code> 로 열려 있어서 유튜브가 출처를 확인하지 못하고 <b>오류 153</b>을 냅니다. 네트워크 차단이 아니라 여는 방식의 문제예요. " +
+    "저장소에서 GitHub Pages를 켜고 그 주소로 열거나, 파일이 있는 폴더에서 <code>python3 -m http.server 8000</code> 을 실행한 뒤 " +
+    "<code>http://localhost:8000/index.html</code> 로 여세요. " +
+    "<a href=\"files.html\">내 음악 파일</a> 페이지는 지금 이대로도 잘 됩니다.";
 }
 /* 곡마다 실패하면 목록 전체를 순식간에 지나쳐 버리므로, 연속 3곡에서 멈춘다. */
 function bailOrSkip(t){
@@ -1315,6 +1347,7 @@ if(!tracks.length){
   tracks = parseList(el.paste.value);
 }
 el.custom.value = customBase;
+if(location.protocol === "file:") showOriginNotice();
 rebuildOrder();
 applyMode();
 })();
