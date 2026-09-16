@@ -293,6 +293,26 @@ details.keybox[open] summary::before{transform:rotate(90deg)}
 .status{font-size:12.5px;margin:8px 0 0;min-height:1.2em}
 .status.ok{color:var(--ok)}
 .status.bad{color:var(--bad)}
+.seg{display:flex;gap:0}
+.seg-btn{border-radius:0;padding:5px 10px;font-size:12.5px}
+.seg-btn:first-child{border-radius:4px 0 0 4px}
+.seg-btn:last-child{border-radius:0 4px 4px 0;margin-left:-1px}
+.txt{
+  width:100%;background:var(--bg);border:1px solid var(--line);border-radius:3px;
+  padding:8px 10px;font-size:13px;
+}
+.pinglist{list-style:none;margin:10px 0 0;padding:0;font-size:12px}
+.pinglist li{
+  display:flex;align-items:center;gap:8px;padding:4px 0;
+  border-bottom:1px solid var(--line-soft);
+}
+.pinglist li:last-child{border-bottom:0}
+.pinglist .host{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--muted)}
+.pinglist .ms{color:var(--faint);font-size:11.5px}
+.pinglist .dot{width:7px;height:7px;border-radius:50%;background:var(--faint);flex:none}
+.pinglist .dot.up{background:var(--ok)}
+.pinglist .dot.down{background:var(--bad)}
+.pinglist li.up .host{color:var(--ink)}
 .kbd{
   font-family:"IBM Plex Mono",monospace;font-size:11px;border:1px solid var(--line);
   border-bottom-width:2px;border-radius:3px;padding:1px 5px;color:var(--muted);background:var(--bg);
@@ -405,28 +425,48 @@ footer{
     </section>
 
     <section class="panel">
-      <div class="panel-head"><span class="eyebrow">Search · 자동 검색</span></div>
-      <div class="field">
-        <p class="hint" style="margin:0">제목만 적은 줄을 유튜브에서 자동으로 찾으려면 YouTube Data API 키가 필요해요. 키는 이 브라우저에만 저장되고 다른 곳으로 전송되지 않습니다.</p>
-      </div>
-      <details class="keybox" id="keybox">
-        <summary>API 키 등록 / 발급 방법</summary>
-        <div class="keybody">
-          <input type="password" id="apikey" placeholder="AIza..." autocomplete="off" spellcheck="false" aria-label="YouTube Data API 키">
-          <div class="actions">
-            <button class="btn" id="key-save">저장</button>
-            <button class="btn ghost" id="key-clear">삭제</button>
-          </div>
-          <p class="status" id="key-status"></p>
-          <ol>
-            <li><a href="https://console.cloud.google.com/" target="_blank" rel="noopener">Google Cloud Console</a>에서 프로젝트를 하나 만듭니다.</li>
-            <li>API 및 서비스 → 라이브러리에서 <b>YouTube Data API v3</b>를 사용 설정합니다.</li>
-            <li>사용자 인증 정보 → 사용자 인증 정보 만들기 → <b>API 키</b>를 만들어 여기에 붙여넣습니다.</li>
-            <li>무료 한도는 하루 검색 약 100회입니다. 한 번 찾은 곡은 저장해 두니 다시 검색하지 않아요.</li>
-          </ol>
-          <p class="hint">키가 없어도 괜찮아요. 큐에서 <b>링크 붙여넣기</b>로 곡마다 유튜브 주소를 직접 넣으면 그대로 재생됩니다.</p>
+      <div class="panel-head">
+        <span class="eyebrow">Search · 검색</span>
+        <div class="spacer"></div>
+        <div class="seg" role="group" aria-label="검색 방식">
+          <button class="btn seg-btn" id="mode-auto" aria-pressed="true">공개 서버</button>
+          <button class="btn seg-btn" id="mode-key" aria-pressed="false">API 키</button>
         </div>
-      </details>
+      </div>
+
+      <div class="field" id="pane-auto">
+        <p class="hint" style="margin:0">키 없이 공개 유튜브 미러 서버(Piped·Invidious)로 곡을 찾습니다. 자원봉사로 운영되는 서버라 느리거나 멈출 때가 있어서, 실패하면 다음 서버로 자동으로 넘어가요. 검색어는 해당 서버로 전송됩니다.</p>
+        <div class="actions">
+          <button class="btn" id="ping">서버 상태 확인</button>
+          <button class="btn ghost" id="refresh">서버 목록 새로고침</button>
+        </div>
+        <ul class="pinglist" id="pinglist"></ul>
+        <label class="hint" for="custom" style="display:block;margin-top:12px;margin-bottom:6px">직접 쓸 서버 주소 (선택) — 이 주소를 가장 먼저 시도합니다</label>
+        <input id="custom" class="txt" placeholder="https://pipedapi.example.com" spellcheck="false" autocomplete="off">
+        <p class="status" id="auto-status"></p>
+      </div>
+
+      <div class="field" id="pane-key" hidden>
+        <p class="hint" style="margin:0 0 10px">YouTube Data API v3 키를 쓰면 가장 정확하고 빠릅니다. 키는 이 브라우저에만 저장됩니다.</p>
+        <input type="password" id="apikey" class="txt" placeholder="AIza..." autocomplete="off" spellcheck="false" aria-label="YouTube Data API 키">
+        <div class="actions">
+          <button class="btn" id="key-save">저장</button>
+          <button class="btn ghost" id="key-clear">삭제</button>
+        </div>
+        <p class="status" id="key-status"></p>
+        <details class="keybox" id="keybox" style="border-top:0">
+          <summary style="padding-left:0">발급 방법</summary>
+          <div class="keybody" style="padding-left:0">
+            <ol style="margin-top:0">
+              <li><a href="https://console.cloud.google.com/" target="_blank" rel="noopener">Google Cloud Console</a>에서 프로젝트를 하나 만듭니다.</li>
+              <li>API 및 서비스 → 라이브러리에서 <b>YouTube Data API v3</b>를 사용 설정합니다.</li>
+              <li>사용자 인증 정보 → 사용자 인증 정보 만들기 → <b>API 키</b>를 만들어 여기에 붙여넣습니다.</li>
+              <li>무료 한도는 하루 검색 약 100회입니다. 한 번 찾은 곡은 저장해 두니 다시 검색하지 않아요.</li>
+            </ol>
+            <p class="hint">회사·학교 계정이면 조직 정책으로 키 발급이 막혀 있을 수 있어요. 그럴 땐 <b>공개 서버</b> 방식을 쓰세요.</p>
+          </div>
+        </details>
+      </div>
     </section>
   </div>
 </main>
@@ -444,7 +484,8 @@ footer{
 "use strict";
 
 /* ---------- storage helpers ---------- */
-var K = {tracks:"mixtape.tracks", key:"mixtape.apikey", set:"mixtape.settings", cache:"mixtape.cache"};
+var K = {tracks:"mixtape.tracks", key:"mixtape.apikey", set:"mixtape.settings", cache:"mixtape.cache",
+         inst:"mixtape.instance", custom:"mixtape.custom", mirrors:"mixtape.mirrors"};
 function lsGet(k, fallback){
   try{ var v = localStorage.getItem(k); return v==null ? fallback : JSON.parse(v); }
   catch(e){ return fallback; }
@@ -453,10 +494,14 @@ function lsSet(k, v){ try{ localStorage.setItem(k, JSON.stringify(v)); }catch(e)
 function lsDel(k){ try{ localStorage.removeItem(k); }catch(e){} }
 
 /* ---------- state ---------- */
-var settings = Object.assign({shuffle:false, repeat:"all", volume:80, muted:false}, lsGet(K.set, {}));
+var settings = Object.assign({shuffle:false, repeat:"all", volume:80, muted:false, mode:"auto"}, lsGet(K.set, {}));
 var tracks = lsGet(K.tracks, []);
 var cache  = lsGet(K.cache, {});
 var apiKey = lsGet(K.key, "") || "";
+var lastGood = lsGet(K.inst, "") || "";
+var customBase = lsGet(K.custom, "") || "";
+var dynMirrors = lsGet(K.mirrors, null);
+var refreshedThisSession = false;
 
 var order = [];
 var currentId = null;
@@ -473,7 +518,10 @@ var el = {
   mute:$("#mute"), volume:$("#volume"), paste:$("#paste"),
   cntTotal:$("#cnt-total"), cntReady:$("#cnt-ready"),
   apikey:$("#apikey"), keyStatus:$("#key-status"), toast:$("#toast"),
-  resolveAll:$("#resolve-all")
+  resolveAll:$("#resolve-all"),
+  modeAuto:$("#mode-auto"), modeKey:$("#mode-key"),
+  paneAuto:$("#pane-auto"), paneKey:$("#pane-key"),
+  ping:$("#ping"), refresh:$("#refresh"), pinglist:$("#pinglist"), custom:$("#custom"), autoStatus:$("#auto-status")
 };
 
 /* ---------- small utils ---------- */
@@ -556,7 +604,124 @@ function neighbourId(id, dir, auto){
   return order[n];
 }
 
-/* ---------- search ---------- */
+/* ---------- keyless search: public YouTube mirrors ---------- */
+var MIRRORS = [
+  {kind:"piped",     base:"https://pipedapi.kavin.rocks"},
+  {kind:"piped",     base:"https://pipedapi.adminforge.de"},
+  {kind:"piped",     base:"https://api.piped.yt"},
+  {kind:"piped",     base:"https://pipedapi.ducks.party"},
+  {kind:"piped",     base:"https://pipedapi.drgns.space"},
+  {kind:"invidious", base:"https://inv.nadeko.net"},
+  {kind:"invidious", base:"https://invidious.nerdvpn.de"},
+  {kind:"invidious", base:"https://iv.ggtyler.dev"},
+  {kind:"invidious", base:"https://invidious.jing.rocks"}
+];
+function mirrorList(){
+  var out = [], seen = {};
+  function push(m){
+    var b = String(m.base || "").replace(/\/+$/, "");
+    if(!b || seen[b]) return;
+    seen[b] = 1; out.push({kind:m.kind || "auto", base:b});
+  }
+  if(customBase) push({kind:"auto", base:customBase});
+  if(lastGood) push({kind:"auto", base:lastGood});
+  MIRRORS.forEach(push);
+  if(dynMirrors && dynMirrors.list) dynMirrors.list.forEach(push);
+  return out.slice(0, 14);
+}
+/* Public mirrors come and go, so pull the live instance lists on demand. */
+function refreshMirrors(){
+  var found = [];
+  function piped(){
+    return fetchJSON("https://piped-instances.kavin.rocks/", 9000).then(function(j){
+      (j || []).forEach(function(it){ if(it && it.api_url) found.push({kind:"piped", base:it.api_url}); });
+    });
+  }
+  function invidious(){
+    return fetchJSON("https://api.invidious.io/instances.json", 9000).then(function(j){
+      (j || []).forEach(function(pair){
+        var info = pair && pair[1];
+        if(info && info.type === "https" && info.api === true && info.uri) found.push({kind:"invidious", base:info.uri});
+      });
+    });
+  }
+  return piped().catch(function(){}).then(invidious).catch(function(){}).then(function(){
+    refreshedThisSession = true;
+    if(!found.length) return 0;
+    dynMirrors = {ts:Date.now(), list:found.slice(0, 30)};
+    lsSet(K.mirrors, dynMirrors);
+    return found.length;
+  });
+}
+function fetchJSON(url, ms){
+  var ctrl = typeof AbortController !== "undefined" ? new AbortController() : null;
+  var timer = setTimeout(function(){ if(ctrl) ctrl.abort(); }, ms || 8000);
+  return fetch(url, ctrl ? {signal:ctrl.signal} : undefined)
+    .then(function(r){
+      if(!r.ok) throw new Error("HTTP " + r.status);
+      return r.json();
+    })
+    .then(function(j){ clearTimeout(timer); return j; },
+          function(e){ clearTimeout(timer); throw e; });
+}
+function thumbFor(id){ return "https://i.ytimg.com/vi/" + id + "/default.jpg"; }
+function readPiped(j){
+  var items = (j && j.items) || [];
+  for(var i=0;i<items.length;i++){
+    var it = items[i];
+    var m = String(it.url || "").match(/[?&]v=([A-Za-z0-9_-]{11})/);
+    if(!m) continue;
+    return {videoId:m[1], title:decodeEntities(it.title || ""), channel:decodeEntities(it.uploaderName || ""), thumb:thumbFor(m[1])};
+  }
+  return null;
+}
+function readInvidious(j){
+  var items = Array.isArray(j) ? j : ((j && j.items) || []);
+  for(var i=0;i<items.length;i++){
+    var it = items[i];
+    if(!it || !it.videoId) continue;
+    return {videoId:it.videoId, title:decodeEntities(it.title || ""), channel:decodeEntities(it.author || ""), thumb:thumbFor(it.videoId)};
+  }
+  return null;
+}
+function askMirror(m, query, ms){
+  var q = encodeURIComponent(query);
+  function piped(){
+    return fetchJSON(m.base + "/search?q=" + q + "&filter=videos", ms).then(readPiped);
+  }
+  function invidious(){
+    return fetchJSON(m.base + "/api/v1/search?q=" + q + "&type=video", ms).then(readInvidious);
+  }
+  var run = m.kind === "invidious" ? invidious()
+          : m.kind === "piped" ? piped()
+          : piped().catch(invidious);
+  return run.then(function(info){
+    if(!info) throw new Error("결과 없음");
+    return info;
+  });
+}
+function sweep(query, list){
+  var i = 0;
+  return (function attempt(){
+    if(i >= list.length) return Promise.reject(new Error("all-down"));
+    var m = list[i++];
+    return askMirror(m, query, 8000).then(function(info){
+      if(lastGood !== m.base){ lastGood = m.base; lsSet(K.inst, lastGood); }
+      return info;
+    }, function(){ return attempt(); });
+  })();
+}
+function searchKeyless(query){
+  var NO_SERVER = "공개 검색 서버에 모두 연결하지 못했어요. ‘서버 목록 새로고침’ 후 ‘서버 상태 확인’을 눌러 보거나, 곡의 🔗 버튼으로 링크를 직접 넣어 주세요.";
+  return sweep(query, mirrorList()).catch(function(){
+    if(refreshedThisSession) throw new Error(NO_SERVER);
+    return refreshMirrors().then(function(){
+      return sweep(query, mirrorList()).catch(function(){ throw new Error(NO_SERVER); });
+    });
+  });
+}
+
+/* ---------- search: YouTube Data API ---------- */
 function apiError(status, body){
   var reason = "";
   try{ reason = body.error.errors[0].reason; }catch(e){}
@@ -587,6 +752,10 @@ function searchYouTube(query){
       };
     });
 }
+function canSearch(){ return settings.mode === "auto" || !!apiKey; }
+function doSearch(query){
+  return settings.mode === "key" ? searchYouTube(query) : searchKeyless(query);
+}
 function resolveTrack(t){
   if(t.videoId) return Promise.resolve(t);
   var key = (t.query||"").toLowerCase();
@@ -594,7 +763,7 @@ function resolveTrack(t){
     Object.assign(t, cache[key]); t.status = "ready"; return Promise.resolve(t);
   }
   t.status = "searching"; t.note = ""; render();
-  return searchYouTube(t.query).then(function(info){
+  return doSearch(t.query).then(function(info){
     cache[key] = info; lsSet(K.cache, cache);
     Object.assign(t, info); t.status = "ready"; t.note = "";
     render(); save();
@@ -701,9 +870,9 @@ function playById(id, hops){
   if(settings.shuffle && order.indexOf(id) < 0) rebuildOrder();
   render();
   if(t.videoId){ loadVideo(t.videoId); return; }
-  if(!apiKey){
+  if(!canSearch()){
     t.status = "failed";
-    t.note = "API 키가 없어요. 아래에 유튜브 링크를 붙여넣어 주세요.";
+    t.note = "검색을 쓸 수 없어요. 아래에 유튜브 링크를 붙여넣어 주세요.";
     t.linkOpen = true;
     render();
     toast("‘" + t.query + "’ 는 링크가 필요해요");
@@ -824,7 +993,7 @@ function render(){
     el.npTitle.textContent = tracks.length ? "재생 대기" : "대기 중";
     el.npSub.textContent = tracks.length ? tracks.length + "곡이 큐에 있어요" : "곡 목록을 불러오면 여기에 표시됩니다";
   }
-  el.resolveAll.disabled = !apiKey || !tracks.some(function(t){ return !t.videoId; });
+  el.resolveAll.disabled = !canSearch() || !tracks.some(function(t){ return !t.videoId; });
 }
 
 /* ---------- queue mutations ---------- */
@@ -918,7 +1087,7 @@ el.resolveAll.addEventListener("click", function(){
     }
     var t = todo[i++];
     resolveTrack(t).then(function(){ okCount++; }).catch(function(err){ failMsg = err.message; })
-      .then(function(){ setTimeout(nextOne, 120); });
+      .then(function(){ setTimeout(nextOne, settings.mode === "auto" ? 350 : 120); });
   })();
 });
 
@@ -987,6 +1156,75 @@ el.bar.addEventListener("keydown", function(e){
   try{ player.seekTo(Math.max(0, player.getCurrentTime() + delta), true); }catch(err){}
 });
 
+/* search mode */
+function applyMode(){
+  var auto = settings.mode !== "key";
+  el.modeAuto.setAttribute("aria-pressed", String(auto));
+  el.modeKey.setAttribute("aria-pressed", String(!auto));
+  el.paneAuto.hidden = !auto;
+  el.paneKey.hidden = auto;
+  render();
+}
+el.modeAuto.addEventListener("click", function(){ settings.mode = "auto"; save(); applyMode(); });
+el.modeKey.addEventListener("click", function(){ settings.mode = "key"; save(); applyMode(); });
+
+el.custom.addEventListener("change", function(){
+  customBase = el.custom.value.trim();
+  if(customBase){
+    if(!/^https?:\/\//.test(customBase)){ customBase = ""; el.custom.value = ""; toast("https:// 로 시작하는 주소를 넣어 주세요"); }
+    else lsSet(K.custom, customBase);
+  } else lsDel(K.custom);
+});
+
+el.refresh.addEventListener("click", function(){
+  el.refresh.disabled = true;
+  el.autoStatus.textContent = "공개 서버 목록을 받아오는 중…"; el.autoStatus.className = "status";
+  refreshMirrors().then(function(n){
+    el.refresh.disabled = false;
+    if(n){
+      el.autoStatus.textContent = "서버 " + n + "개를 받아왔어요. ‘서버 상태 확인’으로 살아있는 곳을 골라 보세요.";
+      el.autoStatus.className = "status ok";
+    } else {
+      el.autoStatus.textContent = "목록을 받아오지 못했어요. 기본 서버로 계속 시도합니다.";
+      el.autoStatus.className = "status bad";
+    }
+  });
+});
+
+el.ping.addEventListener("click", function(){
+  var list = mirrorList();
+  el.ping.disabled = true;
+  el.autoStatus.textContent = "확인 중…"; el.autoStatus.className = "status";
+  el.pinglist.textContent = "";
+  var rows = list.map(function(m){
+    var li = document.createElement("li");
+    var dot = document.createElement("span"); dot.className = "dot";
+    var host = document.createElement("span"); host.className = "host";
+    host.textContent = m.base.replace(/^https?:\/\//, "");
+    var ms = document.createElement("span"); ms.className = "ms mono"; ms.textContent = "…";
+    li.appendChild(dot); li.appendChild(host); li.appendChild(ms);
+    el.pinglist.appendChild(li);
+    return {m:m, li:li, dot:dot, ms:ms};
+  });
+  var done = 0, up = 0;
+  rows.forEach(function(r){
+    var t0 = Date.now();
+    askMirror(r.m, "test", 7000).then(function(){
+      r.dot.classList.add("up"); r.li.classList.add("up");
+      r.ms.textContent = (Date.now() - t0) + "ms";
+      up++;
+    }, function(){
+      r.dot.classList.add("down"); r.ms.textContent = "실패";
+    }).then(function(){
+      if(++done === rows.length){
+        el.ping.disabled = false;
+        el.autoStatus.textContent = up ? (up + "개 서버가 응답했어요. 빠른 서버를 먼저 씁니다.") : "응답한 서버가 없어요. 잠시 후 다시 시도하거나 🔗 로 링크를 직접 넣어 주세요.";
+        el.autoStatus.className = "status " + (up ? "ok" : "bad");
+      }
+    });
+  });
+});
+
 /* api key */
 el.apikey.value = apiKey;
 if(apiKey) el.keyStatus.textContent = "키가 저장되어 있어요.", el.keyStatus.className = "status ok";
@@ -1040,8 +1278,9 @@ if(!tracks.length){
   ].join("\n");
   tracks = parseList(el.paste.value);
 }
+el.custom.value = customBase;
 rebuildOrder();
-render();
+applyMode();
 })();
 </script>
 </body>
