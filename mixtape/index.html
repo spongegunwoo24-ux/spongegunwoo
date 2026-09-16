@@ -1,0 +1,1048 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>믹스테이프 데크</title>
+<meta name="description" content="곡 목록을 붙여넣으면 유튜브에서 찾아 한 곡씩 이어서 틀어주는 재생 데크.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+KR:wght@400;500;600;700&display=swap">
+<style>
+:root{
+  --bg:#ECEEF0;
+  --panel:#FFFFFF;
+  --panel-2:#E3E7EA;
+  --ink:#15181B;
+  --muted:#5F6B74;
+  --faint:#8C979E;
+  --line:#D3D9DE;
+  --line-soft:#E4E9ED;
+  --amber:#9E5A03;
+  --amber-ink:#FFFFFF;
+  --amber-wash:#F6E5CB;
+  --screen:#111417;
+  --screen-ink:#EDE3D2;
+  --screen-line:#262C31;
+  --ok:#276B48;
+  --warn:#8A5D06;
+  --bad:#9C3520;
+  --shadow:0 1px 2px rgba(21,24,27,.06), 0 8px 24px -14px rgba(21,24,27,.30);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#0F1113;
+    --panel:#171A1D;
+    --panel-2:#1F2327;
+    --ink:#E9ECEF;
+    --muted:#98A3AB;
+    --faint:#6E7982;
+    --line:#2A2F34;
+    --line-soft:#212529;
+    --amber:#F2A73B;
+    --amber-ink:#181206;
+    --amber-wash:#3A2A0E;
+    --screen:#0A0C0D;
+    --screen-ink:#EDE3D2;
+    --screen-line:#22282C;
+    --ok:#5FB07E;
+    --warn:#D9A43A;
+    --bad:#E0674B;
+    --shadow:0 1px 2px rgba(0,0,0,.4), 0 10px 28px -16px rgba(0,0,0,.8);
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0F1113; --panel:#171A1D; --panel-2:#1F2327; --ink:#E9ECEF; --muted:#98A3AB;
+  --faint:#6E7982; --line:#2A2F34; --line-soft:#212529; --amber:#F2A73B; --amber-ink:#181206;
+  --amber-wash:#3A2A0E; --screen:#0A0C0D; --screen-ink:#EDE3D2; --screen-line:#22282C;
+  --ok:#5FB07E; --warn:#D9A43A; --bad:#E0674B;
+  --shadow:0 1px 2px rgba(0,0,0,.4), 0 10px 28px -16px rgba(0,0,0,.8);
+}
+
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{
+  background:var(--bg);
+  color:var(--ink);
+  font-family:"IBM Plex Sans KR","Apple SD Gothic Neo",-apple-system,BlinkMacSystemFont,"Malgun Gothic",sans-serif;
+  font-size:15px;
+  line-height:1.55;
+  word-break:keep-all;
+  -webkit-font-smoothing:antialiased;
+}
+img{max-width:100%;display:block}
+button,input,textarea,select{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--amber);outline-offset:2px;border-radius:2px}
+a{color:var(--amber)}
+
+.eyebrow{
+  font-family:"Bebas Neue","IBM Plex Sans KR",sans-serif;
+  font-size:13px;letter-spacing:.14em;text-transform:uppercase;color:var(--faint);
+  line-height:1;
+}
+.mono{font-family:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,monospace;font-variant-numeric:tabular-nums}
+
+/* ---------- top bar ---------- */
+.topbar{
+  position:sticky;top:env(safe-area-inset-top,0px);z-index:20;
+  background:color-mix(in srgb, var(--bg) 88%, transparent);
+  backdrop-filter:blur(10px);
+  border-bottom:1px solid var(--line);
+}
+.topbar-in{
+  max-width:1180px;margin:0 auto;padding-block:10px;padding-left:16px;padding-right:16px;
+  display:flex;align-items:center;gap:14px;flex-wrap:wrap;
+}
+.wordmark{
+  font-family:"Bebas Neue",sans-serif;font-size:26px;letter-spacing:.06em;line-height:1;
+  display:flex;align-items:baseline;gap:9px;
+}
+.wordmark .ko{font-family:"IBM Plex Sans KR",sans-serif;font-weight:700;font-size:17px;letter-spacing:-.01em}
+.lamp{
+  width:9px;height:9px;border-radius:50%;background:var(--faint);
+  box-shadow:none;transition:background .25s, box-shadow .25s;flex:none;align-self:center;
+}
+.lamp.on{background:var(--amber);box-shadow:0 0 0 3px var(--amber-wash), 0 0 12px var(--amber)}
+.topbar .spacer{flex:1 1 auto}
+.counts{display:flex;gap:14px;align-items:center;font-size:12.5px;color:var(--muted)}
+.counts b{color:var(--ink);font-weight:600}
+
+/* ---------- layout ---------- */
+.wrap{
+  max-width:1180px;margin:0 auto;
+  padding-left:16px;padding-right:16px;padding-block:20px 48px;
+}
+.deck{
+  display:grid;gap:20px;
+  grid-template-columns:minmax(0,1.55fr) minmax(320px,1fr);
+  align-items:start;
+}
+@media (max-width:920px){ .deck{grid-template-columns:1fr} }
+
+/* ---------- screen ---------- */
+.screen-shell{
+  background:var(--panel);border:1px solid var(--line);border-radius:6px;
+  padding:10px;box-shadow:var(--shadow);
+}
+.screen{
+  position:relative;aspect-ratio:16/9;max-width:100%;
+  background:var(--screen);border-radius:3px;overflow:hidden;
+  border:1px solid var(--screen-line);
+}
+.screen iframe{position:absolute;inset:0;width:100%;height:100%;border:0}
+#player{position:absolute;inset:0}
+.screen-idle{
+  position:absolute;inset:0;display:flex;flex-direction:column;
+  align-items:center;justify-content:center;gap:10px;text-align:center;
+  padding:20px;color:var(--screen-ink);
+  background:
+    repeating-linear-gradient(180deg, rgba(255,255,255,.028) 0 1px, transparent 1px 4px),
+    radial-gradient(120% 90% at 50% 20%, #1B2024 0%, var(--screen) 70%);
+}
+.screen-idle .eyebrow{color:#8B8271}
+.screen-idle h2{
+  font-family:"Bebas Neue",sans-serif;font-weight:400;font-size:clamp(26px,5vw,40px);
+  letter-spacing:.05em;margin:0;color:var(--screen-ink);text-wrap:balance;
+}
+.screen-idle p{margin:0;font-size:13.5px;color:#9A907E;max-width:38ch}
+
+/* now playing */
+.nowbar{display:flex;gap:12px;align-items:flex-start;padding:14px 4px 6px}
+.np-idx{
+  font-family:"Bebas Neue",sans-serif;font-size:34px;line-height:.86;color:var(--amber);
+  letter-spacing:.02em;flex:none;padding-top:2px;
+}
+.np-text{min-width:0;flex:1 1 auto}
+.np-title{
+  font-weight:600;font-size:17px;line-height:1.35;margin:0;
+  overflow-wrap:anywhere;text-wrap:balance;
+}
+.np-sub{margin:2px 0 0;font-size:12.5px;color:var(--muted);overflow-wrap:anywhere}
+
+/* tuner / progress */
+.tuner{padding:2px 4px 0}
+.tuner-bar{
+  position:relative;height:26px;cursor:pointer;touch-action:none;
+  display:flex;align-items:center;
+}
+.tuner-track{
+  position:absolute;left:0;right:0;height:4px;border-radius:2px;background:var(--panel-2);
+  border:1px solid var(--line-soft);
+}
+.tuner-fill{position:absolute;left:0;height:4px;border-radius:2px;background:var(--amber);width:0}
+.tuner-ticks{position:absolute;left:0;right:0;height:26px;pointer-events:none}
+.tuner-ticks i{
+  position:absolute;top:2px;width:1px;height:6px;background:var(--line);
+}
+.tuner-head{
+  position:absolute;width:3px;height:16px;border-radius:1px;background:var(--amber);
+  transform:translateX(-1px);box-shadow:0 0 0 3px color-mix(in srgb, var(--amber) 18%, transparent);
+  left:0;
+}
+.times{display:flex;justify-content:space-between;font-size:12px;color:var(--muted);padding:2px 4px 0}
+
+/* transport */
+.transport{
+  display:flex;align-items:center;gap:8px;flex-wrap:wrap;
+  padding:14px 4px 4px;border-top:1px solid var(--line-soft);margin-top:10px;
+}
+.btn{
+  display:inline-flex;align-items:center;justify-content:center;gap:7px;
+  background:var(--panel);border:1px solid var(--line);color:var(--ink);
+  border-radius:4px;padding:8px 12px;cursor:pointer;font-size:13.5px;font-weight:500;
+  transition:border-color .15s, background .15s, color .15s;
+}
+.btn:hover{border-color:var(--amber);color:var(--amber)}
+.btn[aria-pressed="true"]{background:var(--amber-wash);border-color:var(--amber);color:var(--amber)}
+.btn.ghost{background:transparent;border-color:transparent;color:var(--muted);padding:6px 8px}
+.btn.ghost:hover{color:var(--amber)}
+.btn:disabled{opacity:.4;cursor:not-allowed}
+.btn:disabled:hover{border-color:var(--line);color:var(--ink)}
+.btn-round{
+  width:38px;height:38px;padding:0;border-radius:50%;
+}
+.btn-play{
+  width:52px;height:52px;border-radius:50%;padding:0;
+  background:var(--amber);border-color:var(--amber);color:var(--amber-ink);
+}
+.btn-play:hover{background:var(--amber);border-color:var(--amber);color:var(--amber-ink);filter:brightness(1.07)}
+.btn svg{display:block}
+.vol{display:flex;align-items:center;gap:8px;margin-left:auto}
+.vol input[type=range]{width:96px;accent-color:var(--amber);background:transparent}
+@media (max-width:460px){ .vol{margin-left:0;width:100%} .vol input[type=range]{flex:1} }
+
+/* ---------- queue ---------- */
+.panel{
+  background:var(--panel);border:1px solid var(--line);border-radius:6px;box-shadow:var(--shadow);
+  overflow:hidden;
+}
+.panel-head{
+  display:flex;align-items:center;gap:10px;flex-wrap:wrap;
+  padding:12px 14px;border-bottom:1px solid var(--line-soft);
+}
+.panel-head .spacer{flex:1 1 auto}
+.queue{list-style:none;margin:0;padding:0;max-height:min(58vh,560px);overflow-y:auto}
+.queue:empty::after{
+  content:"큐가 비었어요. 아래에 곡 목록을 붙여넣어 보세요.";
+  display:block;padding:26px 16px;color:var(--faint);font-size:13.5px;text-align:center;
+}
+.row{
+  display:grid;grid-template-columns:26px 44px minmax(0,1fr) auto;
+  gap:10px;align-items:center;
+  padding:9px 12px;border-bottom:1px solid var(--line-soft);cursor:pointer;
+  transition:background .12s;
+}
+.row:last-child{border-bottom:0}
+.row:hover{background:var(--panel-2)}
+.row.is-current{background:var(--amber-wash)}
+.row.is-current .r-title{color:var(--amber);font-weight:600}
+.r-num{font-size:12px;color:var(--faint);text-align:right}
+.row.is-current .r-num{color:var(--amber)}
+.r-thumb{
+  width:44px;height:33px;border-radius:2px;background:var(--panel-2);
+  border:1px solid var(--line-soft);object-fit:cover;flex:none;
+}
+.r-main{min-width:0}
+.r-title{font-size:13.5px;line-height:1.35;margin:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.r-sub{font-size:11.5px;color:var(--muted);margin:1px 0 0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.r-act{display:flex;gap:2px;align-items:center}
+.r-act .btn.ghost{font-size:12px;padding:5px 6px;line-height:1}
+.chip{
+  display:inline-block;font-size:10.5px;letter-spacing:.04em;padding:1px 6px;border-radius:999px;
+  border:1px solid currentColor;line-height:1.5;white-space:nowrap;
+}
+.chip.pending{color:var(--faint)}
+.chip.searching{color:var(--warn)}
+.chip.ready{color:var(--ok)}
+.chip.failed{color:var(--bad)}
+.fixrow{
+  grid-column:1/-1;display:flex;gap:6px;align-items:center;flex-wrap:wrap;
+  padding:2px 0 4px;
+}
+.fixrow input{
+  flex:1 1 200px;min-width:0;background:var(--bg);border:1px solid var(--line);
+  border-radius:3px;padding:5px 8px;font-size:12.5px;
+}
+.fixrow .btn{padding:5px 9px;font-size:12.5px}
+
+/* ---------- input / settings ---------- */
+.io{margin-top:20px;display:grid;gap:16px;grid-template-columns:minmax(0,1.55fr) minmax(320px,1fr)}
+@media (max-width:920px){ .io{grid-template-columns:1fr} }
+.field{padding:14px}
+textarea#paste{
+  width:100%;min-height:150px;resize:vertical;background:var(--bg);
+  border:1px solid var(--line);border-radius:4px;padding:10px 12px;
+  font-size:13.5px;line-height:1.7;
+}
+.hint{font-size:12px;color:var(--muted);margin:8px 0 0}
+.actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+details.keybox{border-top:1px solid var(--line-soft)}
+details.keybox summary{
+  cursor:pointer;padding:12px 14px;font-size:13px;font-weight:500;color:var(--muted);
+  list-style:none;display:flex;align-items:center;gap:8px;
+}
+details.keybox summary::-webkit-details-marker{display:none}
+details.keybox summary::before{content:"▸";color:var(--amber);transition:transform .15s}
+details.keybox[open] summary::before{transform:rotate(90deg)}
+.keybody{padding:0 14px 14px}
+.keybody input{
+  width:100%;background:var(--bg);border:1px solid var(--line);border-radius:3px;
+  padding:8px 10px;font-size:13px;
+}
+.keybody ol{margin:10px 0 0;padding-left:18px;font-size:12.5px;color:var(--muted);line-height:1.8}
+.status{font-size:12.5px;margin:8px 0 0;min-height:1.2em}
+.status.ok{color:var(--ok)}
+.status.bad{color:var(--bad)}
+.kbd{
+  font-family:"IBM Plex Mono",monospace;font-size:11px;border:1px solid var(--line);
+  border-bottom-width:2px;border-radius:3px;padding:1px 5px;color:var(--muted);background:var(--bg);
+}
+footer{
+  max-width:1180px;margin:0 auto;padding:0 16px 40px;
+  font-size:12px;color:var(--faint);display:flex;gap:16px;flex-wrap:wrap;
+}
+.toast{
+  position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);
+  background:var(--ink);color:var(--bg);padding:9px 16px;border-radius:4px;font-size:13px;
+  box-shadow:var(--shadow);z-index:60;max-width:calc(100vw - 32px);text-align:center;
+  opacity:0;pointer-events:none;transition:opacity .2s, transform .2s;
+}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(-4px)}
+@media (prefers-reduced-motion:reduce){ *{transition:none!important;animation:none!important} }
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="topbar-in">
+    <div class="wordmark"><span class="lamp" id="lamp" aria-hidden="true"></span>MIXTAPE DECK<span class="ko">믹스테이프 데크</span></div>
+    <div class="spacer"></div>
+    <div class="counts mono">
+      <span><b id="cnt-total">0</b>곡</span>
+      <span><b id="cnt-ready">0</b>곡 준비됨</span>
+    </div>
+  </div>
+</header>
+
+<main class="wrap">
+  <div class="deck">
+
+    <section class="screen-shell" aria-label="플레이어">
+      <div class="screen">
+        <div id="player"></div>
+        <div class="screen-idle" id="idle">
+          <span class="eyebrow">Ready</span>
+          <h2>재생할 곡을 고르세요</h2>
+          <p>큐에서 곡을 누르면 그 곡부터 한 곡씩 이어서 재생됩니다.</p>
+        </div>
+      </div>
+
+      <div class="nowbar">
+        <div class="np-idx mono" id="np-idx">--</div>
+        <div class="np-text">
+          <p class="np-title" id="np-title">대기 중</p>
+          <p class="np-sub" id="np-sub">곡 목록을 불러오면 여기에 표시됩니다</p>
+        </div>
+      </div>
+
+      <div class="tuner">
+        <div class="tuner-bar" id="bar" role="slider" tabindex="0"
+             aria-label="재생 위치" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+          <div class="tuner-track"></div>
+          <div class="tuner-fill" id="fill"></div>
+          <div class="tuner-ticks" aria-hidden="true">
+            <i style="left:0%"></i><i style="left:25%"></i><i style="left:50%"></i><i style="left:75%"></i><i style="left:calc(100% - 1px)"></i>
+          </div>
+          <div class="tuner-head" id="head"></div>
+        </div>
+        <div class="times mono"><span id="t-cur">0:00</span><span id="t-dur">0:00</span></div>
+      </div>
+
+      <div class="transport">
+        <button class="btn btn-round" id="prev" title="이전 곡 (P)" aria-label="이전 곡">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M4 2h2v12H4zM14 2.6v10.8L6.2 8z"/></svg>
+        </button>
+        <button class="btn btn-play" id="play" title="재생 / 일시정지 (Space)" aria-label="재생">
+          <svg id="icon-play" width="20" height="20" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M4 2.2 13.5 8 4 13.8z"/></svg>
+          <svg id="icon-pause" width="20" height="20" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true" hidden><path d="M3.5 2h3.2v12H3.5zM9.3 2h3.2v12H9.3z"/></svg>
+        </button>
+        <button class="btn btn-round" id="next" title="다음 곡 (N)" aria-label="다음 곡">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M10 2h2v12h-2zM2 2.6v10.8L9.8 8z"/></svg>
+        </button>
+        <button class="btn" id="shuffle" aria-pressed="false" title="섞기">섞기</button>
+        <button class="btn" id="repeat" title="반복">반복 · 전체</button>
+        <div class="vol">
+          <button class="btn ghost" id="mute" aria-label="음소거" title="음소거 (M)">🔊</button>
+          <input type="range" id="volume" min="0" max="100" value="80" aria-label="볼륨">
+        </div>
+      </div>
+    </section>
+
+    <section class="panel" aria-label="재생 큐">
+      <div class="panel-head">
+        <span class="eyebrow">Queue · 큐</span>
+        <div class="spacer"></div>
+        <button class="btn ghost" id="resolve-all" title="검색으로 빈 곡 채우기">전부 검색</button>
+        <button class="btn ghost" id="clear">비우기</button>
+      </div>
+      <ul class="queue" id="queue"></ul>
+    </section>
+  </div>
+
+  <div class="io">
+    <section class="panel">
+      <div class="panel-head"><span class="eyebrow">Input · 곡 목록</span></div>
+      <div class="field">
+        <label for="paste" class="hint" style="margin:0 0 8px">한 줄에 한 곡. 제목만 써도 되고, 유튜브 링크를 바로 넣어도 돼요.</label>
+        <textarea id="paste" spellcheck="false" placeholder="아이유 - 밤편지&#10;쏜애플 - 낮보다는 어두운 밤&#10;https://youtu.be/xxxxxxxxxxx"></textarea>
+        <div class="actions">
+          <button class="btn" id="add">큐에 추가</button>
+          <button class="btn" id="replace">큐 교체</button>
+          <button class="btn ghost" id="sample">예시 넣기</button>
+        </div>
+        <p class="hint">단축키 · <span class="kbd">Space</span> 재생/정지 · <span class="kbd">N</span> 다음 · <span class="kbd">P</span> 이전 · <span class="kbd">←</span><span class="kbd">→</span> 5초 이동 · <span class="kbd">M</span> 음소거</p>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head"><span class="eyebrow">Search · 자동 검색</span></div>
+      <div class="field">
+        <p class="hint" style="margin:0">제목만 적은 줄을 유튜브에서 자동으로 찾으려면 YouTube Data API 키가 필요해요. 키는 이 브라우저에만 저장되고 다른 곳으로 전송되지 않습니다.</p>
+      </div>
+      <details class="keybox" id="keybox">
+        <summary>API 키 등록 / 발급 방법</summary>
+        <div class="keybody">
+          <input type="password" id="apikey" placeholder="AIza..." autocomplete="off" spellcheck="false" aria-label="YouTube Data API 키">
+          <div class="actions">
+            <button class="btn" id="key-save">저장</button>
+            <button class="btn ghost" id="key-clear">삭제</button>
+          </div>
+          <p class="status" id="key-status"></p>
+          <ol>
+            <li><a href="https://console.cloud.google.com/" target="_blank" rel="noopener">Google Cloud Console</a>에서 프로젝트를 하나 만듭니다.</li>
+            <li>API 및 서비스 → 라이브러리에서 <b>YouTube Data API v3</b>를 사용 설정합니다.</li>
+            <li>사용자 인증 정보 → 사용자 인증 정보 만들기 → <b>API 키</b>를 만들어 여기에 붙여넣습니다.</li>
+            <li>무료 한도는 하루 검색 약 100회입니다. 한 번 찾은 곡은 저장해 두니 다시 검색하지 않아요.</li>
+          </ol>
+          <p class="hint">키가 없어도 괜찮아요. 큐에서 <b>링크 붙여넣기</b>로 곡마다 유튜브 주소를 직접 넣으면 그대로 재생됩니다.</p>
+        </div>
+      </details>
+    </section>
+  </div>
+</main>
+
+<footer>
+  <span>곡 목록과 설정은 이 브라우저에만 저장됩니다.</span>
+  <span>재생은 유튜브 임베드 플레이어로 이루어집니다.</span>
+</footer>
+
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<script src="https://www.youtube.com/iframe_api"></script>
+<script>
+(function(){
+"use strict";
+
+/* ---------- storage helpers ---------- */
+var K = {tracks:"mixtape.tracks", key:"mixtape.apikey", set:"mixtape.settings", cache:"mixtape.cache"};
+function lsGet(k, fallback){
+  try{ var v = localStorage.getItem(k); return v==null ? fallback : JSON.parse(v); }
+  catch(e){ return fallback; }
+}
+function lsSet(k, v){ try{ localStorage.setItem(k, JSON.stringify(v)); }catch(e){} }
+function lsDel(k){ try{ localStorage.removeItem(k); }catch(e){} }
+
+/* ---------- state ---------- */
+var settings = Object.assign({shuffle:false, repeat:"all", volume:80, muted:false}, lsGet(K.set, {}));
+var tracks = lsGet(K.tracks, []);
+var cache  = lsGet(K.cache, {});
+var apiKey = lsGet(K.key, "") || "";
+
+var order = [];
+var currentId = null;
+var player = null, playerReady = false, pendingVideo = null, wantPlay = false;
+var ticker = null, seeking = false, uidSeed = 0;
+
+var $ = function(s){ return document.querySelector(s); };
+var el = {
+  queue:$("#queue"), idle:$("#idle"), lamp:$("#lamp"),
+  npIdx:$("#np-idx"), npTitle:$("#np-title"), npSub:$("#np-sub"),
+  bar:$("#bar"), fill:$("#fill"), head:$("#head"), tCur:$("#t-cur"), tDur:$("#t-dur"),
+  play:$("#play"), iPlay:$("#icon-play"), iPause:$("#icon-pause"),
+  prev:$("#prev"), next:$("#next"), shuffle:$("#shuffle"), repeat:$("#repeat"),
+  mute:$("#mute"), volume:$("#volume"), paste:$("#paste"),
+  cntTotal:$("#cnt-total"), cntReady:$("#cnt-ready"),
+  apikey:$("#apikey"), keyStatus:$("#key-status"), toast:$("#toast"),
+  resolveAll:$("#resolve-all")
+};
+
+/* ---------- small utils ---------- */
+function nid(){ uidSeed++; return "t" + Date.now().toString(36) + uidSeed.toString(36); }
+function byId(id){ for(var i=0;i<tracks.length;i++){ if(tracks[i].id===id) return tracks[i]; } return null; }
+function indexOfId(id){ for(var i=0;i<tracks.length;i++){ if(tracks[i].id===id) return i; } return -1; }
+function fmt(sec){
+  if(!isFinite(sec) || sec<0) sec = 0;
+  var s = Math.floor(sec%60), m = Math.floor(sec/60)%60, h = Math.floor(sec/3600);
+  var mm = h ? (m<10?"0"+m:""+m) : ""+m;
+  return (h ? h+":" : "") + mm + ":" + (s<10?"0"+s:""+s);
+}
+function decodeEntities(s){
+  var t = document.createElement("textarea"); t.innerHTML = s || ""; return t.value;
+}
+var toastTimer = null;
+function toast(msg){
+  el.toast.textContent = msg;
+  el.toast.classList.add("show");
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(function(){ el.toast.classList.remove("show"); }, 2800);
+}
+function save(){
+  lsSet(K.tracks, tracks.map(function(t){
+    return {id:t.id, query:t.query, videoId:t.videoId||"", title:t.title||"", channel:t.channel||"", thumb:t.thumb||"", status:(t.status==="searching"?"pending":t.status)};
+  }));
+  lsSet(K.set, settings);
+}
+
+/* ---------- parsing ---------- */
+var ID_RE = /(?:youtu\.be\/|youtube\.com\/(?:watch\?(?:[^#]*&)?v=|embed\/|shorts\/|live\/|v\/))([A-Za-z0-9_-]{11})/;
+function extractVideoId(s){
+  if(!s) return null;
+  var m = String(s).match(ID_RE);
+  if(m) return m[1];
+  if(/^[A-Za-z0-9_-]{11}$/.test(String(s).trim())) return String(s).trim();
+  return null;
+}
+function parseList(text){
+  var out = [], lines = String(text).split(/\r?\n/);
+  for(var i=0;i<lines.length;i++){
+    var raw = lines[i].trim();
+    if(!raw) continue;
+    var vid = extractVideoId(raw);
+    var label = raw.replace(/^\s*(?:\d{1,3}\s*[.)\]]|[-*•·])\s+/, "").trim();
+    if(vid){
+      out.push({id:nid(), query:label, videoId:vid, title:"", channel:"", thumb:"https://i.ytimg.com/vi/"+vid+"/default.jpg", status:"ready"});
+    } else {
+      var hit = cache[label.toLowerCase()];
+      if(hit){
+        out.push({id:nid(), query:label, videoId:hit.videoId, title:hit.title, channel:hit.channel, thumb:hit.thumb, status:"ready"});
+      } else {
+        out.push({id:nid(), query:label, videoId:"", title:"", channel:"", thumb:"", status:"pending"});
+      }
+    }
+  }
+  return out;
+}
+
+/* ---------- order ---------- */
+function rebuildOrder(){
+  var ids = tracks.map(function(t){ return t.id; });
+  if(!settings.shuffle){ order = ids; return; }
+  var rest = ids.filter(function(id){ return id !== currentId; });
+  for(var i=rest.length-1;i>0;i--){
+    var j = Math.floor(Math.random()*(i+1)), tmp = rest[i]; rest[i] = rest[j]; rest[j] = tmp;
+  }
+  order = (currentId && ids.indexOf(currentId) >= 0) ? [currentId].concat(rest) : rest;
+}
+function neighbourId(id, dir, auto){
+  if(!order.length) return null;
+  var i = order.indexOf(id);
+  if(i < 0) return order[dir > 0 ? 0 : order.length - 1];
+  var n = i + dir;
+  if(n >= order.length){
+    if(auto && settings.repeat === "off") return null;
+    n = 0;
+  }
+  if(n < 0) n = order.length - 1;
+  return order[n];
+}
+
+/* ---------- search ---------- */
+function apiError(status, body){
+  var reason = "";
+  try{ reason = body.error.errors[0].reason; }catch(e){}
+  if(reason === "quotaExceeded") return "오늘 검색 할당량을 다 썼어요. 내일 다시 되거나, 링크를 직접 붙여넣으면 됩니다.";
+  if(reason === "keyInvalid" || status === 400) return "API 키가 올바르지 않아요. 키를 다시 확인해 주세요.";
+  if(status === 403) return "API 키가 거부됐어요. YouTube Data API v3가 사용 설정됐는지 확인해 주세요.";
+  return "검색에 실패했어요 (" + status + ")";
+}
+function searchYouTube(query){
+  if(!apiKey) return Promise.reject(new Error("API 키가 없어요. 키를 등록하거나 유튜브 링크를 붙여넣어 주세요."));
+  var params = new URLSearchParams({
+    part:"snippet", type:"video", videoEmbeddable:"true", maxResults:"1",
+    q:query, key:apiKey
+  });
+  return fetch("https://www.googleapis.com/youtube/v3/search?" + params.toString())
+    .then(function(r){
+      if(!r.ok) return r.json().catch(function(){ return {}; }).then(function(b){ throw new Error(apiError(r.status, b)); });
+      return r.json();
+    })
+    .then(function(j){
+      var it = j.items && j.items[0];
+      if(!it || !it.id || !it.id.videoId) throw new Error("검색 결과가 없어요.");
+      return {
+        videoId: it.id.videoId,
+        title: decodeEntities(it.snippet.title),
+        channel: decodeEntities(it.snippet.channelTitle),
+        thumb: (it.snippet.thumbnails && it.snippet.thumbnails.default && it.snippet.thumbnails.default.url) || ("https://i.ytimg.com/vi/"+it.id.videoId+"/default.jpg")
+      };
+    });
+}
+function resolveTrack(t){
+  if(t.videoId) return Promise.resolve(t);
+  var key = (t.query||"").toLowerCase();
+  if(cache[key]){
+    Object.assign(t, cache[key]); t.status = "ready"; return Promise.resolve(t);
+  }
+  t.status = "searching"; t.note = ""; render();
+  return searchYouTube(t.query).then(function(info){
+    cache[key] = info; lsSet(K.cache, cache);
+    Object.assign(t, info); t.status = "ready"; t.note = "";
+    render(); save();
+    return t;
+  }).catch(function(err){
+    t.status = "failed"; t.note = err.message;
+    render(); save();
+    throw err;
+  });
+}
+function fetchOembed(t, videoId){
+  return fetch("https://www.youtube.com/oembed?format=json&url=" + encodeURIComponent("https://www.youtube.com/watch?v=" + videoId))
+    .then(function(r){ return r.ok ? r.json() : null; })
+    .then(function(j){
+      if(!j) return;
+      t.title = j.title; t.channel = j.author_name;
+      if(t.query){ cache[t.query.toLowerCase()] = {videoId:videoId, title:t.title, channel:t.channel, thumb:t.thumb}; lsSet(K.cache, cache); }
+      render(); save();
+    })
+    .catch(function(){});
+}
+
+/* ---------- player ---------- */
+window.onYouTubeIframeAPIReady = function(){
+  var vars = {playsinline:1, rel:0, modestbranding:1, iv_load_policy:3};
+  if(location.protocol === "http:" || location.protocol === "https:") vars.origin = location.origin;
+  player = new YT.Player("player", {
+    host: "https://www.youtube-nocookie.com",
+    playerVars: vars,
+    events: {
+      onReady: function(){
+        playerReady = true;
+        player.setVolume(settings.volume);
+        if(settings.muted) player.mute();
+        if(pendingVideo){ var v = pendingVideo; pendingVideo = null; loadVideo(v); }
+      },
+      onStateChange: onStateChange,
+      onError: onPlayerError
+    }
+  });
+};
+function loadVideo(videoId){
+  if(!playerReady || !player){ pendingVideo = videoId; return; }
+  el.idle.hidden = true;
+  player.loadVideoById(videoId);
+  wantPlay = true;
+}
+function onStateChange(e){
+  var S = window.YT && YT.PlayerState;
+  if(!S) return;
+  if(e.data === S.ENDED){
+    if(settings.repeat === "one"){ player.seekTo(0, true); player.playVideo(); return; }
+    step(1, true);
+    return;
+  }
+  if(e.data === S.PLAYING){ el.idle.hidden = true; startTicker(); }
+  else stopTicker();
+  syncPlayButton();
+  updateLamp();
+}
+function onPlayerError(){
+  var t = byId(currentId);
+  if(t){
+    t.status = "failed";
+    t.note = "이 영상은 외부 재생이 막혀 있어요. 다른 링크로 바꿔 주세요.";
+    if(t.query){ delete cache[t.query.toLowerCase()]; lsSet(K.cache, cache); }
+    render(); save();
+    toast("‘" + (t.title || t.query) + "’ 재생 불가 — 다음 곡으로 넘어갑니다");
+  }
+  setTimeout(function(){ step(1, true); }, 900);
+}
+function isPlaying(){
+  try{ return playerReady && player.getPlayerState && player.getPlayerState() === YT.PlayerState.PLAYING; }
+  catch(e){ return false; }
+}
+function syncPlayButton(){
+  var on = isPlaying();
+  el.iPlay.hidden = on; el.iPause.hidden = !on;
+  el.play.setAttribute("aria-label", on ? "일시정지" : "재생");
+}
+function updateLamp(){ el.lamp.classList.toggle("on", isPlaying()); }
+function startTicker(){
+  if(ticker) return;
+  ticker = setInterval(function(){
+    if(!playerReady || seeking) return;
+    var cur = 0, dur = 0;
+    try{ cur = player.getCurrentTime() || 0; dur = player.getDuration() || 0; }catch(e){ return; }
+    var pct = dur > 0 ? Math.min(100, (cur/dur)*100) : 0;
+    el.fill.style.width = pct + "%";
+    el.head.style.left = pct + "%";
+    el.tCur.textContent = fmt(cur);
+    el.tDur.textContent = fmt(dur);
+    el.bar.setAttribute("aria-valuenow", Math.round(pct));
+  }, 250);
+}
+function stopTicker(){ clearInterval(ticker); ticker = null; }
+
+/* ---------- playback control ---------- */
+function playById(id, hops){
+  hops = hops || 0;
+  var t = byId(id);
+  if(!t) return;
+  currentId = id;
+  if(settings.shuffle && order.indexOf(id) < 0) rebuildOrder();
+  render();
+  if(t.videoId){ loadVideo(t.videoId); return; }
+  if(!apiKey){
+    t.status = "failed";
+    t.note = "API 키가 없어요. 아래에 유튜브 링크를 붙여넣어 주세요.";
+    t.linkOpen = true;
+    render();
+    toast("‘" + t.query + "’ 는 링크가 필요해요");
+    return;
+  }
+  resolveTrack(t).then(function(){ if(currentId === id) loadVideo(t.videoId); })
+    .catch(function(){
+      if(hops >= tracks.length - 1) return;
+      var nx = neighbourId(id, 1, true);
+      if(nx && nx !== id) playById(nx, hops + 1);
+    });
+}
+function step(dir, auto){
+  if(!tracks.length) return;
+  var nx = neighbourId(currentId, dir, auto);
+  if(!nx){ stopTicker(); try{ player.pauseVideo(); }catch(e){} syncPlayButton(); updateLamp(); toast("재생목록 끝"); return; }
+  playById(nx);
+}
+function togglePlay(){
+  if(!playerReady){ toast("플레이어를 불러오는 중이에요"); return; }
+  if(!currentId){
+    if(!order.length){ toast("큐가 비어 있어요"); return; }
+    playById(order[0]); return;
+  }
+  try{ isPlaying() ? player.pauseVideo() : player.playVideo(); }catch(e){}
+  setTimeout(function(){ syncPlayButton(); updateLamp(); }, 120);
+}
+
+/* ---------- render ---------- */
+var STATUS_LABEL = {pending:"대기", searching:"검색 중", ready:"준비됨", failed:"확인 필요"};
+function render(){
+  var frag = document.createDocumentFragment();
+  for(var i=0;i<tracks.length;i++){
+    var t = tracks[i];
+    var li = document.createElement("li");
+    li.className = "row" + (t.id === currentId ? " is-current" : "");
+    li.dataset.id = t.id;
+
+    var num = document.createElement("div");
+    num.className = "r-num mono";
+    num.textContent = (i+1) < 10 ? "0" + (i+1) : String(i+1);
+    li.appendChild(num);
+
+    var thumb;
+    if(t.thumb){
+      thumb = document.createElement("img");
+      thumb.className = "r-thumb"; thumb.src = t.thumb; thumb.alt = ""; thumb.loading = "lazy";
+    } else {
+      thumb = document.createElement("div");
+      thumb.className = "r-thumb";
+    }
+    li.appendChild(thumb);
+
+    var main = document.createElement("div");
+    main.className = "r-main";
+    var title = document.createElement("p");
+    title.className = "r-title";
+    title.textContent = t.title || t.query || "제목 없음";
+    var sub = document.createElement("p");
+    sub.className = "r-sub";
+    var subText = t.note || t.channel || "";
+    if(!subText && t.title && t.query && t.title !== t.query) subText = t.query;
+    sub.textContent = subText;
+    if(!subText) sub.hidden = true;
+    main.appendChild(title); main.appendChild(sub);
+    li.appendChild(main);
+
+    var act = document.createElement("div");
+    act.className = "r-act";
+    var chip = document.createElement("span");
+    chip.className = "chip " + t.status;
+    chip.textContent = STATUS_LABEL[t.status] || t.status;
+    act.appendChild(chip);
+    var link = document.createElement("button");
+    link.className = "btn ghost"; link.dataset.act = "toggle-link"; link.title = "유튜브 링크 직접 넣기";
+    link.setAttribute("aria-label", (t.title || t.query) + " 링크 직접 넣기");
+    link.setAttribute("aria-expanded", String(!!t.linkOpen));
+    link.textContent = "🔗";
+    act.appendChild(link);
+    var del = document.createElement("button");
+    del.className = "btn ghost"; del.dataset.act = "remove"; del.title = "삭제";
+    del.setAttribute("aria-label", (t.title || t.query) + " 삭제");
+    del.textContent = "✕";
+    act.appendChild(del);
+    li.appendChild(act);
+
+    if(t.linkOpen || t.status === "failed"){
+      var fix = document.createElement("div");
+      fix.className = "fixrow";
+      var a = document.createElement("a");
+      a.className = "btn"; a.target = "_blank"; a.rel = "noopener";
+      a.href = "https://www.youtube.com/results?search_query=" + encodeURIComponent(t.query || "");
+      a.textContent = "유튜브에서 찾기";
+      a.dataset.act = "search";
+      var inp = document.createElement("input");
+      inp.type = "url"; inp.placeholder = "링크 붙여넣기"; inp.dataset.act = "link";
+      inp.setAttribute("aria-label", (t.query || "") + " 유튜브 링크");
+      fix.appendChild(a); fix.appendChild(inp);
+      li.appendChild(fix);
+    }
+    frag.appendChild(li);
+  }
+  el.queue.textContent = "";
+  el.queue.appendChild(frag);
+
+  var readyCount = tracks.filter(function(t){ return !!t.videoId; }).length;
+  el.cntTotal.textContent = tracks.length;
+  el.cntReady.textContent = readyCount;
+
+  var cur = byId(currentId);
+  if(cur){
+    var pos = indexOfId(currentId) + 1;
+    el.npIdx.textContent = (pos < 10 ? "0" : "") + pos;
+    el.npTitle.textContent = cur.title || cur.query;
+    el.npSub.textContent = (cur.channel ? cur.channel + " · " : "") + pos + " / " + tracks.length + (cur.note ? " · " + cur.note : "");
+  } else {
+    el.npIdx.textContent = "--";
+    el.npTitle.textContent = tracks.length ? "재생 대기" : "대기 중";
+    el.npSub.textContent = tracks.length ? tracks.length + "곡이 큐에 있어요" : "곡 목록을 불러오면 여기에 표시됩니다";
+  }
+  el.resolveAll.disabled = !apiKey || !tracks.some(function(t){ return !t.videoId; });
+}
+
+/* ---------- queue mutations ---------- */
+function setTracks(next, replace){
+  tracks = replace ? next : tracks.concat(next);
+  if(replace){ currentId = null; try{ if(playerReady) player.stopVideo(); }catch(e){} el.idle.hidden = false; }
+  rebuildOrder(); render(); save();
+}
+
+/* ---------- events ---------- */
+el.queue.addEventListener("click", function(e){
+  var row = e.target.closest(".row"); if(!row) return;
+  var id = row.dataset.id;
+  var act = e.target.dataset ? e.target.dataset.act : null;
+  if(act === "remove"){
+    e.stopPropagation();
+    var i = indexOfId(id);
+    if(i < 0) return;
+    var wasCurrent = (id === currentId);
+    tracks.splice(i, 1);
+    if(wasCurrent){ currentId = null; try{ if(playerReady) player.stopVideo(); }catch(err){} el.idle.hidden = false; }
+    rebuildOrder(); render(); save();
+    return;
+  }
+  if(act === "toggle-link"){
+    e.stopPropagation();
+    var tt = byId(id); if(!tt) return;
+    tt.linkOpen = !tt.linkOpen;
+    render();
+    if(tt.linkOpen){
+      var box = el.queue.querySelector('.row[data-id="' + id + '"] input[data-act="link"]');
+      if(box) box.focus();
+    }
+    return;
+  }
+  if(act === "search" || act === "link") return;
+  playById(id);
+});
+el.queue.addEventListener("change", function(e){
+  if(!e.target.dataset || e.target.dataset.act !== "link") return;
+  var row = e.target.closest(".row"); if(!row) return;
+  var t = byId(row.dataset.id); if(!t) return;
+  var vid = extractVideoId(e.target.value);
+  if(!vid){ toast("유튜브 링크를 인식하지 못했어요"); return; }
+  t.videoId = vid; t.status = "ready"; t.note = "";
+  t.thumb = "https://i.ytimg.com/vi/" + vid + "/default.jpg";
+  t.linkOpen = false;
+  render(); save();
+  fetchOembed(t, vid);
+  toast("링크를 연결했어요");
+});
+
+$("#add").addEventListener("click", function(){
+  var parsed = parseList(el.paste.value);
+  if(!parsed.length){ toast("추가할 곡이 없어요"); return; }
+  setTracks(parsed, false);
+  toast(parsed.length + "곡을 큐에 추가했어요");
+});
+$("#replace").addEventListener("click", function(){
+  var parsed = parseList(el.paste.value);
+  if(!parsed.length){ toast("목록이 비어 있어요"); return; }
+  setTracks(parsed, true);
+  toast(parsed.length + "곡으로 큐를 바꿨어요");
+});
+$("#sample").addEventListener("click", function(){
+  el.paste.value = [
+    "아이유 - 밤편지",
+    "잔나비 - 주저하는 연인들을 위해",
+    "혁오 - TOMBOY",
+    "새소년 - 난춘",
+    "검정치마 - Everything",
+    "볼빨간사춘기 - 우주를 줄게"
+  ].join("\n");
+  el.paste.focus();
+});
+$("#clear").addEventListener("click", function(){
+  if(!tracks.length) return;
+  setTracks([], true);
+  toast("큐를 비웠어요");
+});
+el.resolveAll.addEventListener("click", function(){
+  var todo = tracks.filter(function(t){ return !t.videoId; });
+  if(!todo.length) return;
+  el.resolveAll.disabled = true;
+  var i = 0, okCount = 0, failMsg = "";
+  (function nextOne(){
+    if(i >= todo.length){
+      render();
+      toast(okCount + "곡을 찾았어요" + (failMsg ? " · " + failMsg : ""));
+      return;
+    }
+    var t = todo[i++];
+    resolveTrack(t).then(function(){ okCount++; }).catch(function(err){ failMsg = err.message; })
+      .then(function(){ setTimeout(nextOne, 120); });
+  })();
+});
+
+el.play.addEventListener("click", togglePlay);
+el.prev.addEventListener("click", function(){
+  if(playerReady && currentId){
+    var cur = 0; try{ cur = player.getCurrentTime(); }catch(e){}
+    if(cur > 3){ player.seekTo(0, true); return; }
+  }
+  step(-1, false);
+});
+el.next.addEventListener("click", function(){ step(1, false); });
+el.shuffle.addEventListener("click", function(){
+  settings.shuffle = !settings.shuffle;
+  el.shuffle.setAttribute("aria-pressed", String(settings.shuffle));
+  rebuildOrder(); save();
+  toast(settings.shuffle ? "섞어서 재생" : "순서대로 재생");
+});
+var REPEAT_ORDER = ["all","one","off"];
+var REPEAT_LABEL = {all:"반복 · 전체", one:"반복 · 한 곡", off:"반복 · 끄기"};
+el.repeat.addEventListener("click", function(){
+  var i = REPEAT_ORDER.indexOf(settings.repeat);
+  settings.repeat = REPEAT_ORDER[(i + 1) % REPEAT_ORDER.length];
+  el.repeat.textContent = REPEAT_LABEL[settings.repeat];
+  el.repeat.setAttribute("aria-pressed", String(settings.repeat !== "off"));
+  save();
+});
+el.volume.addEventListener("input", function(){
+  settings.volume = Number(el.volume.value);
+  settings.muted = settings.volume === 0;
+  try{ if(playerReady){ player.setVolume(settings.volume); settings.muted ? player.mute() : player.unMute(); } }catch(e){}
+  el.mute.textContent = settings.muted ? "🔇" : "🔊";
+  save();
+});
+el.mute.addEventListener("click", function(){
+  settings.muted = !settings.muted;
+  try{ if(playerReady) settings.muted ? player.mute() : player.unMute(); }catch(e){}
+  el.mute.textContent = settings.muted ? "🔇" : "🔊";
+  save();
+});
+
+/* seek */
+function seekFromEvent(e){
+  var r = el.bar.getBoundingClientRect();
+  var pct = Math.max(0, Math.min(1, (e.clientX - r.left) / r.width));
+  el.fill.style.width = (pct*100) + "%";
+  el.head.style.left = (pct*100) + "%";
+  return pct;
+}
+el.bar.addEventListener("pointerdown", function(e){
+  if(!playerReady || !currentId) return;
+  seeking = true; el.bar.setPointerCapture(e.pointerId); seekFromEvent(e);
+});
+el.bar.addEventListener("pointermove", function(e){ if(seeking) seekFromEvent(e); });
+el.bar.addEventListener("pointerup", function(e){
+  if(!seeking) return;
+  var pct = seekFromEvent(e);
+  seeking = false;
+  try{ var d = player.getDuration() || 0; if(d) player.seekTo(pct * d, true); }catch(err){}
+});
+el.bar.addEventListener("keydown", function(e){
+  if(!playerReady || !currentId) return;
+  var delta = e.key === "ArrowRight" ? 5 : e.key === "ArrowLeft" ? -5 : 0;
+  if(!delta) return;
+  e.preventDefault();
+  try{ player.seekTo(Math.max(0, player.getCurrentTime() + delta), true); }catch(err){}
+});
+
+/* api key */
+el.apikey.value = apiKey;
+if(apiKey) el.keyStatus.textContent = "키가 저장되어 있어요.", el.keyStatus.className = "status ok";
+$("#key-save").addEventListener("click", function(){
+  apiKey = el.apikey.value.trim();
+  if(apiKey){ lsSet(K.key, apiKey); el.keyStatus.textContent = "저장했어요. 이제 ‘전부 검색’을 눌러 보세요."; el.keyStatus.className = "status ok"; }
+  else { lsDel(K.key); el.keyStatus.textContent = "키를 비웠어요."; el.keyStatus.className = "status"; }
+  render();
+});
+$("#key-clear").addEventListener("click", function(){
+  apiKey = ""; el.apikey.value = ""; lsDel(K.key);
+  el.keyStatus.textContent = "키를 삭제했어요."; el.keyStatus.className = "status";
+  render();
+});
+
+/* keyboard */
+document.addEventListener("keydown", function(e){
+  var tag = (e.target.tagName || "").toLowerCase();
+  if(tag === "input" || tag === "textarea" || e.target.isContentEditable) return;
+  if(e.metaKey || e.ctrlKey || e.altKey) return;
+  var k = e.key.toLowerCase();
+  if(e.key === " "){ e.preventDefault(); togglePlay(); }
+  else if(k === "n"){ step(1, false); }
+  else if(k === "p"){ step(-1, false); }
+  else if(k === "m"){ el.mute.click(); }
+  else if(e.key === "ArrowRight" || e.key === "ArrowLeft"){
+    if(!playerReady || !currentId) return;
+    e.preventDefault();
+    try{ player.seekTo(Math.max(0, player.getCurrentTime() + (e.key === "ArrowRight" ? 5 : -5)), true); }catch(err){}
+  }
+});
+
+/* ---------- boot ---------- */
+el.shuffle.setAttribute("aria-pressed", String(settings.shuffle));
+el.repeat.textContent = REPEAT_LABEL[settings.repeat] || REPEAT_LABEL.all;
+el.volume.value = settings.volume;
+el.mute.textContent = settings.muted ? "🔇" : "🔊";
+
+tracks = tracks.map(function(t){
+  return {id:t.id || nid(), query:t.query || "", videoId:t.videoId || "", title:t.title || "",
+          channel:t.channel || "", thumb:t.thumb || "", status:t.videoId ? "ready" : (t.status === "failed" ? "failed" : "pending"), note:""};
+});
+if(!tracks.length){
+  el.paste.value = [
+    "아이유 - 밤편지",
+    "잔나비 - 주저하는 연인들을 위해",
+    "혁오 - TOMBOY",
+    "새소년 - 난춘",
+    "검정치마 - Everything",
+    "볼빨간사춘기 - 우주를 줄게"
+  ].join("\n");
+  tracks = parseList(el.paste.value);
+}
+rebuildOrder();
+render();
+})();
+</script>
+</body>
+</html>
