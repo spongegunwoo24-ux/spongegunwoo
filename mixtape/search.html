@@ -178,6 +178,8 @@ footer{max-width:1180px;margin:0 auto;padding:0 16px 40px;font-size:12px;color:v
 .res-t{font-size:14px;font-weight:500;line-height:1.35;margin:0;overflow-wrap:anywhere;
   display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
 .res-s{font-size:12px;color:var(--muted);margin:3px 0 0}
+.res-s .when{color:var(--faint)}
+.res-s .when::before{content:" · "}
 .res-a{display:flex;flex-direction:column;gap:5px;align-items:stretch}
 .res-a .btn{white-space:nowrap;padding:6px 10px;font-size:12.5px}
 @media (max-width:560px){
@@ -215,6 +217,10 @@ footer{max-width:1180px;margin:0 auto;padding:0 16px 40px;font-size:12px;color:v
       <div class="searchbar">
         <input class="txt" id="q" type="search" placeholder="곡 제목, 가수 이름, 아무거나" spellcheck="false" autocomplete="off" aria-label="검색어">
         <button class="btn" id="go">검색</button>
+        <div class="seg" role="group" aria-label="정렬">
+          <button class="btn seg-btn" id="sort-rel" aria-pressed="true">관련순</button>
+          <button class="btn seg-btn" id="sort-date" aria-pressed="false">최신순</button>
+        </div>
         <div class="seg" role="group" aria-label="검색 방식">
           <button class="btn seg-btn" id="mode-auto" aria-pressed="true">공개 서버</button>
           <button class="btn seg-btn" id="mode-key" aria-pressed="false">API 키</button>
@@ -288,6 +294,26 @@ function fmt(sec){
 }
 function decodeEntities(s){ var t=document.createElement("textarea"); t.innerHTML=s||""; return t.value; }
 function thumbFor(id){ return "https://i.ytimg.com/vi/"+id+"/mqdefault.jpg"; }
+function ago(ms){
+  if(!ms || !isFinite(ms)) return "";
+  var d = Math.floor((Date.now()-ms)/86400000);
+  if(d < 0) return "";
+  if(d === 0) return "오늘";
+  if(d < 7) return d+"일 전";
+  if(d < 31) return Math.floor(d/7)+"주 전";
+  if(d < 365) return Math.floor(d/30)+"개월 전";
+  return Math.floor(d/365)+"년 전";
+}
+function dedupe(list){
+  var seen={}, out=[];
+  for(var i=0;i<list.length;i++){
+    var c=list[i];
+    if(!c || !c.videoId || seen[c.videoId]) continue;
+    seen[c.videoId]=1; out.push(c);
+  }
+  return out;
+}
+function byNewest(a,b){ return (b.at||0) - (a.at||0); }
 var uidSeed=0;
 function nid(){ uidSeed++; return "t"+Date.now().toString(36)+uidSeed.toString(36); }
 var toastTimer=null;
@@ -299,8 +325,11 @@ function toast(msg, ms){
 function say(msg, kind){ var s=$("#st"); s.textContent=msg; s.className="status"+(kind?" "+kind:""); }
 
 /* ---------- 검색 (유튜브 탭과 같은 방식) ---------- */
-var MAX_RESULTS = 20;
-var settings = Object.assign({mode:"auto"}, lsGet(K.set, {}));
+var PER_PAGE = 50;   /* 한 응답에서 읽어들일 상한 */
+var MIN_WANT  = 30;  /* 이보다 적으면 다음 페이지를 더 받는다 */
+var MAX_SHOW  = 40;  /* 화면에 보여줄 상한 */
+var lastApprox = false;
+var settings = Object.assign({mode:"auto", sort:"relevance"}, lsGet(K.set, {}));
 var apiKey = lsGet(K.key, "") || "";
 var lastGood = lsGet(K.inst, "") || "";
 var customBase = lsGet(K.custom, "") || "";
@@ -341,31 +370,58 @@ function fetchJSON(url, ms){
 }
 function readPiped(j){
   var items=(j&&j.items)||[], out=[];
-  for(var i=0;i<items.length && out.length<MAX_RESULTS;i++){
+  for(var i=0;i<items.length && out.length<PER_PAGE;i++){
     var it=items[i];
     var m=String(it.url||"").match(/[?&]v=([A-Za-z0-9_-]{11})/);
     if(!m) continue;
     out.push({videoId:m[1], title:decodeEntities(it.title||""), channel:decodeEntities(it.uploaderName||""),
-              thumb:thumbFor(m[1]), dur:(typeof it.duration==="number"&&it.duration>0)?it.duration:0});
+              thumb:thumbFor(m[1]), dur:(typeof it.duration==="number"&&it.duration>0)?it.duration:0,
+              at:(typeof it.uploaded==="number"&&it.uploaded>0)?it.uploaded:0});
   }
   return out;
 }
 function readInvidious(j){
   var items=Array.isArray(j)?j:((j&&j.items)||[]), out=[];
-  for(var i=0;i<items.length && out.length<MAX_RESULTS;i++){
+  for(var i=0;i<items.length && out.length<PER_PAGE;i++){
     var it=items[i];
     if(!it||!it.videoId) continue;
     out.push({videoId:it.videoId, title:decodeEntities(it.title||""), channel:decodeEntities(it.author||""),
-              thumb:thumbFor(it.videoId), dur:(typeof it.lengthSeconds==="number"&&it.lengthSeconds>0)?it.lengthSeconds:0});
+              thumb:thumbFor(it.videoId), dur:(typeof it.lengthSeconds==="number"&&it.lengthSeconds>0)?it.lengthSeconds:0,
+              at:(typeof it.published==="number"&&it.published>0)?it.published*1000:0});
   }
   return out;
 }
-function askMirror(m, query, ms){
+/* Piped 검색에는 정렬 옵션이 없다. 두 페이지를 받아 와서 우리가 직접 정렬한다(근사). */
+function pipedSearch(base, query, ms){
   var q=encodeURIComponent(query);
-  function piped(){ return fetchJSON(m.base+"/search?q="+q+"&filter=videos", ms).then(readPiped); }
-  function invid(){ return fetchJSON(m.base+"/api/v1/search?q="+q+"&type=video", ms).then(readInvidious); }
-  var run = m.kind==="invidious" ? invid() : m.kind==="piped" ? piped() : piped().catch(invid);
-  return run.then(function(list){ if(!list||!list.length) throw new Error("결과 없음"); return list; });
+  return fetchJSON(base+"/search?q="+q+"&filter=videos", ms).then(function(j){
+    var out=readPiped(j), np=j&&j.nextpage;
+    if(!np || out.length>=MIN_WANT) return {list:out, approx:true};
+    return fetchJSON(base+"/nextpage/search?nextpage="+encodeURIComponent(np)+"&q="+q+"&filter=videos", ms)
+      .then(function(j2){ return {list:out.concat(readPiped(j2)), approx:true}; },
+            function(){ return {list:out, approx:true}; });
+  });
+}
+/* Invidious 는 sort_by=upload_date 를 지원한다 — 진짜 최신순 검색. */
+function invidSearch(base, query, ms, sort){
+  var q=encodeURIComponent(query);
+  var u=base+"/api/v1/search?q="+q+"&type=video"+(sort==="date"?"&sort_by=upload_date":"");
+  return fetchJSON(u, ms).then(function(j){
+    var out=readInvidious(j);
+    if(out.length>=MIN_WANT) return {list:out, approx:false};
+    return fetchJSON(u+"&page=2", ms)
+      .then(function(j2){ return {list:out.concat(readInvidious(j2)), approx:false}; },
+            function(){ return {list:out, approx:false}; });
+  });
+}
+function askMirror(m, query, ms, sort){
+  var run = m.kind==="invidious" ? invidSearch(m.base, query, ms, sort)
+          : m.kind==="piped"     ? pipedSearch(m.base, query, ms)
+          : invidSearch(m.base, query, ms, sort).catch(function(){ return pipedSearch(m.base, query, ms); });
+  return run.then(function(r){
+    if(!r || !r.list || !r.list.length) throw new Error("결과 없음");
+    return r;
+  });
 }
 function refreshMirrors(){
   var found=[];
@@ -390,24 +446,32 @@ function refreshMirrors(){
     return found.length;
   });
 }
-function sweep(query, list){
+function sweep(query, list, sort){
   var i=0;
   return (function attempt(){
     if(i>=list.length) return Promise.reject(new Error("all-down"));
     var m=list[i++];
-    return askMirror(m, query, 8000).then(function(info){
+    return askMirror(m, query, 8000, sort).then(function(r){
       if(lastGood!==m.base){ lastGood=m.base; lsSet(K.inst, lastGood); }
-      return info;
+      return r;
     }, function(){ return attempt(); });
   })();
 }
-function searchKeyless(query){
+/* 최신순일 때는 진짜 정렬을 지원하는 Invidious 쪽을 먼저 찔러 본다. */
+function orderedMirrors(sort){
+  var list=mirrorList();
+  if(sort!=="date") return list;
+  var inv=list.filter(function(m){ return m.kind==="invidious"||m.kind==="auto"; });
+  var rest=list.filter(function(m){ return m.kind!=="invidious"&&m.kind!=="auto"; });
+  return inv.concat(rest);
+}
+function searchKeyless(query, sort){
   var NO_SERVER="공개 검색 서버에 모두 연결하지 못했어요. 진단 페이지에서 서버 상태를 확인해 보세요.";
-  return sweep(query, mirrorList()).catch(function(){
+  return sweep(query, orderedMirrors(sort), sort).catch(function(){
     if(refreshedThisSession) throw new Error(NO_SERVER);
     say("서버 목록을 새로 받아오는 중…");
     return refreshMirrors().then(function(){
-      return sweep(query, mirrorList()).catch(function(){ throw new Error(NO_SERVER); });
+      return sweep(query, orderedMirrors(sort), sort).catch(function(){ throw new Error(NO_SERVER); });
     });
   });
 }
@@ -419,10 +483,11 @@ function apiError(status, body){
   if(status===403) return "API 키가 거부됐어요. YouTube Data API v3가 사용 설정됐는지 확인해 주세요.";
   return "검색에 실패했어요 ("+status+")";
 }
-function searchYouTube(query){
+function searchYouTube(query, sort){
   if(!apiKey) return Promise.reject(new Error("API 키가 없어요."));
   var params=new URLSearchParams({part:"snippet", type:"video", videoEmbeddable:"true",
-                                  maxResults:String(MAX_RESULTS), q:query, key:apiKey});
+                                  maxResults:"50", q:query, key:apiKey});
+  if(sort==="date") params.set("order","date");
   return fetch("https://www.googleapis.com/youtube/v3/search?"+params.toString())
     .then(function(r){
       if(!r.ok) return r.json().catch(function(){ return {}; }).then(function(b){ throw new Error(apiError(r.status,b)); });
@@ -434,13 +499,22 @@ function searchYouTube(query){
         var it=items[i];
         if(!it||!it.id||!it.id.videoId) continue;
         out.push({videoId:it.id.videoId, title:decodeEntities(it.snippet.title),
-                  channel:decodeEntities(it.snippet.channelTitle), thumb:thumbFor(it.id.videoId), dur:0});
+                  channel:decodeEntities(it.snippet.channelTitle), thumb:thumbFor(it.id.videoId),
+                  dur:0, at:Date.parse(it.snippet.publishedAt)||0});
       }
       if(!out.length) throw new Error("검색 결과가 없어요.");
-      return out;
+      return {list:out, approx:false};
     });
 }
-function doSearch(q){ return settings.mode==="key" ? searchYouTube(q) : searchKeyless(q); }
+function doSearch(q, sort){
+  var run = settings.mode==="key" ? searchYouTube(q, sort) : searchKeyless(q, sort);
+  return run.then(function(r){
+    lastApprox = sort==="date" && !!r.approx;
+    var list = dedupe(r.list);
+    if(sort==="date") list.sort(byNewest);
+    return list.slice(0, MAX_SHOW);
+  });
+}
 
 /* ---------- 큐 (유튜브 탭과 같은 저장소) ---------- */
 var tracks = lsGet(K.tracks, []) || [];
@@ -530,7 +604,10 @@ function renderResults(){
 
     var mid=document.createElement("div"); mid.className="res-m";
     var t=document.createElement("p"); t.className="res-t"; t.textContent=c.title;
-    var s=document.createElement("p"); s.className="res-s"; s.textContent=c.channel||"";
+    var s=document.createElement("p"); s.className="res-s";
+    s.textContent=c.channel||"";
+    var when=ago(c.at);
+    if(when){ var w=document.createElement("span"); w.className="when"; w.textContent=when; s.appendChild(w); }
     mid.appendChild(t); mid.appendChild(s);
     li.appendChild(mid);
 
@@ -597,10 +674,16 @@ function run(){
   if(!q){ say("검색어를 넣어 주세요.","bad"); $("#q").focus(); return; }
   if(settings.mode==="key" && !apiKey){ say("API 키를 저장하거나 ‘공개 서버’로 바꿔 주세요.","bad"); return; }
   $("#go").disabled=true;
-  say("‘"+q+"’ 찾는 중…");
-  doSearch(q).then(function(list){
+  say("‘"+q+"’ "+(settings.sort==="date"?"최신순으로 ":"")+"찾는 중…");
+  doSearch(q, settings.sort).then(function(list){
     results=list; renderResults();
-    say(list.length+"개를 찾았어요. 썸네일을 누르면 미리듣기, ‘담기’로 큐에 넣습니다.","ok");
+    var msg = list.length+"개를 찾았어요.";
+    if(settings.sort==="date"){
+      msg += lastApprox
+        ? " 다만 이 서버는 최신순 검색을 지원하지 않아, 받아온 결과를 업로드 날짜순으로 정렬한 것입니다."
+        : " 최신순으로 정렬됐어요.";
+    }
+    say(msg + " 썸네일을 누르면 미리듣기, ‘담기’로 큐에 넣습니다.", lastApprox ? "warn" : "ok");
   }, function(err){
     results=[]; renderResults();
     say(err.message,"bad");
@@ -615,7 +698,18 @@ function applyMode(){
   $("#mode-auto").setAttribute("aria-pressed", String(auto));
   $("#mode-key").setAttribute("aria-pressed", String(!auto));
   $("#keyrow").hidden = auto;
+  var byDate = settings.sort==="date";
+  $("#sort-rel").setAttribute("aria-pressed", String(!byDate));
+  $("#sort-date").setAttribute("aria-pressed", String(byDate));
 }
+$("#sort-rel").addEventListener("click", function(){
+  settings.sort="relevance"; lsSet(K.set, settings); applyMode();
+  if(results.length) run();
+});
+$("#sort-date").addEventListener("click", function(){
+  settings.sort="date"; lsSet(K.set, settings); applyMode();
+  if(results.length) run();
+});
 $("#mode-auto").addEventListener("click", function(){
   settings.mode="auto"; lsSet(K.set, settings); applyMode();
 });
