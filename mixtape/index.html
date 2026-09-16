@@ -822,6 +822,7 @@ window.onYouTubeIframeAPIReady = function(){
   });
 };
 function loadVideo(videoId){
+  if(fbMode){ fbLoad(videoId); return; }
   if(!playerReady || !player){ pendingVideo = videoId; return; }
   el.idle.hidden = true;
   player.loadVideoById(videoId);
@@ -866,6 +867,96 @@ function onPlayerError(e){
   }
   bailOrSkip(t);
 }
+/* ---------- 예비 경로 ----------
+   iframe_api 스크립트가 차단되면 공식 API를 못 쓴다. 그때는 순수 iframe 임베드를
+   직접 띄우고 postMessage 로 제어한다. 차단기가 스크립트만 막고 임베드는 통과시키는
+   경우가 있어서, 그런 환경에서는 이 경로로 재생된다. */
+var fbMode = false, fbFrame = null, fbState = -1, fbTime = 0, fbDur = 0;
+var fbPoll = null, fbGuard = null;
+var FB_HOST = "https://www.youtube-nocookie.com";
+
+function enterFallback(){
+  if(fbMode) return;
+  fbMode = true;
+  clearTimeout(apiWatch); apiWatch = null;
+  var slot = $("#player");
+  if(!slot) return;
+  fbFrame = document.createElement("iframe");
+  fbFrame.id = "player";
+  fbFrame.title = "유튜브 재생기";
+  fbFrame.setAttribute("allow", "autoplay; encrypted-media; picture-in-picture");
+  fbFrame.setAttribute("allowfullscreen", "");
+  fbFrame.style.cssText = "position:absolute;inset:0;width:100%;height:100%;border:0";
+  slot.parentNode.replaceChild(fbFrame, slot);
+  window.addEventListener("message", onFbMessage);
+  showFallbackNotice();
+  var t = byId(currentId);
+  if(t && t.videoId) fbLoad(t.videoId);
+}
+function fbLoad(videoId){
+  el.idle.hidden = true;
+  fbState = -1; fbTime = 0; fbDur = 0;
+  var origin = (location.protocol.indexOf("http") === 0) ? "&origin=" + encodeURIComponent(location.origin) : "";
+  fbFrame.src = FB_HOST + "/embed/" + videoId +
+    "?enablejsapi=1&autoplay=1&rel=0&playsinline=1&modestbranding=1&iv_load_policy=3" + origin;
+  clearInterval(fbPoll);
+  fbPoll = setInterval(fbListen, 500);
+  setTimeout(function(){
+    fbCmd("setVolume", [settings.volume]);
+    if(settings.muted) fbCmd("mute");
+  }, 1600);
+  /* 아무 상태도 오지 않으면 임베드까지 막힌 것이다. 조용히 멈춰 있지 않게 한다. */
+  clearTimeout(fbGuard);
+  fbGuard = setTimeout(function(){
+    if(fbState !== -1) return;
+    var t = byId(currentId);
+    if(t){ t.status = "failed"; t.note = "임베드 재생기까지 차단됐어요."; render(); save(); }
+    bailOrSkip(t);
+  }, 14000);
+}
+function fbListen(){
+  try{ fbFrame.contentWindow.postMessage(JSON.stringify({event:"listening", id:1, channel:"mixtape"}), "*"); }catch(e){}
+}
+function fbCmd(func, args){
+  try{ fbFrame.contentWindow.postMessage(JSON.stringify({event:"command", func:func, args:args || []}), "*"); }catch(e){}
+}
+function onFbMessage(e){
+  if(!fbFrame || e.source !== fbFrame.contentWindow) return;
+  var d;
+  try{ d = (typeof e.data === "string") ? JSON.parse(e.data) : e.data; }catch(err){ return; }
+  if(!d || typeof d !== "object") return;
+  var info = d.info || {};
+  var was = fbState;
+  if(typeof info.playerState === "number") fbState = info.playerState;
+  if(typeof info.currentTime === "number") fbTime = info.currentTime;
+  if(typeof info.duration === "number" && info.duration > 0) fbDur = info.duration;
+  if(fbState === 1){ strikes = 0; el.idle.hidden = true; clearTimeout(fbGuard); }
+  fbPaint();
+  syncPlayButton(); updateLamp();
+  if(fbState === 0 && was !== 0){
+    if(settings.repeat === "one"){ fbCmd("seekTo", [0, true]); fbCmd("playVideo"); return; }
+    fbState = -1;
+    step(1, true);
+  }
+}
+function fbPaint(){
+  var pct = fbDur > 0 ? Math.min(100, fbTime / fbDur * 100) : 0;
+  if(!seeking){ el.fill.style.width = pct + "%"; el.head.style.left = pct + "%"; }
+  el.tCur.textContent = fmt(fbTime);
+  el.tDur.textContent = fbDur > 0 ? fmt(fbDur) : "0:00";
+  el.bar.setAttribute("aria-valuenow", Math.round(pct));
+}
+function showFallbackNotice(){
+  var n = $("#notice");
+  if(!n || n.dataset.origin) return;
+  n.dataset.fail = "1";
+  n.className = "notice";
+  n.innerHTML = "<b>예비 재생기로 전환했어요.</b> 유튜브 스크립트가 차단돼서 임베드만으로 재생을 시도합니다. " +
+    "이대로 재생되면 그냥 쓰면 되고, 화면이 계속 비어 있으면 임베드까지 막힌 거예요 — " +
+    "<b>광고 차단 확장 프로그램</b>을 끄거나 이 주소를 예외로 두면 해결됩니다. " +
+    "그래도 안 되면 <a href=\"files.html\">내 음악 파일</a> 이나 <a href=\"links.html\">링크 · 라디오</a> 를 쓰세요.";
+}
+
 /* 스크립트가 차단되면 onReady가 영영 오지 않는다. 조용히 기다리지 말고 원인을 말해 준다. */
 function showPlayerFailNotice(){
   var n = $("#notice");
@@ -906,10 +997,12 @@ function bailOrSkip(t){
 }
 function stopPlayback(){
   stopTicker();
-  try{ if(playerReady) player.pauseVideo(); }catch(e){}
+  if(fbMode) fbCmd("pauseVideo");
+  else { try{ if(playerReady) player.pauseVideo(); }catch(e){} }
   syncPlayButton(); updateLamp();
 }
 function isPlaying(){
+  if(fbMode) return fbState === 1;
   try{ return playerReady && player.getPlayerState && player.getPlayerState() === YT.PlayerState.PLAYING; }
   catch(e){ return false; }
 }
@@ -973,6 +1066,15 @@ function step(dir, auto){
   playById(nx);
 }
 function togglePlay(){
+  if(fbMode){
+    if(!currentId){
+      if(!order.length){ toast("큐가 비어 있어요"); return; }
+      playById(order[0]); return;
+    }
+    fbCmd(fbState === 1 ? "pauseVideo" : "playVideo");
+    setTimeout(function(){ syncPlayButton(); updateLamp(); }, 300);
+    return;
+  }
   if(!playerReady){
     if(apiWatch === null) toast("플레이어를 불러오지 못했어요. 위쪽 안내를 보세요.", 5000);
     else toast("플레이어를 불러오는 중이에요");
@@ -1179,7 +1281,8 @@ el.resolveAll.addEventListener("click", function(){
 
 el.play.addEventListener("click", function(){ strikes = 0; togglePlay(); });
 el.prev.addEventListener("click", function(){
-  if(playerReady && currentId){
+  if(fbMode && currentId && fbTime > 3){ fbCmd("seekTo", [0, true]); return; }
+  if(!fbMode && playerReady && currentId){
     var cur = 0; try{ cur = player.getCurrentTime(); }catch(e){}
     if(cur > 3){ player.seekTo(0, true); return; }
   }
@@ -1204,13 +1307,15 @@ el.repeat.addEventListener("click", function(){
 el.volume.addEventListener("input", function(){
   settings.volume = Number(el.volume.value);
   settings.muted = settings.volume === 0;
-  try{ if(playerReady){ player.setVolume(settings.volume); settings.muted ? player.mute() : player.unMute(); } }catch(e){}
+  if(fbMode){ fbCmd("setVolume", [settings.volume]); fbCmd(settings.muted ? "mute" : "unMute"); }
+  else try{ if(playerReady){ player.setVolume(settings.volume); settings.muted ? player.mute() : player.unMute(); } }catch(e){}
   el.mute.textContent = settings.muted ? "🔇" : "🔊";
   save();
 });
 el.mute.addEventListener("click", function(){
   settings.muted = !settings.muted;
-  try{ if(playerReady) settings.muted ? player.mute() : player.unMute(); }catch(e){}
+  if(fbMode) fbCmd(settings.muted ? "mute" : "unMute");
+  else try{ if(playerReady) settings.muted ? player.mute() : player.unMute(); }catch(e){}
   el.mute.textContent = settings.muted ? "🔇" : "🔊";
   save();
 });
@@ -1224,7 +1329,7 @@ function seekFromEvent(e){
   return pct;
 }
 el.bar.addEventListener("pointerdown", function(e){
-  if(!playerReady || !currentId) return;
+  if(!currentId || (!fbMode && !playerReady)) return;
   seeking = true; el.bar.setPointerCapture(e.pointerId); seekFromEvent(e);
 });
 el.bar.addEventListener("pointermove", function(e){ if(seeking) seekFromEvent(e); });
@@ -1232,13 +1337,15 @@ el.bar.addEventListener("pointerup", function(e){
   if(!seeking) return;
   var pct = seekFromEvent(e);
   seeking = false;
+  if(fbMode){ if(fbDur > 0) fbCmd("seekTo", [pct * fbDur, true]); return; }
   try{ var d = player.getDuration() || 0; if(d) player.seekTo(pct * d, true); }catch(err){}
 });
 el.bar.addEventListener("keydown", function(e){
-  if(!playerReady || !currentId) return;
+  if(!currentId || (!fbMode && !playerReady)) return;
   var delta = e.key === "ArrowRight" ? 5 : e.key === "ArrowLeft" ? -5 : 0;
   if(!delta) return;
   e.preventDefault();
+  if(fbMode){ fbCmd("seekTo", [Math.max(0, fbTime + delta), true]); return; }
   try{ player.seekTo(Math.max(0, player.getCurrentTime() + delta), true); }catch(err){}
 });
 
@@ -1337,9 +1444,11 @@ document.addEventListener("keydown", function(e){
   else if(k === "p"){ step(-1, false); }
   else if(k === "m"){ el.mute.click(); }
   else if(e.key === "ArrowRight" || e.key === "ArrowLeft"){
-    if(!playerReady || !currentId) return;
+    if(!currentId || (!fbMode && !playerReady)) return;
     e.preventDefault();
-    try{ player.seekTo(Math.max(0, player.getCurrentTime() + (e.key === "ArrowRight" ? 5 : -5)), true); }catch(err){}
+    var d = e.key === "ArrowRight" ? 5 : -5;
+    if(fbMode){ fbCmd("seekTo", [Math.max(0, fbTime + d), true]); return; }
+    try{ player.seekTo(Math.max(0, player.getCurrentTime() + d), true); }catch(err){}
   }
 });
 
@@ -1368,7 +1477,9 @@ el.custom.value = customBase;
 if(location.protocol === "file:") showOriginNotice();
 apiWatch = setTimeout(function(){
   apiWatch = null;
-  if(!playerReady) showPlayerFailNotice();
+  if(playerReady) return;
+  /* 공식 API가 안 왔다. 포기하지 말고 임베드 직접 띄우기로 전환한다. */
+  enterFallback();
 }, 9000);
 rebuildOrder();
 applyMode();
