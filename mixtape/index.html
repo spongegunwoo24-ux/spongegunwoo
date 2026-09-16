@@ -256,6 +256,28 @@ a{color:var(--amber)}
 .chip.searching{color:var(--warn)}
 .chip.ready{color:var(--ok)}
 .chip.failed{color:var(--bad)}
+.picker{
+  grid-column:1/-1;margin:4px 0 6px;border:1px solid var(--line);border-radius:4px;
+  background:var(--bg);max-height:268px;overflow-y:auto;
+}
+.picker-head{
+  display:flex;align-items:center;gap:8px;padding:6px 9px;font-size:11.5px;color:var(--muted);
+  border-bottom:1px solid var(--line-soft);position:sticky;top:0;background:var(--bg);
+}
+.picker-head .spacer{flex:1 1 auto}
+.picker-head .btn{padding:3px 7px;font-size:11.5px;white-space:nowrap;flex:none}
+.picker-head .lbl{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cand{
+  display:grid;grid-template-columns:52px minmax(0,1fr) auto;gap:9px;align-items:center;
+  padding:6px 9px;cursor:pointer;border-bottom:1px solid var(--line-soft);
+}
+.cand:last-child{border-bottom:0}
+.cand:hover{background:var(--panel-2)}
+.cand.is-pick{background:var(--amber-wash)}
+.cand img{width:52px;height:39px;object-fit:cover;border-radius:2px;border:1px solid var(--line-soft);background:var(--panel-2)}
+.cand-t{font-size:12.5px;line-height:1.3;margin:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cand-s{font-size:11px;color:var(--muted);margin:1px 0 0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cand-d{font-size:11px;color:var(--faint)}
 .fixrow{
   grid-column:1/-1;display:flex;gap:6px;align-items:center;flex-wrap:wrap;
   padding:2px 0 4px;
@@ -680,24 +702,27 @@ function fetchJSON(url, ms){
           function(e){ clearTimeout(timer); throw e; });
 }
 function thumbFor(id){ return "https://i.ytimg.com/vi/" + id + "/default.jpg"; }
+var MAX_RESULTS = 10;
 function readPiped(j){
-  var items = (j && j.items) || [];
-  for(var i=0;i<items.length;i++){
+  var items = (j && j.items) || [], out = [];
+  for(var i=0;i<items.length && out.length<MAX_RESULTS;i++){
     var it = items[i];
     var m = String(it.url || "").match(/[?&]v=([A-Za-z0-9_-]{11})/);
     if(!m) continue;
-    return {videoId:m[1], title:decodeEntities(it.title || ""), channel:decodeEntities(it.uploaderName || ""), thumb:thumbFor(m[1])};
+    out.push({videoId:m[1], title:decodeEntities(it.title || ""), channel:decodeEntities(it.uploaderName || ""),
+              thumb:thumbFor(m[1]), dur:(typeof it.duration === "number" && it.duration > 0) ? it.duration : 0});
   }
-  return null;
+  return out;
 }
 function readInvidious(j){
-  var items = Array.isArray(j) ? j : ((j && j.items) || []);
-  for(var i=0;i<items.length;i++){
+  var items = Array.isArray(j) ? j : ((j && j.items) || []), out = [];
+  for(var i=0;i<items.length && out.length<MAX_RESULTS;i++){
     var it = items[i];
     if(!it || !it.videoId) continue;
-    return {videoId:it.videoId, title:decodeEntities(it.title || ""), channel:decodeEntities(it.author || ""), thumb:thumbFor(it.videoId)};
+    out.push({videoId:it.videoId, title:decodeEntities(it.title || ""), channel:decodeEntities(it.author || ""),
+              thumb:thumbFor(it.videoId), dur:(typeof it.lengthSeconds === "number" && it.lengthSeconds > 0) ? it.lengthSeconds : 0});
   }
-  return null;
+  return out;
 }
 function askMirror(m, query, ms){
   var q = encodeURIComponent(query);
@@ -710,9 +735,9 @@ function askMirror(m, query, ms){
   var run = m.kind === "invidious" ? invidious()
           : m.kind === "piped" ? piped()
           : piped().catch(invidious);
-  return run.then(function(info){
-    if(!info) throw new Error("결과 없음");
-    return info;
+  return run.then(function(list){
+    if(!list || !list.length) throw new Error("결과 없음");
+    return list;
   });
 }
 function sweep(query, list){
@@ -748,7 +773,7 @@ function apiError(status, body){
 function searchYouTube(query){
   if(!apiKey) return Promise.reject(new Error("API 키가 없어요. 키를 등록하거나 유튜브 링크를 붙여넣어 주세요."));
   var params = new URLSearchParams({
-    part:"snippet", type:"video", videoEmbeddable:"true", maxResults:"1",
+    part:"snippet", type:"video", videoEmbeddable:"true", maxResults:String(MAX_RESULTS),
     q:query, key:apiKey
   });
   return fetch("https://www.googleapis.com/youtube/v3/search?" + params.toString())
@@ -757,14 +782,20 @@ function searchYouTube(query){
       return r.json();
     })
     .then(function(j){
-      var it = j.items && j.items[0];
-      if(!it || !it.id || !it.id.videoId) throw new Error("검색 결과가 없어요.");
-      return {
-        videoId: it.id.videoId,
-        title: decodeEntities(it.snippet.title),
-        channel: decodeEntities(it.snippet.channelTitle),
-        thumb: (it.snippet.thumbnails && it.snippet.thumbnails.default && it.snippet.thumbnails.default.url) || ("https://i.ytimg.com/vi/"+it.id.videoId+"/default.jpg")
-      };
+      var items = (j && j.items) || [], out = [];
+      for(var i=0;i<items.length;i++){
+        var it = items[i];
+        if(!it || !it.id || !it.id.videoId) continue;
+        out.push({
+          videoId: it.id.videoId,
+          title: decodeEntities(it.snippet.title),
+          channel: decodeEntities(it.snippet.channelTitle),
+          thumb: (it.snippet.thumbnails && it.snippet.thumbnails.default && it.snippet.thumbnails.default.url) || thumbFor(it.id.videoId),
+          dur: 0
+        });
+      }
+      if(!out.length) throw new Error("검색 결과가 없어요.");
+      return out;
     });
 }
 function canSearch(){ return settings.mode === "auto" || !!apiKey; }
@@ -778,9 +809,12 @@ function resolveTrack(t){
     Object.assign(t, cache[key]); t.status = "ready"; return Promise.resolve(t);
   }
   t.status = "searching"; t.note = ""; render();
-  return doSearch(t.query).then(function(info){
+  return doSearch(t.query).then(function(list){
+    var info = list[0];
+    t.cands = list;
     cache[key] = info; lsSet(K.cache, cache);
-    Object.assign(t, info); t.status = "ready"; t.note = "";
+    Object.assign(t, {videoId:info.videoId, title:info.title, channel:info.channel, thumb:info.thumb});
+    t.status = "ready"; t.note = "";
     render(); save();
     return t;
   }).catch(function(err){
@@ -1088,6 +1122,76 @@ function togglePlay(){
   setTimeout(function(){ syncPlayButton(); updateLamp(); }, 120);
 }
 
+/* ---------- 검색 결과 고르기 ---------- */
+function openPicker(t){
+  if(t.cands && t.cands.length){ t.pickOpen = !t.pickOpen; render(); return; }
+  if(!canSearch()){ toast("검색을 쓸 수 없어요. 🔗 로 링크를 직접 넣어 주세요."); return; }
+  t.picking = true; t.pickOpen = true; render();
+  doSearch(t.query).then(function(list){
+    t.picking = false; t.cands = list; t.pickOpen = true;
+    render();
+  }, function(err){
+    t.picking = false; t.pickOpen = false;
+    t.status = "failed"; t.note = err.message;
+    render();
+  });
+}
+function choose(t, cand){
+  t.videoId = cand.videoId; t.title = cand.title; t.channel = cand.channel; t.thumb = cand.thumb;
+  t.status = "ready"; t.note = ""; t.pickOpen = false;
+  if(t.query){
+    cache[t.query.toLowerCase()] = {videoId:cand.videoId, title:cand.title, channel:cand.channel, thumb:cand.thumb};
+    lsSet(K.cache, cache);
+  }
+  render(); save();
+  if(t.id === currentId) loadVideo(t.videoId);
+  else toast("‘" + cand.title + "’ 로 바꿨어요");
+}
+function buildPicker(t){
+  var box = document.createElement("div");
+  box.className = "picker";
+
+  var head = document.createElement("div");
+  head.className = "picker-head";
+  var label = document.createElement("span");
+  label.className = "lbl";
+  label.textContent = t.picking ? "검색 중…" : "‘" + t.query + "’ 검색 결과 " + ((t.cands && t.cands.length) || 0) + "개 — 원하는 걸 누르세요";
+  head.appendChild(label);
+  var sp = document.createElement("span"); sp.className = "spacer"; head.appendChild(sp);
+  if(!t.picking){
+    var again = document.createElement("button");
+    again.className = "btn"; again.dataset.act = "research"; again.textContent = "다시 검색";
+    head.appendChild(again);
+  }
+  var close = document.createElement("button");
+  close.className = "btn ghost"; close.dataset.act = "closepick"; close.textContent = "✕";
+  close.setAttribute("aria-label", "결과 목록 닫기");
+  head.appendChild(close);
+  box.appendChild(head);
+
+  (t.cands || []).forEach(function(c, i){
+    var row = document.createElement("div");
+    row.className = "cand" + (c.videoId === t.videoId ? " is-pick" : "");
+    row.dataset.act = "cand"; row.dataset.i = String(i);
+    row.setAttribute("role", "button"); row.tabIndex = 0;
+    var im = document.createElement("img");
+    im.src = c.thumb; im.alt = ""; im.loading = "lazy";
+    im.onerror = function(){ this.style.visibility = "hidden"; };
+    im.dataset.act = "cand"; im.dataset.i = String(i);
+    var mid = document.createElement("div");
+    var ti = document.createElement("p"); ti.className = "cand-t"; ti.textContent = c.title;
+    var su = document.createElement("p"); su.className = "cand-s"; su.textContent = c.channel || "";
+    mid.appendChild(ti); mid.appendChild(su);
+    mid.dataset.act = "cand"; mid.dataset.i = String(i);
+    var du = document.createElement("span");
+    du.className = "cand-d mono"; du.textContent = c.dur ? fmt(c.dur) : "";
+    du.dataset.act = "cand"; du.dataset.i = String(i);
+    row.appendChild(im); row.appendChild(mid); row.appendChild(du);
+    box.appendChild(row);
+  });
+  return box;
+}
+
 /* ---------- render ---------- */
 var STATUS_LABEL = {pending:"대기", searching:"검색 중", ready:"준비됨", failed:"확인 필요"};
 function render(){
@@ -1133,6 +1237,12 @@ function render(){
     chip.className = "chip " + t.status;
     chip.textContent = STATUS_LABEL[t.status] || t.status;
     act.appendChild(chip);
+    var pick = document.createElement("button");
+    pick.className = "btn ghost"; pick.dataset.act = "pick"; pick.title = "검색 결과에서 고르기";
+    pick.setAttribute("aria-label", (t.title || t.query) + " 검색 결과에서 고르기");
+    pick.setAttribute("aria-expanded", String(!!t.pickOpen));
+    pick.textContent = "🔍";
+    act.appendChild(pick);
     var link = document.createElement("button");
     link.className = "btn ghost"; link.dataset.act = "toggle-link"; link.title = "유튜브 링크 직접 넣기";
     link.setAttribute("aria-label", (t.title || t.query) + " 링크 직접 넣기");
@@ -1146,6 +1256,7 @@ function render(){
     act.appendChild(del);
     li.appendChild(act);
 
+    if(t.pickOpen) li.appendChild(buildPicker(t));
     if(t.linkOpen || t.status === "failed"){
       var fix = document.createElement("div");
       fix.className = "fixrow";
@@ -1194,7 +1305,8 @@ function setTracks(next, replace){
 el.queue.addEventListener("click", function(e){
   var row = e.target.closest(".row"); if(!row) return;
   var id = row.dataset.id;
-  var act = e.target.dataset ? e.target.dataset.act : null;
+  var hit = e.target.closest("[data-act]");
+  var act = hit ? hit.dataset.act : null;
   if(act === "remove"){
     e.stopPropagation();
     var i = indexOfId(id);
@@ -1203,6 +1315,34 @@ el.queue.addEventListener("click", function(e){
     tracks.splice(i, 1);
     if(wasCurrent){ currentId = null; try{ if(playerReady) player.stopVideo(); }catch(err){} el.idle.hidden = false; }
     rebuildOrder(); render(); save();
+    return;
+  }
+  if(act === "pick"){
+    e.stopPropagation();
+    var tp = byId(id); if(!tp) return;
+    openPicker(tp);
+    return;
+  }
+  if(act === "closepick"){
+    e.stopPropagation();
+    var tc = byId(id); if(!tc) return;
+    tc.pickOpen = false; render();
+    return;
+  }
+  if(act === "research"){
+    e.stopPropagation();
+    var tr = byId(id); if(!tr) return;
+    tr.cands = null; tr.pickOpen = false;
+    if(tr.query) { delete cache[tr.query.toLowerCase()]; lsSet(K.cache, cache); }
+    openPicker(tr);
+    return;
+  }
+  if(act === "cand"){
+    e.stopPropagation();
+    var tk = byId(id); if(!tk || !tk.cands) return;
+    var cell = e.target.closest(".cand");
+    var c = tk.cands[Number(cell ? cell.dataset.i : hit.dataset.i)];
+    if(c) choose(tk, c);
     return;
   }
   if(act === "toggle-link"){
@@ -1219,6 +1359,15 @@ el.queue.addEventListener("click", function(e){
   if(act === "search" || act === "link") return;
   strikes = 0;
   playById(id);
+});
+el.queue.addEventListener("keydown", function(e){
+  if(e.key !== "Enter" && e.key !== " ") return;
+  var cell = e.target.closest(".cand"); if(!cell) return;
+  var row = e.target.closest(".row"); if(!row) return;
+  var t = byId(row.dataset.id); if(!t || !t.cands) return;
+  e.preventDefault();
+  var c = t.cands[Number(cell.dataset.i)];
+  if(c) choose(t, c);
 });
 el.queue.addEventListener("change", function(e){
   if(!e.target.dataset || e.target.dataset.act !== "link") return;
