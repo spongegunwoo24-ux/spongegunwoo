@@ -242,6 +242,7 @@ footer{max-width:1180px;margin:0 auto;padding:0 16px 40px;font-size:12px;color:v
       <div class="panel-head">
         <span class="eyebrow">Results · 검색 결과</span>
         <div class="spacer"></div>
+        <button class="btn ghost" id="more" disabled>더 찾기</button>
         <button class="btn ghost" id="add-all" disabled>전부 담기</button>
       </div>
       <ul class="res" id="res"></ul>
@@ -325,10 +326,12 @@ function toast(msg, ms){
 function say(msg, kind){ var s=$("#st"); s.textContent=msg; s.className="status"+(kind?" "+kind:""); }
 
 /* ---------- 검색 (유튜브 탭과 같은 방식) ---------- */
-var PER_PAGE = 50;   /* 한 응답에서 읽어들일 상한 */
-var MIN_WANT  = 30;  /* 이보다 적으면 다음 페이지를 더 받는다 */
-var MAX_SHOW  = 40;  /* 화면에 보여줄 상한 */
-var lastApprox = false;
+var PER_PAGE   = 50;  /* 한 응답에서 읽어들일 상한 */
+var PAGES_FLAT = 2;   /* 관련순: 두 페이지면 충분하다 */
+var PAGES_DEEP = 5;   /* 최신순 근사: 풀을 넓게 잡아야 정렬이 쓸모 있다 */
+var MAX_SHOW   = 40;  /* 화면에 보여줄 상한 */
+var MORE_PAGES = 3;   /* ‘더 찾기’ 한 번에 이어받을 페이지 수 */
+var lastApprox = false, lastPool = 0, cursor = null, lastQuery = "";
 var settings = Object.assign({mode:"auto", sort:"relevance"}, lsGet(K.set, {}));
 var apiKey = lsGet(K.key, "") || "";
 var lastGood = lsGet(K.inst, "") || "";
@@ -391,33 +394,53 @@ function readInvidious(j){
   }
   return out;
 }
-/* Piped 검색에는 정렬 옵션이 없다. 두 페이지를 받아 와서 우리가 직접 정렬한다(근사). */
-function pipedSearch(base, query, ms){
+/* Piped 검색에는 정렬 옵션이 없다. 페이지를 여러 장 받아 풀을 키운 뒤 직접 정렬한다(근사). */
+function pipedPage(base, query, token, ms){
   var q=encodeURIComponent(query);
-  return fetchJSON(base+"/search?q="+q+"&filter=videos", ms).then(function(j){
-    var out=readPiped(j), np=j&&j.nextpage;
-    if(!np || out.length>=MIN_WANT) return {list:out, approx:true};
-    return fetchJSON(base+"/nextpage/search?nextpage="+encodeURIComponent(np)+"&q="+q+"&filter=videos", ms)
-      .then(function(j2){ return {list:out.concat(readPiped(j2)), approx:true}; },
-            function(){ return {list:out, approx:true}; });
+  var url = token ? base+"/nextpage/search?nextpage="+encodeURIComponent(token)+"&q="+q+"&filter=videos"
+                  : base+"/search?q="+q+"&filter=videos";
+  return fetchJSON(url, ms).then(function(j){
+    return {list:readPiped(j), token:(j&&j.nextpage)||null};
   });
 }
-/* Invidious 는 sort_by=upload_date 를 지원한다 — 진짜 최신순 검색. */
-function invidSearch(base, query, ms, sort){
+function pipedSearch(base, query, ms, pages, token, onStep){
+  var all=[], tok=token||null, n=0;
+  function step(){
+    return pipedPage(base, query, tok, ms).then(function(r){
+      all=all.concat(r.list); tok=r.token; n++;
+      if(onStep) onStep(n, pages, all.length);
+      if(n>=pages || !tok || !r.list.length) return;
+      return step();
+    }, function(err){ if(n===0) throw err; });
+  }
+  return step().then(function(){
+    return {list:all, approx:true, cursor: tok ? {kind:"piped", base:base, token:tok} : null};
+  });
+}
+/* Invidious 는 sort_by=upload_date 를 지원한다 — 진짜 최신순이라 깊게 팔 필요가 없다. */
+function invidSearch(base, query, ms, sort, pages, from, onStep){
   var q=encodeURIComponent(query);
   var u=base+"/api/v1/search?q="+q+"&type=video"+(sort==="date"?"&sort_by=upload_date":"");
-  return fetchJSON(u, ms).then(function(j){
-    var out=readInvidious(j);
-    if(out.length>=MIN_WANT) return {list:out, approx:false};
-    return fetchJSON(u+"&page=2", ms)
-      .then(function(j2){ return {list:out.concat(readInvidious(j2)), approx:false}; },
-            function(){ return {list:out, approx:false}; });
+  var all=[], page=from||1, done=0;
+  var want = (sort==="date") ? Math.min(pages, 2) : pages;
+  function step(){
+    return fetchJSON(u+(page>1?"&page="+page:""), ms).then(function(j){
+      var got=readInvidious(j);
+      all=all.concat(got); page++; done++;
+      if(onStep) onStep(done, want, all.length);
+      if(done>=want || !got.length) return;
+      return step();
+    }, function(err){ if(all.length===0) throw err; });
+  }
+  return step().then(function(){
+    return {list:all, approx:false, cursor:{kind:"invidious", base:base, page:page, sort:sort}};
   });
 }
-function askMirror(m, query, ms, sort){
-  var run = m.kind==="invidious" ? invidSearch(m.base, query, ms, sort)
-          : m.kind==="piped"     ? pipedSearch(m.base, query, ms)
-          : invidSearch(m.base, query, ms, sort).catch(function(){ return pipedSearch(m.base, query, ms); });
+function askMirror(m, query, ms, sort, pages, onStep){
+  var run = m.kind==="invidious" ? invidSearch(m.base, query, ms, sort, pages, 1, onStep)
+          : m.kind==="piped"     ? pipedSearch(m.base, query, ms, pages, null, onStep)
+          : invidSearch(m.base, query, ms, sort, pages, 1, onStep)
+              .catch(function(){ return pipedSearch(m.base, query, ms, pages, null, onStep); });
   return run.then(function(r){
     if(!r || !r.list || !r.list.length) throw new Error("결과 없음");
     return r;
@@ -446,12 +469,12 @@ function refreshMirrors(){
     return found.length;
   });
 }
-function sweep(query, list, sort){
+function sweep(query, list, sort, pages, onStep){
   var i=0;
   return (function attempt(){
     if(i>=list.length) return Promise.reject(new Error("all-down"));
     var m=list[i++];
-    return askMirror(m, query, 8000, sort).then(function(r){
+    return askMirror(m, query, 8000, sort, pages, onStep).then(function(r){
       if(lastGood!==m.base){ lastGood=m.base; lsSet(K.inst, lastGood); }
       return r;
     }, function(){ return attempt(); });
@@ -465,13 +488,14 @@ function orderedMirrors(sort){
   var rest=list.filter(function(m){ return m.kind!=="invidious"&&m.kind!=="auto"; });
   return inv.concat(rest);
 }
-function searchKeyless(query, sort){
+function searchKeyless(query, sort, pages, onStep){
   var NO_SERVER="공개 검색 서버에 모두 연결하지 못했어요. 진단 페이지에서 서버 상태를 확인해 보세요.";
-  return sweep(query, orderedMirrors(sort), sort).catch(function(){
+  return sweep(query, orderedMirrors(sort), sort, pages, onStep).catch(function(){
     if(refreshedThisSession) throw new Error(NO_SERVER);
     say("서버 목록을 새로 받아오는 중…");
     return refreshMirrors().then(function(){
-      return sweep(query, orderedMirrors(sort), sort).catch(function(){ throw new Error(NO_SERVER); });
+      return sweep(query, orderedMirrors(sort), sort, pages, onStep)
+        .catch(function(){ throw new Error(NO_SERVER); });
     });
   });
 }
@@ -506,13 +530,26 @@ function searchYouTube(query, sort){
       return {list:out, approx:false};
     });
 }
-function doSearch(q, sort){
-  var run = settings.mode==="key" ? searchYouTube(q, sort) : searchKeyless(q, sort);
+function doSearch(q, sort, onStep){
+  var pages = sort==="date" ? PAGES_DEEP : PAGES_FLAT;
+  var run = settings.mode==="key" ? searchYouTube(q, sort) : searchKeyless(q, sort, pages, onStep);
   return run.then(function(r){
     lastApprox = sort==="date" && !!r.approx;
-    var list = dedupe(r.list);
-    if(sort==="date") list.sort(byNewest);
-    return list.slice(0, MAX_SHOW);
+    cursor = r.cursor || null;
+    return dedupe(r.list);
+  });
+}
+/* 이미 받은 것에 이어서 더 긁어온다. 풀이 커질수록 최신순 근사가 정확해진다. */
+function loadMore(){
+  if(!cursor) return Promise.reject(new Error("더 받을 게 없어요"));
+  var onStep=function(n,total,got){ say("더 찾는 중… "+n+"/"+total+"페이지 · "+(pool.length+got)+"개"); };
+  var run = cursor.kind==="piped"
+    ? pipedSearch(cursor.base, lastQuery, 8000, MORE_PAGES, cursor.token, onStep)
+    : invidSearch(cursor.base, lastQuery, 8000, cursor.sort, MORE_PAGES, cursor.page, onStep);
+  return run.then(function(r){
+    cursor = r.cursor || null;
+    pool = dedupe(pool.concat(r.list));
+    return pool;
   });
 }
 
@@ -579,12 +616,13 @@ window.addEventListener("storage", function(e){
 });
 
 /* ---------- 결과 ---------- */
-var results = [];
+var results = [], pool = [];
 function renderResults(){
   var ul=$("#res");
   ul.textContent="";
   $("#res-empty").hidden = results.length > 0;
   $("#add-all").disabled = !results.length;
+  $("#more").disabled = !cursor;
   results.forEach(function(c, i){
     var added = inQueue(c.videoId);
     var li=document.createElement("li");
@@ -673,22 +711,41 @@ function run(){
   var q=$("#q").value.trim();
   if(!q){ say("검색어를 넣어 주세요.","bad"); $("#q").focus(); return; }
   if(settings.mode==="key" && !apiKey){ say("API 키를 저장하거나 ‘공개 서버’로 바꿔 주세요.","bad"); return; }
-  $("#go").disabled=true;
+  $("#go").disabled=true; $("#more").disabled=true;
+  lastQuery=q; pool=[]; cursor=null;
   say("‘"+q+"’ "+(settings.sort==="date"?"최신순으로 ":"")+"찾는 중…");
-  doSearch(q, settings.sort).then(function(list){
-    results=list; renderResults();
-    var msg = list.length+"개를 찾았어요.";
-    if(settings.sort==="date"){
-      msg += lastApprox
-        ? " 다만 이 서버는 최신순 검색을 지원하지 않아, 받아온 결과를 업로드 날짜순으로 정렬한 것입니다."
-        : " 최신순으로 정렬됐어요.";
-    }
-    say(msg + " 썸네일을 누르면 미리듣기, ‘담기’로 큐에 넣습니다.", lastApprox ? "warn" : "ok");
+  doSearch(q, settings.sort, function(n,total,got){
+    say("찾는 중… "+n+"/"+total+"페이지 · "+got+"개");
+  }).then(function(list){
+    pool=list; showPool();
   }, function(err){
-    results=[]; renderResults();
+    pool=[]; results=[]; renderResults();
     say(err.message,"bad");
   }).then(function(){ $("#go").disabled=false; });
 }
+function showPool(){
+  lastPool = pool.length;
+  var list = pool.slice();
+  if(settings.sort==="date") list.sort(byNewest);
+  results = list.slice(0, MAX_SHOW);
+  renderResults();
+  var msg = results.length+"개를 보여주고 있어요";
+  if(lastPool > results.length) msg += " (후보 "+lastPool+"개 중)";
+  msg += ".";
+  if(settings.sort==="date"){
+    msg += lastApprox
+      ? " 이 서버는 최신순 검색을 지원하지 않아, 받아온 "+lastPool+"개를 업로드 날짜순으로 정렬한 것입니다. ‘더 찾기’로 후보를 늘리면 더 정확해져요."
+      : " 최신순으로 정렬됐어요.";
+  }
+  say(msg, lastApprox ? "warn" : "ok");
+}
+$("#more").addEventListener("click", function(){
+  if(!cursor) return;
+  $("#more").disabled=true; $("#go").disabled=true;
+  loadMore().then(function(){ showPool(); toast("후보 "+pool.length+"개로 늘렸어요"); },
+                  function(err){ say(err.message,"bad"); })
+            .then(function(){ $("#go").disabled=false; $("#more").disabled=!cursor; });
+});
 $("#go").addEventListener("click", run);
 $("#q").addEventListener("keydown", function(e){ if(e.key==="Enter") run(); });
 
