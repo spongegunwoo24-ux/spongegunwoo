@@ -521,7 +521,7 @@ var refreshedThisSession = false;
 var order = [];
 var currentId = null;
 var player = null, playerReady = false, pendingVideo = null, wantPlay = false;
-var ticker = null, seeking = false, uidSeed = 0, strikes = 0;
+var ticker = null, seeking = false, uidSeed = 0, strikes = 0, apiWatch = null;
 
 var $ = function(s){ return document.querySelector(s); };
 var el = {
@@ -811,6 +811,7 @@ window.onYouTubeIframeAPIReady = function(){
     events: {
       onReady: function(){
         playerReady = true;
+        clearTimeout(apiWatch);
         player.setVolume(settings.volume);
         if(settings.muted) player.mute();
         if(pendingVideo){ var v = pendingVideo; pendingVideo = null; loadVideo(v); }
@@ -865,6 +866,19 @@ function onPlayerError(e){
   }
   bailOrSkip(t);
 }
+/* 스크립트가 차단되면 onReady가 영영 오지 않는다. 조용히 기다리지 말고 원인을 말해 준다. */
+function showPlayerFailNotice(){
+  var n = $("#notice");
+  if(!n || n.dataset.origin || n.dataset.fail) return;
+  n.dataset.fail = "1";
+  n.className = "notice bad";
+  n.innerHTML = "<b>유튜브 플레이어를 불러오지 못했어요.</b> 곡 검색은 됐는데(‘준비됨’), 정작 재생기를 띄우는 유튜브 스크립트가 오지 않았습니다. " +
+    "흔한 원인은 <b>광고 차단 확장 프로그램</b>, 백신·보안 프로그램, 회사·학교 방화벽이에요. " +
+    "이 브라우저에서 <a href=\"https://www.youtube.com\" target=\"_blank\" rel=\"noopener\">youtube.com</a> 이 열리는지 먼저 확인하고, " +
+    "확장 프로그램을 끄거나 이 주소를 예외로 두면 해결됩니다. 그래도 안 되면 " +
+    "<a href=\"files.html\">내 음악 파일</a> 이나 <a href=\"links.html\">링크 · 라디오</a> 를 쓰세요 — 둘 다 유튜브를 거치지 않습니다.";
+}
+
 /* 유튜브 임베드는 http/https 출처를 요구한다. file:// 로 열면 153이 난다. */
 function showOriginNotice(){
   var n = $("#notice");
@@ -959,7 +973,11 @@ function step(dir, auto){
   playById(nx);
 }
 function togglePlay(){
-  if(!playerReady){ toast("플레이어를 불러오는 중이에요"); return; }
+  if(!playerReady){
+    if(apiWatch === null) toast("플레이어를 불러오지 못했어요. 위쪽 안내를 보세요.", 5000);
+    else toast("플레이어를 불러오는 중이에요");
+    return;
+  }
   if(!currentId){
     if(!order.length){ toast("큐가 비어 있어요"); return; }
     playById(order[0]); return;
@@ -1348,6 +1366,10 @@ if(!tracks.length){
 }
 el.custom.value = customBase;
 if(location.protocol === "file:") showOriginNotice();
+apiWatch = setTimeout(function(){
+  apiWatch = null;
+  if(!playerReady) showPlayerFailNotice();
+}, 9000);
 rebuildOrder();
 applyMode();
 })();
