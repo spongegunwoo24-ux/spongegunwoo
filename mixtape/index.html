@@ -60,6 +60,7 @@
 }
 
 *{box-sizing:border-box}
+[hidden]{display:none!important}
 html,body{margin:0;padding:0}
 body{
   background:var(--bg);
@@ -293,6 +294,14 @@ details.keybox[open] summary::before{transform:rotate(90deg)}
 .status{font-size:12.5px;margin:8px 0 0;min-height:1.2em}
 .status.ok{color:var(--ok)}
 .status.bad{color:var(--bad)}
+.nav{border-bottom:1px solid var(--line);background:var(--panel)}
+.nav-in{max-width:1180px;margin:0 auto;padding-left:16px;padding-right:16px;display:flex;gap:2px;overflow-x:auto}
+.nav a{display:block;padding:9px 12px;font-size:13px;text-decoration:none;color:var(--muted);border-bottom:2px solid transparent;white-space:nowrap}
+.nav a:hover{color:var(--ink)}
+.nav a[aria-current="page"]{color:var(--amber);border-bottom-color:var(--amber);font-weight:600}
+.lead{font-size:13.5px;color:var(--muted);max-width:70ch;margin:0 0 18px}
+.notice{border:1px solid var(--warn);background:color-mix(in srgb, var(--warn) 10%, transparent);border-radius:5px;padding:12px 14px;font-size:13px;margin:0 0 18px}
+.notice b{color:var(--warn)}
 .seg{display:flex;gap:0}
 .seg-btn{border-radius:0;padding:5px 10px;font-size:12.5px}
 .seg-btn:first-child{border-radius:4px 0 0 4px}
@@ -344,7 +353,10 @@ footer{
   </div>
 </header>
 
+<nav class="nav"><div class="nav-in"><a href="index.html" aria-current="page">유튜브</a><a href="files.html">내 음악 파일</a><a href="links.html">링크 · 라디오</a><a href="check.html">진단</a></div></nav>
+
 <main class="wrap">
+  <p class="notice"><b>유튜브가 막힌 망이라면 이 페이지는 동작하지 않습니다.</b> 영상 데이터가 유튜브 서버에서 와야 하는데 그 경로가 막히면 곡마다 재생에 실패해요. <a href="check.html">진단</a>에서 먼저 확인하고, 안 되면 <a href="files.html">내 음악 파일</a>을 쓰세요.</p>
   <div class="deck">
 
     <section class="screen-shell" aria-label="플레이어">
@@ -506,7 +518,7 @@ var refreshedThisSession = false;
 var order = [];
 var currentId = null;
 var player = null, playerReady = false, pendingVideo = null, wantPlay = false;
-var ticker = null, seeking = false, uidSeed = 0;
+var ticker = null, seeking = false, uidSeed = 0, strikes = 0;
 
 var $ = function(s){ return document.querySelector(s); };
 var el = {
@@ -538,11 +550,11 @@ function decodeEntities(s){
   var t = document.createElement("textarea"); t.innerHTML = s || ""; return t.value;
 }
 var toastTimer = null;
-function toast(msg){
+function toast(msg, ms){
   el.toast.textContent = msg;
   el.toast.classList.add("show");
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(function(){ el.toast.classList.remove("show"); }, 2800);
+  toastTimer = setTimeout(function(){ el.toast.classList.remove("show"); }, ms || 2800);
 }
 function save(){
   lsSet(K.tracks, tracks.map(function(t){
@@ -819,7 +831,7 @@ function onStateChange(e){
     step(1, true);
     return;
   }
-  if(e.data === S.PLAYING){ el.idle.hidden = true; startTicker(); }
+  if(e.data === S.PLAYING){ el.idle.hidden = true; strikes = 0; startTicker(); }
   else stopTicker();
   syncPlayButton();
   updateLamp();
@@ -828,12 +840,28 @@ function onPlayerError(){
   var t = byId(currentId);
   if(t){
     t.status = "failed";
-    t.note = "이 영상은 외부 재생이 막혀 있어요. 다른 링크로 바꿔 주세요.";
+    t.note = "이 영상을 재생할 수 없어요.";
     if(t.query){ delete cache[t.query.toLowerCase()]; lsSet(K.cache, cache); }
     render(); save();
-    toast("‘" + (t.title || t.query) + "’ 재생 불가 — 다음 곡으로 넘어갑니다");
   }
+  bailOrSkip(t);
+}
+/* 곡마다 실패하면 목록 전체를 순식간에 지나쳐 버리므로, 연속 3곡에서 멈춘다. */
+function bailOrSkip(t){
+  strikes++;
+  if(strikes >= 3){
+    strikes = 0;
+    stopPlayback();
+    toast("연속 3곡이 재생되지 않아 멈췄어요. 유튜브 영상 데이터가 막힌 망일 수 있어요 — ‘진단’ 페이지를 확인해 보세요.", 7000);
+    return;
+  }
+  if(t) toast("‘" + (t.title || t.query) + "’ 재생 불가 — 다음 곡으로");
   setTimeout(function(){ step(1, true); }, 900);
+}
+function stopPlayback(){
+  stopTicker();
+  try{ if(playerReady) player.pauseVideo(); }catch(e){}
+  syncPlayButton(); updateLamp();
 }
 function isPlaying(){
   try{ return playerReady && player.getPlayerState && player.getPlayerState() === YT.PlayerState.PLAYING; }
@@ -880,6 +908,13 @@ function playById(id, hops){
   }
   resolveTrack(t).then(function(){ if(currentId === id) loadVideo(t.videoId); })
     .catch(function(){
+      strikes++;
+      if(strikes >= 3){
+        strikes = 0;
+        stopPlayback();
+        toast("연속 3곡을 찾지 못해 멈췄어요. ‘서버 상태 확인’을 눌러 보거나 🔗 로 링크를 직접 넣어 주세요.", 7000);
+        return;
+      }
       if(hops >= tracks.length - 1) return;
       var nx = neighbourId(id, 1, true);
       if(nx && nx !== id) playById(nx, hops + 1);
@@ -888,7 +923,7 @@ function playById(id, hops){
 function step(dir, auto){
   if(!tracks.length) return;
   var nx = neighbourId(currentId, dir, auto);
-  if(!nx){ stopTicker(); try{ player.pauseVideo(); }catch(e){} syncPlayButton(); updateLamp(); toast("재생목록 끝"); return; }
+  if(!nx){ stopPlayback(); toast("재생목록 끝"); return; }
   playById(nx);
 }
 function togglePlay(){
@@ -1030,6 +1065,7 @@ el.queue.addEventListener("click", function(e){
     return;
   }
   if(act === "search" || act === "link") return;
+  strikes = 0;
   playById(id);
 });
 el.queue.addEventListener("change", function(e){
@@ -1091,7 +1127,7 @@ el.resolveAll.addEventListener("click", function(){
   })();
 });
 
-el.play.addEventListener("click", togglePlay);
+el.play.addEventListener("click", function(){ strikes = 0; togglePlay(); });
 el.prev.addEventListener("click", function(){
   if(playerReady && currentId){
     var cur = 0; try{ cur = player.getCurrentTime(); }catch(e){}
@@ -1099,7 +1135,7 @@ el.prev.addEventListener("click", function(){
   }
   step(-1, false);
 });
-el.next.addEventListener("click", function(){ step(1, false); });
+el.next.addEventListener("click", function(){ strikes = 0; step(1, false); });
 el.shuffle.addEventListener("click", function(){
   settings.shuffle = !settings.shuffle;
   el.shuffle.setAttribute("aria-pressed", String(settings.shuffle));

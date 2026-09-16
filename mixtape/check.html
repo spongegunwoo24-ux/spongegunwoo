@@ -1,0 +1,468 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>네트워크 재생 진단</title>
+<meta name="description" content="이 네트워크에서 어떤 음악 재생 경로가 실제로 동작하는지 검사합니다.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+KR:wght@400;500;600;700&display=swap">
+<style>
+:root{
+  --bg:#ECEEF0; --panel:#FFFFFF; --panel-2:#E3E7EA; --ink:#15181B; --muted:#5F6B74;
+  --faint:#8C979E; --line:#D3D9DE; --line-soft:#E4E9ED;
+  --amber:#9E5A03; --amber-ink:#FFFFFF; --amber-wash:#F6E5CB;
+  --screen:#111417; --screen-ink:#EDE3D2; --screen-line:#262C31;
+  --ok:#276B48; --warn:#8A5D06; --bad:#9C3520;
+  --shadow:0 1px 2px rgba(21,24,27,.06), 0 8px 24px -14px rgba(21,24,27,.30);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#0F1113; --panel:#171A1D; --panel-2:#1F2327; --ink:#E9ECEF; --muted:#98A3AB;
+    --faint:#6E7982; --line:#2A2F34; --line-soft:#212529;
+    --amber:#F2A73B; --amber-ink:#181206; --amber-wash:#3A2A0E;
+    --screen:#0A0C0D; --screen-ink:#EDE3D2; --screen-line:#22282C;
+    --ok:#5FB07E; --warn:#D9A43A; --bad:#E0674B;
+    --shadow:0 1px 2px rgba(0,0,0,.4), 0 10px 28px -16px rgba(0,0,0,.8);
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0F1113; --panel:#171A1D; --panel-2:#1F2327; --ink:#E9ECEF; --muted:#98A3AB;
+  --faint:#6E7982; --line:#2A2F34; --line-soft:#212529;
+  --amber:#F2A73B; --amber-ink:#181206; --amber-wash:#3A2A0E;
+  --screen:#0A0C0D; --screen-ink:#EDE3D2; --screen-line:#22282C;
+  --ok:#5FB07E; --warn:#D9A43A; --bad:#E0674B;
+  --shadow:0 1px 2px rgba(0,0,0,.4), 0 10px 28px -16px rgba(0,0,0,.8);
+}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html,body{margin:0;padding:0}
+body{
+  background:var(--bg);color:var(--ink);
+  font-family:"IBM Plex Sans KR","Apple SD Gothic Neo",-apple-system,BlinkMacSystemFont,"Malgun Gothic",sans-serif;
+  font-size:15px;line-height:1.55;word-break:keep-all;-webkit-font-smoothing:antialiased;
+}
+img{max-width:100%;display:block}
+button,input,textarea,select{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--amber);outline-offset:2px;border-radius:2px}
+a{color:var(--amber)}
+.eyebrow{font-family:"Bebas Neue","IBM Plex Sans KR",sans-serif;font-size:13px;letter-spacing:.14em;text-transform:uppercase;color:var(--faint);line-height:1}
+.mono{font-family:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,monospace;font-variant-numeric:tabular-nums}
+
+.topbar{position:sticky;top:env(safe-area-inset-top,0px);z-index:20;background:color-mix(in srgb, var(--bg) 88%, transparent);backdrop-filter:blur(10px);border-bottom:1px solid var(--line)}
+.topbar-in{max-width:1180px;margin:0 auto;padding-block:10px;padding-left:16px;padding-right:16px;display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+.wordmark{font-family:"Bebas Neue",sans-serif;font-size:26px;letter-spacing:.06em;line-height:1;display:flex;align-items:baseline;gap:9px}
+.wordmark .ko{font-family:"IBM Plex Sans KR",sans-serif;font-weight:700;font-size:17px;letter-spacing:-.01em}
+.lamp{width:9px;height:9px;border-radius:50%;background:var(--faint);transition:background .25s, box-shadow .25s;flex:none;align-self:center}
+.lamp.on{background:var(--amber);box-shadow:0 0 0 3px var(--amber-wash), 0 0 12px var(--amber)}
+.topbar .spacer{flex:1 1 auto}
+.counts{display:flex;gap:14px;align-items:center;font-size:12.5px;color:var(--muted)}
+.counts b{color:var(--ink);font-weight:600}
+
+.nav{border-bottom:1px solid var(--line);background:var(--panel)}
+.nav-in{max-width:1180px;margin:0 auto;padding-left:16px;padding-right:16px;display:flex;gap:2px;overflow-x:auto}
+.nav a{
+  display:block;padding:9px 12px;font-size:13px;text-decoration:none;color:var(--muted);
+  border-bottom:2px solid transparent;white-space:nowrap;
+}
+.nav a:hover{color:var(--ink)}
+.nav a[aria-current="page"]{color:var(--amber);border-bottom-color:var(--amber);font-weight:600}
+
+.wrap{max-width:1180px;margin:0 auto;padding-left:16px;padding-right:16px;padding-block:20px 48px}
+.lead{font-size:13.5px;color:var(--muted);max-width:70ch;margin:0 0 18px}
+.deck{display:grid;gap:20px;grid-template-columns:minmax(0,1.55fr) minmax(320px,1fr);align-items:start}
+@media (max-width:920px){ .deck{grid-template-columns:1fr} }
+
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:6px;box-shadow:var(--shadow);overflow:hidden}
+.panel-head{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:12px 14px;border-bottom:1px solid var(--line-soft)}
+.panel-head .spacer{flex:1 1 auto}
+.field{padding:14px}
+
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:7px;background:var(--panel);border:1px solid var(--line);color:var(--ink);border-radius:4px;padding:8px 12px;cursor:pointer;font-size:13.5px;font-weight:500;transition:border-color .15s, background .15s, color .15s}
+.btn:hover{border-color:var(--amber);color:var(--amber)}
+.btn[aria-pressed="true"]{background:var(--amber-wash);border-color:var(--amber);color:var(--amber)}
+.btn.ghost{background:transparent;border-color:transparent;color:var(--muted);padding:6px 8px}
+.btn.ghost:hover{color:var(--amber)}
+.btn:disabled{opacity:.4;cursor:not-allowed}
+.btn:disabled:hover{border-color:var(--line);color:var(--ink)}
+.btn-round{width:38px;height:38px;padding:0;border-radius:50%}
+.btn-play{width:52px;height:52px;border-radius:50%;padding:0;background:var(--amber);border-color:var(--amber);color:var(--amber-ink)}
+.btn-play:hover{background:var(--amber);border-color:var(--amber);color:var(--amber-ink);filter:brightness(1.07)}
+.btn svg{display:block}
+.actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+.txt{width:100%;background:var(--bg);border:1px solid var(--line);border-radius:3px;padding:8px 10px;font-size:13px}
+textarea.txt{min-height:150px;resize:vertical;line-height:1.7;font-size:13.5px;padding:10px 12px}
+.hint{font-size:12px;color:var(--muted);margin:8px 0 0}
+.status{font-size:12.5px;margin:8px 0 0;min-height:1.2em}
+.status.ok{color:var(--ok)} .status.bad{color:var(--bad)} .status.warn{color:var(--warn)}
+.kbd{font-family:"IBM Plex Mono",monospace;font-size:11px;border:1px solid var(--line);border-bottom-width:2px;border-radius:3px;padding:1px 5px;color:var(--muted);background:var(--bg)}
+.chip{display:inline-block;font-size:10.5px;letter-spacing:.04em;padding:1px 6px;border-radius:999px;border:1px solid currentColor;line-height:1.5;white-space:nowrap}
+
+/* stage / now playing */
+.stage{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:10px;box-shadow:var(--shadow)}
+.art{
+  position:relative;aspect-ratio:16/9;max-width:100%;background:var(--screen);border-radius:3px;
+  overflow:hidden;border:1px solid var(--screen-line);display:flex;align-items:center;justify-content:center;
+}
+.art img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+.art-idle{position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;text-align:center;padding:20px;color:var(--screen-ink);width:100%;height:100%;
+  background:repeating-linear-gradient(180deg, rgba(255,255,255,.028) 0 1px, transparent 1px 4px), radial-gradient(120% 90% at 50% 20%, #1B2024 0%, var(--screen) 70%)}
+.art-idle .eyebrow{color:#8B8271}
+.art-idle h2{font-family:"Bebas Neue",sans-serif;font-weight:400;font-size:clamp(24px,4.6vw,38px);letter-spacing:.05em;margin:0;color:var(--screen-ink);text-wrap:balance}
+.art-idle p{margin:0;font-size:13.5px;color:#9A907E;max-width:36ch}
+.nowbar{display:flex;gap:12px;align-items:flex-start;padding:14px 4px 6px}
+.np-idx{font-family:"Bebas Neue",sans-serif;font-size:34px;line-height:.86;color:var(--amber);letter-spacing:.02em;flex:none;padding-top:2px}
+.np-text{min-width:0;flex:1 1 auto}
+.np-title{font-weight:600;font-size:17px;line-height:1.35;margin:0;overflow-wrap:anywhere;text-wrap:balance}
+.np-sub{margin:2px 0 0;font-size:12.5px;color:var(--muted);overflow-wrap:anywhere}
+.tuner{padding:2px 4px 0}
+.tuner-bar{position:relative;height:26px;cursor:pointer;touch-action:none;display:flex;align-items:center}
+.tuner-track{position:absolute;left:0;right:0;height:4px;border-radius:2px;background:var(--panel-2);border:1px solid var(--line-soft)}
+.tuner-buf{position:absolute;left:0;height:4px;border-radius:2px;background:var(--line);width:0}
+.tuner-fill{position:absolute;left:0;height:4px;border-radius:2px;background:var(--amber);width:0}
+.tuner-ticks{position:absolute;left:0;right:0;height:26px;pointer-events:none}
+.tuner-ticks i{position:absolute;top:2px;width:1px;height:6px;background:var(--line)}
+.tuner-head{position:absolute;width:3px;height:16px;border-radius:1px;background:var(--amber);transform:translateX(-1px);box-shadow:0 0 0 3px color-mix(in srgb, var(--amber) 18%, transparent);left:0}
+.times{display:flex;justify-content:space-between;font-size:12px;color:var(--muted);padding:2px 4px 0}
+.transport{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:14px 4px 4px;border-top:1px solid var(--line-soft);margin-top:10px}
+.vol{display:flex;align-items:center;gap:8px;margin-left:auto}
+.vol input[type=range]{width:96px;accent-color:var(--amber);background:transparent}
+@media (max-width:460px){ .vol{margin-left:0;width:100%} .vol input[type=range]{flex:1} }
+
+/* queue */
+.queue{list-style:none;margin:0;padding:0;max-height:min(58vh,560px);overflow-y:auto}
+.row{display:grid;grid-template-columns:26px minmax(0,1fr) auto;gap:10px;align-items:center;padding:9px 12px;border-bottom:1px solid var(--line-soft);cursor:pointer;transition:background .12s}
+.row:last-child{border-bottom:0}
+.row:hover{background:var(--panel-2)}
+.row.is-current{background:var(--amber-wash)}
+.row.is-current .r-title{color:var(--amber);font-weight:600}
+.row.is-bad .r-title{color:var(--bad)}
+.r-num{font-size:12px;color:var(--faint);text-align:right}
+.row.is-current .r-num{color:var(--amber)}
+.r-main{min-width:0}
+.r-title{font-size:13.5px;line-height:1.35;margin:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.r-sub{font-size:11.5px;color:var(--muted);margin:1px 0 0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.r-act{display:flex;gap:2px;align-items:center}
+.r-act .btn.ghost{font-size:12px;padding:5px 6px;line-height:1}
+.empty{padding:26px 16px;color:var(--faint);font-size:13.5px;text-align:center}
+
+.toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:9px 16px;border-radius:4px;font-size:13px;box-shadow:var(--shadow);z-index:60;max-width:calc(100vw - 32px);text-align:center;opacity:0;pointer-events:none;transition:opacity .2s, transform .2s}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(-4px)}
+footer{max-width:1180px;margin:0 auto;padding:0 16px 40px;font-size:12px;color:var(--faint);display:flex;gap:16px;flex-wrap:wrap}
+@media (prefers-reduced-motion:reduce){ *{transition:none!important;animation:none!important} }
+
+.tests{list-style:none;margin:0;padding:0}
+.tests li{display:flex;align-items:center;gap:10px;padding:9px 14px;border-bottom:1px solid var(--line-soft);font-size:13px}
+.tests li:last-child{border-bottom:0}
+.dot{width:9px;height:9px;border-radius:50%;background:var(--faint);flex:none}
+.dot.up{background:var(--ok)} .dot.down{background:var(--bad)} .dot.mid{background:var(--warn)}
+.dot.run{background:var(--amber);animation:pulse 1s ease-in-out infinite}
+@keyframes pulse{0%,100%{opacity:.35}50%{opacity:1}}
+.tname{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tdetail{color:var(--muted);font-size:11.5px;white-space:nowrap}
+.verdict{padding:16px;border-radius:5px;border:1px solid var(--line);background:var(--panel-2);margin-bottom:20px}
+.verdict h2{margin:0 0 6px;font-size:16px}
+.verdict p{margin:0;font-size:13.5px;color:var(--muted)}
+.verdict.good{border-color:var(--ok)} .verdict.bad{border-color:var(--bad)} .verdict.mid{border-color:var(--warn)}
+.yt-stage{position:relative;aspect-ratio:16/9;max-width:100%;background:var(--screen);border-radius:3px;overflow:hidden;border:1px solid var(--screen-line);margin-top:10px}
+.yt-stage>div{position:absolute;inset:0;width:100%;height:100%}
+</style>
+</head>
+<body>
+<header class="topbar"><div class="topbar-in"><div class="wordmark"><span class="lamp" id="lamp" aria-hidden="true"></span>MIXTAPE DECK<span class="ko">진단</span></div><div class="spacer"></div></div></header>
+<nav class="nav"><div class="nav-in"><a href="index.html">유튜브</a><a href="files.html">내 음악 파일</a><a href="links.html">링크 · 라디오</a><a href="check.html" aria-current="page">진단</a></div></nav>
+<main class="wrap">
+  <p class="lead">지금 이 컴퓨터·이 네트워크에서 <b>무엇이 실제로 재생되는지</b> 하나씩 확인합니다. 결과를 보고 어떤 플레이어를 쓸지 정하면 돼요. 학교·회사망은 보통 특정 주소나 영상 데이터만 골라서 막기 때문에, 막연히 “유튜브가 안 된다”보다 어디서 막히는지 아는 게 중요합니다.</p>
+
+  <div class="verdict" id="verdict">
+    <h2>아직 검사하지 않았어요</h2>
+    <p>아래 <b>연결 검사 시작</b>을 누르면 주요 사이트에 닿는지 확인합니다. 그다음 유튜브 재생 검사와 파일 재생 검사를 차례로 해 보세요.</p>
+  </div>
+
+  <div class="deck">
+    <section class="panel">
+      <div class="panel-head">
+        <span class="eyebrow">1 · 연결 검사</span>
+        <div class="spacer"></div>
+        <button class="btn" id="run">연결 검사 시작</button>
+      </div>
+      <ul class="tests" id="tests"></ul>
+      <div class="field" style="border-top:1px solid var(--line-soft)">
+        <p class="hint" style="margin:0">각 사이트의 아이콘 파일을 실제로 받아 보는 방식이라, 차단 안내 페이지가 대신 뜨는 경우도 실패로 잡힙니다. 다만 사이트가 잠깐 느린 것과 차단을 완벽히 구별하지는 못하니, 애매하면 한 번 더 돌려 보세요.</p>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head"><span class="eyebrow">2 · 유튜브 재생 검사</span></div>
+      <div class="field">
+        <p class="hint" style="margin:0 0 8px">유튜브에서 아무 영상이나 열어 주소창 주소를 복사해 넣고 검사를 누르세요. 소리는 꺼진 채로 재생을 시도합니다.</p>
+        <input class="txt" id="yt-url" placeholder="https://www.youtube.com/watch?v=..." spellcheck="false" autocomplete="off" aria-label="검사할 유튜브 주소">
+        <div class="actions"><button class="btn" id="yt-run">유튜브 재생 검사</button></div>
+        <p class="status" id="yt-status"></p>
+        <div class="yt-stage"><div id="ytplayer"></div></div>
+      </div>
+    </section>
+  </div>
+
+  <div class="deck" style="margin-top:20px">
+    <section class="panel">
+      <div class="panel-head"><span class="eyebrow">3 · 오디오 주소 검사</span></div>
+      <div class="field">
+        <p class="hint" style="margin:0 0 8px">mp3 같은 오디오 주소가 재생되는지 봅니다. 이게 되면 <a href="links.html">링크 · 라디오</a> 페이지를 쓸 수 있어요.</p>
+        <input class="txt" id="au-url" placeholder="https://example.com/song.mp3" spellcheck="false" autocomplete="off" aria-label="검사할 오디오 주소">
+        <div class="actions">
+          <button class="btn" id="au-run">오디오 주소 검사</button>
+          <button class="btn ghost" id="au-sample">예시 주소 넣기</button>
+        </div>
+        <p class="status" id="au-status"></p>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head"><span class="eyebrow">4 · 내 파일 재생 검사</span></div>
+      <div class="field">
+        <p class="hint" style="margin:0 0 8px">컴퓨터에 있는 음악 파일 하나를 골라 보세요. 인터넷을 전혀 쓰지 않는 경로라, 이게 되면 <a href="files.html">내 음악 파일</a> 페이지는 무조건 됩니다.</p>
+        <div class="actions"><button class="btn" id="fi-run">음악 파일 고르기</button></div>
+        <input type="file" id="fi" accept="audio/*" hidden>
+        <p class="status" id="fi-status"></p>
+      </div>
+    </section>
+  </div>
+</main>
+
+<footer><span>검사 결과는 저장되지 않습니다.</span><span>검사는 이 브라우저에서만 이루어집니다.</span></footer>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<script>
+(function(){
+"use strict";
+var $ = function(s){ return document.querySelector(s); };
+
+var HOSTS = [
+  {key:"cdn",    name:"인터넷 연결 확인 (cdnjs)",       url:"https://cdnjs.cloudflare.com/favicon.ico", base:true},
+  {key:"yt",     name:"유튜브 (youtube.com)",           url:"https://www.youtube.com/favicon.ico"},
+  {key:"ytimg",  name:"유튜브 썸네일 (ytimg.com)",       url:"https://i.ytimg.com/favicon.ico"},
+  {key:"ytm",    name:"유튜브 뮤직",                     url:"https://music.youtube.com/favicon.ico"},
+  {key:"ia",     name:"Internet Archive (공개 음원)",    url:"https://archive.org/favicon.ico"},
+  {key:"sc",     name:"SoundCloud",                      url:"https://soundcloud.com/favicon.ico"},
+  {key:"bc",     name:"Bandcamp",                        url:"https://bandcamp.com/favicon.ico"},
+  {key:"soma",   name:"SomaFM (인터넷 라디오)",          url:"https://somafm.com/favicon.ico"},
+  {key:"spot",   name:"Spotify",                         url:"https://open.spotify.com/favicon.ico"},
+  {key:"ytapi",  name:"유튜브 플레이어 스크립트",         script:"https://www.youtube.com/iframe_api"}
+];
+var results = {};
+var rows = {};
+
+function buildRows(){
+  var ul = $("#tests");
+  ul.textContent = "";
+  HOSTS.forEach(function(h){
+    var li = document.createElement("li");
+    var dot = document.createElement("span"); dot.className = "dot";
+    var nm = document.createElement("span"); nm.className = "tname"; nm.textContent = h.name;
+    var de = document.createElement("span"); de.className = "tdetail mono"; de.textContent = "대기";
+    li.appendChild(dot); li.appendChild(nm); li.appendChild(de);
+    ul.appendChild(li);
+    rows[h.key] = {dot:dot, detail:de};
+  });
+}
+function mark(key, state, text){
+  var r = rows[key]; if(!r) return;
+  r.dot.className = "dot " + state;
+  r.detail.textContent = text;
+  results[key] = state;
+}
+function probeImage(url, ms){
+  return new Promise(function(res){
+    var img = new Image(), done = false, t0 = Date.now();
+    var timer = setTimeout(function(){ if(done) return; done = true; img.src = ""; res({ok:false, ms:ms}); }, ms);
+    img.onload = function(){ if(done) return; done = true; clearTimeout(timer); res({ok:true, ms:Date.now()-t0}); };
+    img.onerror = function(){ if(done) return; done = true; clearTimeout(timer); res({ok:false, ms:Date.now()-t0}); };
+    img.src = url + (url.indexOf("?")<0?"?":"&") + "_=" + Date.now();
+  });
+}
+function probeScript(url, ms){
+  return new Promise(function(res){
+    var s = document.createElement("script"), done = false, t0 = Date.now();
+    var timer = setTimeout(function(){ if(done) return; done = true; res({ok:false, ms:ms}); }, ms);
+    s.onload = function(){ if(done) return; done = true; clearTimeout(timer); res({ok:true, ms:Date.now()-t0}); };
+    s.onerror = function(){ if(done) return; done = true; clearTimeout(timer); res({ok:false, ms:Date.now()-t0}); };
+    s.src = url;
+    document.head.appendChild(s);
+  });
+}
+
+$("#run").addEventListener("click", function(){
+  var btn = $("#run"); btn.disabled = true;
+  HOSTS.forEach(function(h){ mark(h.key, "run", "검사 중"); });
+  var jobs = HOSTS.map(function(h){
+    var p = h.script ? probeScript(h.script, 10000) : probeImage(h.url, 8000);
+    return p.then(function(r){
+      mark(h.key, r.ok ? "up" : "down", r.ok ? r.ms + "ms" : "막힘");
+    });
+  });
+  Promise.all(jobs).then(function(){ btn.disabled = false; verdict(); });
+});
+
+function verdict(){
+  var v = $("#verdict"), h = v.querySelector("h2"), p = v.querySelector("p");
+  v.className = "verdict";
+  if(results.cdn !== "up"){
+    v.classList.add("bad");
+    h.textContent = "인터넷 자체가 막혀 있어요";
+    p.textContent = "가장 기본적인 연결도 되지 않습니다. 네트워크에 연결되어 있는지, 로그인이 필요한 와이파이는 아닌지 확인해 주세요. 이 상태에서도 ‘내 음악 파일’ 페이지는 동작합니다.";
+    return;
+  }
+  var ytOk = results.yt === "up" && results.ytapi === "up";
+  var audioHosts = ["ia","sc","bc","soma"].filter(function(k){ return results[k] === "up"; });
+  if(ytOk){
+    v.classList.add("mid");
+    h.textContent = "유튜브 주소는 열려요 — 영상 데이터가 문제일 수 있어요";
+    p.textContent = "유튜브 사이트에는 닿습니다. 위 ‘2 · 유튜브 재생 검사’까지 해 보세요. 거기서 재생이 시작되지 않으면, 사이트가 아니라 영상 데이터 전송이 막힌 것이고 유튜브 기반 플레이어는 쓸 수 없습니다. 그때는 ‘내 음악 파일’을 쓰세요.";
+  } else if(audioHosts.length){
+    v.classList.add("mid");
+    h.textContent = "유튜브는 막혔지만 다른 음원 사이트는 열려요";
+    p.textContent = audioHosts.length + "개 음원 사이트에 닿습니다. ‘3 · 오디오 주소 검사’로 실제 재생까지 되는지 확인한 뒤, ‘링크 · 라디오’ 페이지를 쓰면 됩니다.";
+  } else {
+    v.classList.add("bad");
+    h.textContent = "음악 관련 사이트가 대부분 막혀 있어요";
+    p.textContent = "스트리밍 경로는 기대하기 어렵습니다. 집에서 음악 파일을 준비해 와서 ‘내 음악 파일’ 페이지로 재생하는 방법이 확실합니다. 인터넷을 전혀 쓰지 않아요.";
+  }
+}
+
+/* --- 2. YouTube playback --- */
+var ytPlayer = null, ytTimer = null, ytSettled = false;
+function ytSay(msg, kind){ var s=$("#yt-status"); s.textContent = msg; s.className = "status" + (kind?" "+kind:""); }
+function ytId(s){
+  var m = String(s).match(/(?:youtu\.be\/|youtube\.com\/(?:watch\?(?:[^#]*&)?v=|embed\/|shorts\/|live\/))([A-Za-z0-9_-]{11})/);
+  if(m) return m[1];
+  if(/^[A-Za-z0-9_-]{11}$/.test(String(s).trim())) return String(s).trim();
+  return null;
+}
+function ytFinish(msg, kind){
+  if(ytSettled) return; ytSettled = true;
+  clearTimeout(ytTimer);
+  ytSay(msg, kind);
+  $("#yt-run").disabled = false;
+}
+$("#yt-run").addEventListener("click", function(){
+  var id = ytId($("#yt-url").value);
+  if(!id){ ytSay("유튜브 주소를 인식하지 못했어요. 주소창 주소를 그대로 붙여넣어 주세요.", "bad"); return; }
+  $("#yt-run").disabled = true;
+  ytSettled = false;
+  ytSay("플레이어를 불러오는 중…", "");
+  loadYT().then(function(){
+    ytSay("재생을 시도하는 중… (최대 20초)", "");
+    ytTimer = setTimeout(function(){
+      ytFinish("20초 안에 재생이 시작되지 않았어요. 유튜브 페이지는 열리는데 영상 데이터가 오지 않는 상태로 보입니다 — 유튜브 기반 플레이어는 이 망에서 쓸 수 없어요. ‘내 음악 파일’ 쪽으로 가세요.", "bad");
+    }, 20000);
+    if(ytPlayer && ytPlayer.destroy){ try{ ytPlayer.destroy(); }catch(e){} }
+    var holder = document.createElement("div");
+    holder.id = "ytplayer";
+    var stage = document.querySelector(".yt-stage");
+    stage.textContent = ""; stage.appendChild(holder);
+    var vars = {playsinline:1, rel:0, autoplay:1, mute:1};
+    if(location.protocol.indexOf("http") === 0) vars.origin = location.origin;
+    ytPlayer = new YT.Player("ytplayer", {
+      videoId:id, playerVars:vars,
+      events:{
+        onReady:function(e){ try{ e.target.mute(); e.target.playVideo(); }catch(err){} },
+        onStateChange:function(e){
+          if(e.data === YT.PlayerState.PLAYING){
+            ytFinish("재생됩니다. 유튜브 기반 플레이어를 쓸 수 있어요 — ‘유튜브’ 페이지로 가세요.", "ok");
+          }
+        },
+        onError:function(e){
+          var c = e.data, msg;
+          if(c === 101 || c === 150) msg = "이 영상은 외부 재생이 금지돼 있어요. 다른 영상으로 다시 해 보세요 (네트워크 문제는 아닙니다).";
+          else if(c === 100) msg = "영상을 찾을 수 없어요. 비공개이거나 삭제된 영상입니다.";
+          else if(c === 2) msg = "영상 주소가 잘못됐어요.";
+          else msg = "플레이어가 오류를 냈어요 (코드 " + c + "). 영상 데이터가 막혔을 가능성이 큽니다.";
+          ytFinish(msg, c === 101 || c === 150 || c === 100 || c === 2 ? "warn" : "bad");
+        }
+      }
+    });
+  }, function(){
+    ytFinish("유튜브 플레이어 스크립트를 불러오지 못했어요. 유튜브가 막혀 있습니다.", "bad");
+  });
+});
+function loadYT(){
+  if(window.YT && window.YT.Player) return Promise.resolve();
+  return new Promise(function(res, rej){
+    var prev = window.onYouTubeIframeAPIReady;
+    var to = setTimeout(rej, 12000);
+    window.onYouTubeIframeAPIReady = function(){
+      clearTimeout(to);
+      if(typeof prev === "function") prev();
+      res();
+    };
+    if(!document.querySelector('script[data-yt]')){
+      var s = document.createElement("script");
+      s.src = "https://www.youtube.com/iframe_api";
+      s.setAttribute("data-yt","1");
+      s.onerror = function(){ clearTimeout(to); rej(); };
+      document.head.appendChild(s);
+    }
+  });
+}
+
+/* --- 3. audio URL --- */
+$("#au-sample").addEventListener("click", function(){
+  $("#au-url").value = "https://ice1.somafm.com/groovesalad-128-mp3";
+  $("#au-url").focus();
+});
+$("#au-run").addEventListener("click", function(){
+  var url = $("#au-url").value.trim();
+  var s = $("#au-status");
+  if(!/^https?:\/\//i.test(url)){ s.textContent = "http:// 또는 https:// 로 시작하는 주소를 넣어 주세요."; s.className="status bad"; return; }
+  $("#au-run").disabled = true;
+  s.textContent = "확인 중…"; s.className = "status";
+  var a = new Audio(), done = false, t0 = Date.now();
+  function fin(ok, msg, kind){
+    if(done) return; done = true;
+    clearTimeout(timer);
+    try{ a.pause(); a.src=""; a.load(); }catch(e){}
+    s.textContent = msg; s.className = "status " + kind;
+    $("#au-run").disabled = false;
+  }
+  var timer = setTimeout(function(){ fin(false, "10초 동안 응답이 없어요. 막혀 있거나 아주 느린 주소입니다.", "bad"); }, 10000);
+  a.addEventListener("canplay", function(){ fin(true, "재생 가능해요 (" + (Date.now()-t0) + "ms). ‘링크 · 라디오’ 페이지를 쓸 수 있습니다.", "ok"); });
+  a.addEventListener("loadedmetadata", function(){ fin(true, "재생 가능해요 (" + (Date.now()-t0) + "ms). ‘링크 · 라디오’ 페이지를 쓸 수 있습니다.", "ok"); });
+  a.addEventListener("error", function(){
+    var e = a.error, why = "가져올 수 없어요";
+    if(e && e.code === 2) why = "네트워크에서 차단됐어요";
+    else if(e && e.code === 4) why = "지원하지 않는 형식이거나 주소가 잘못됐어요";
+    fin(false, why + ". 이 주소는 이 망에서 쓸 수 없습니다.", "bad");
+  });
+  a.preload = "auto"; a.muted = true; a.src = url; a.load();
+});
+
+/* --- 4. local file --- */
+$("#fi-run").addEventListener("click", function(){ $("#fi").click(); });
+$("#fi").addEventListener("change", function(e){
+  var f = e.target.files && e.target.files[0];
+  var s = $("#fi-status");
+  if(!f) return;
+  var url = URL.createObjectURL(f);
+  var a = new Audio();
+  a.muted = true;
+  a.addEventListener("loadedmetadata", function(){
+    s.textContent = "‘" + f.name + "’ 를 읽었어요 (" + Math.round(a.duration) + "초). 내 파일 재생은 문제없이 됩니다 — ‘내 음악 파일’ 페이지를 쓰세요.";
+    s.className = "status ok";
+    URL.revokeObjectURL(url);
+  });
+  a.addEventListener("error", function(){
+    s.textContent = "이 파일은 브라우저가 열지 못해요. 다른 형식(mp3·m4a)으로 시도해 보세요.";
+    s.className = "status bad";
+    URL.revokeObjectURL(url);
+  });
+  a.src = url; a.load();
+  e.target.value = "";
+});
+
+buildRows();
+})();
+</script>
+</body>
+</html>
