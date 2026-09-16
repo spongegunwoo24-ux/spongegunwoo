@@ -1,0 +1,642 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>곡 찾기</title>
+<meta name="description" content="곡을 검색해 미리 들어보고 재생 큐에 담는 페이지.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+KR:wght@400;500;600;700&display=swap">
+<style>
+:root{
+  --bg:#ECEEF0; --panel:#FFFFFF; --panel-2:#E3E7EA; --ink:#15181B; --muted:#5F6B74;
+  --faint:#8C979E; --line:#D3D9DE; --line-soft:#E4E9ED;
+  --amber:#9E5A03; --amber-ink:#FFFFFF; --amber-wash:#F6E5CB;
+  --screen:#111417; --screen-ink:#EDE3D2; --screen-line:#262C31;
+  --ok:#276B48; --warn:#8A5D06; --bad:#9C3520;
+  --shadow:0 1px 2px rgba(21,24,27,.06), 0 8px 24px -14px rgba(21,24,27,.30);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#0F1113; --panel:#171A1D; --panel-2:#1F2327; --ink:#E9ECEF; --muted:#98A3AB;
+    --faint:#6E7982; --line:#2A2F34; --line-soft:#212529;
+    --amber:#F2A73B; --amber-ink:#181206; --amber-wash:#3A2A0E;
+    --screen:#0A0C0D; --screen-ink:#EDE3D2; --screen-line:#22282C;
+    --ok:#5FB07E; --warn:#D9A43A; --bad:#E0674B;
+    --shadow:0 1px 2px rgba(0,0,0,.4), 0 10px 28px -16px rgba(0,0,0,.8);
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0F1113; --panel:#171A1D; --panel-2:#1F2327; --ink:#E9ECEF; --muted:#98A3AB;
+  --faint:#6E7982; --line:#2A2F34; --line-soft:#212529;
+  --amber:#F2A73B; --amber-ink:#181206; --amber-wash:#3A2A0E;
+  --screen:#0A0C0D; --screen-ink:#EDE3D2; --screen-line:#22282C;
+  --ok:#5FB07E; --warn:#D9A43A; --bad:#E0674B;
+  --shadow:0 1px 2px rgba(0,0,0,.4), 0 10px 28px -16px rgba(0,0,0,.8);
+}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html,body{margin:0;padding:0}
+body{
+  background:var(--bg);color:var(--ink);
+  font-family:"IBM Plex Sans KR","Apple SD Gothic Neo",-apple-system,BlinkMacSystemFont,"Malgun Gothic",sans-serif;
+  font-size:15px;line-height:1.55;word-break:keep-all;-webkit-font-smoothing:antialiased;
+}
+img{max-width:100%;display:block}
+button,input,textarea,select{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--amber);outline-offset:2px;border-radius:2px}
+a{color:var(--amber)}
+.eyebrow{font-family:"Bebas Neue","IBM Plex Sans KR",sans-serif;font-size:13px;letter-spacing:.14em;text-transform:uppercase;color:var(--faint);line-height:1}
+.mono{font-family:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,monospace;font-variant-numeric:tabular-nums}
+
+.topbar{position:sticky;top:env(safe-area-inset-top,0px);z-index:20;background:color-mix(in srgb, var(--bg) 88%, transparent);backdrop-filter:blur(10px);border-bottom:1px solid var(--line)}
+.topbar-in{max-width:1180px;margin:0 auto;padding-block:10px;padding-left:16px;padding-right:16px;display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+.wordmark{font-family:"Bebas Neue",sans-serif;font-size:26px;letter-spacing:.06em;line-height:1;display:flex;align-items:baseline;gap:9px}
+.wordmark .ko{font-family:"IBM Plex Sans KR",sans-serif;font-weight:700;font-size:17px;letter-spacing:-.01em}
+.lamp{width:9px;height:9px;border-radius:50%;background:var(--faint);transition:background .25s, box-shadow .25s;flex:none;align-self:center}
+.lamp.on{background:var(--amber);box-shadow:0 0 0 3px var(--amber-wash), 0 0 12px var(--amber)}
+.topbar .spacer{flex:1 1 auto}
+.counts{display:flex;gap:14px;align-items:center;font-size:12.5px;color:var(--muted)}
+.counts b{color:var(--ink);font-weight:600}
+
+.nav{border-bottom:1px solid var(--line);background:var(--panel)}
+.nav-in{max-width:1180px;margin:0 auto;padding-left:16px;padding-right:16px;display:flex;gap:2px;overflow-x:auto}
+.nav a{
+  display:block;padding:9px 12px;font-size:13px;text-decoration:none;color:var(--muted);
+  border-bottom:2px solid transparent;white-space:nowrap;
+}
+.nav a:hover{color:var(--ink)}
+.nav a[aria-current="page"]{color:var(--amber);border-bottom-color:var(--amber);font-weight:600}
+
+.wrap{max-width:1180px;margin:0 auto;padding-left:16px;padding-right:16px;padding-block:20px 48px}
+.lead{font-size:13.5px;color:var(--muted);max-width:70ch;margin:0 0 18px}
+.deck{display:grid;gap:20px;grid-template-columns:minmax(0,1.55fr) minmax(320px,1fr);align-items:start}
+@media (max-width:920px){ .deck{grid-template-columns:1fr} }
+
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:6px;box-shadow:var(--shadow);overflow:hidden}
+.panel-head{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:12px 14px;border-bottom:1px solid var(--line-soft)}
+.panel-head .spacer{flex:1 1 auto}
+.field{padding:14px}
+
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:7px;background:var(--panel);border:1px solid var(--line);color:var(--ink);border-radius:4px;padding:8px 12px;cursor:pointer;font-size:13.5px;font-weight:500;transition:border-color .15s, background .15s, color .15s}
+.btn:hover{border-color:var(--amber);color:var(--amber)}
+.btn[aria-pressed="true"]{background:var(--amber-wash);border-color:var(--amber);color:var(--amber)}
+.btn.ghost{background:transparent;border-color:transparent;color:var(--muted);padding:6px 8px}
+.btn.ghost:hover{color:var(--amber)}
+.btn:disabled{opacity:.4;cursor:not-allowed}
+.btn:disabled:hover{border-color:var(--line);color:var(--ink)}
+.btn-round{width:38px;height:38px;padding:0;border-radius:50%}
+.btn-play{width:52px;height:52px;border-radius:50%;padding:0;background:var(--amber);border-color:var(--amber);color:var(--amber-ink)}
+.btn-play:hover{background:var(--amber);border-color:var(--amber);color:var(--amber-ink);filter:brightness(1.07)}
+.btn svg{display:block}
+.actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+.txt{width:100%;background:var(--bg);border:1px solid var(--line);border-radius:3px;padding:8px 10px;font-size:13px}
+textarea.txt{min-height:150px;resize:vertical;line-height:1.7;font-size:13.5px;padding:10px 12px}
+.hint{font-size:12px;color:var(--muted);margin:8px 0 0}
+.status{font-size:12.5px;margin:8px 0 0;min-height:1.2em}
+.status.ok{color:var(--ok)} .status.bad{color:var(--bad)} .status.warn{color:var(--warn)}
+.kbd{font-family:"IBM Plex Mono",monospace;font-size:11px;border:1px solid var(--line);border-bottom-width:2px;border-radius:3px;padding:1px 5px;color:var(--muted);background:var(--bg)}
+.chip{display:inline-block;font-size:10.5px;letter-spacing:.04em;padding:1px 6px;border-radius:999px;border:1px solid currentColor;line-height:1.5;white-space:nowrap}
+
+/* stage / now playing */
+.stage{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:10px;box-shadow:var(--shadow)}
+.art{
+  position:relative;aspect-ratio:16/9;max-width:100%;background:var(--screen);border-radius:3px;
+  overflow:hidden;border:1px solid var(--screen-line);display:flex;align-items:center;justify-content:center;
+}
+.art img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+.art-idle{position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;text-align:center;padding:20px;color:var(--screen-ink);width:100%;height:100%;
+  background:repeating-linear-gradient(180deg, rgba(255,255,255,.028) 0 1px, transparent 1px 4px), radial-gradient(120% 90% at 50% 20%, #1B2024 0%, var(--screen) 70%)}
+.art-idle .eyebrow{color:#8B8271}
+.art-idle h2{font-family:"Bebas Neue",sans-serif;font-weight:400;font-size:clamp(24px,4.6vw,38px);letter-spacing:.05em;margin:0;color:var(--screen-ink);text-wrap:balance}
+.art-idle p{margin:0;font-size:13.5px;color:#9A907E;max-width:36ch}
+.nowbar{display:flex;gap:12px;align-items:flex-start;padding:14px 4px 6px}
+.np-idx{font-family:"Bebas Neue",sans-serif;font-size:34px;line-height:.86;color:var(--amber);letter-spacing:.02em;flex:none;padding-top:2px}
+.np-text{min-width:0;flex:1 1 auto}
+.np-title{font-weight:600;font-size:17px;line-height:1.35;margin:0;overflow-wrap:anywhere;text-wrap:balance}
+.np-sub{margin:2px 0 0;font-size:12.5px;color:var(--muted);overflow-wrap:anywhere}
+.tuner{padding:2px 4px 0}
+.tuner-bar{position:relative;height:26px;cursor:pointer;touch-action:none;display:flex;align-items:center}
+.tuner-track{position:absolute;left:0;right:0;height:4px;border-radius:2px;background:var(--panel-2);border:1px solid var(--line-soft)}
+.tuner-buf{position:absolute;left:0;height:4px;border-radius:2px;background:var(--line);width:0}
+.tuner-fill{position:absolute;left:0;height:4px;border-radius:2px;background:var(--amber);width:0}
+.tuner-ticks{position:absolute;left:0;right:0;height:26px;pointer-events:none}
+.tuner-ticks i{position:absolute;top:2px;width:1px;height:6px;background:var(--line)}
+.tuner-head{position:absolute;width:3px;height:16px;border-radius:1px;background:var(--amber);transform:translateX(-1px);box-shadow:0 0 0 3px color-mix(in srgb, var(--amber) 18%, transparent);left:0}
+.times{display:flex;justify-content:space-between;font-size:12px;color:var(--muted);padding:2px 4px 0}
+.transport{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:14px 4px 4px;border-top:1px solid var(--line-soft);margin-top:10px}
+.vol{display:flex;align-items:center;gap:8px;margin-left:auto}
+.vol input[type=range]{width:96px;accent-color:var(--amber);background:transparent}
+@media (max-width:460px){ .vol{margin-left:0;width:100%} .vol input[type=range]{flex:1} }
+
+/* queue */
+.queue{list-style:none;margin:0;padding:0;max-height:min(58vh,560px);overflow-y:auto}
+.row{display:grid;grid-template-columns:26px minmax(0,1fr) auto;gap:10px;align-items:center;padding:9px 12px;border-bottom:1px solid var(--line-soft);cursor:pointer;transition:background .12s}
+.row:last-child{border-bottom:0}
+.row:hover{background:var(--panel-2)}
+.row.is-current{background:var(--amber-wash)}
+.row.is-current .r-title{color:var(--amber);font-weight:600}
+.row.is-bad .r-title{color:var(--bad)}
+.r-num{font-size:12px;color:var(--faint);text-align:right}
+.row.is-current .r-num{color:var(--amber)}
+.r-main{min-width:0}
+.r-title{font-size:13.5px;line-height:1.35;margin:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.r-sub{font-size:11.5px;color:var(--muted);margin:1px 0 0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.r-act{display:flex;gap:2px;align-items:center}
+.r-act .btn.ghost{font-size:12px;padding:5px 6px;line-height:1}
+.empty{padding:26px 16px;color:var(--faint);font-size:13.5px;text-align:center}
+
+.toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:9px 16px;border-radius:4px;font-size:13px;box-shadow:var(--shadow);z-index:60;max-width:calc(100vw - 32px);text-align:center;opacity:0;pointer-events:none;transition:opacity .2s, transform .2s}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(-4px)}
+footer{max-width:1180px;margin:0 auto;padding:0 16px 40px;font-size:12px;color:var(--faint);display:flex;gap:16px;flex-wrap:wrap}
+@media (prefers-reduced-motion:reduce){ *{transition:none!important;animation:none!important} }
+
+.searchbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.searchbar input{flex:1 1 260px;min-width:0;font-size:15px;padding:10px 12px}
+.res{list-style:none;margin:0;padding:0}
+.res li{
+  display:grid;grid-template-columns:112px minmax(0,1fr) auto;gap:12px;align-items:center;
+  padding:10px 14px;border-bottom:1px solid var(--line-soft);
+}
+.res li:last-child{border-bottom:0}
+.res li.is-added{background:var(--amber-wash)}
+.thumb{
+  position:relative;width:112px;aspect-ratio:16/9;border-radius:3px;overflow:hidden;
+  border:1px solid var(--line-soft);background:var(--panel-2);cursor:pointer;
+}
+.thumb img{width:100%;height:100%;object-fit:cover}
+.thumb .dur{
+  position:absolute;right:3px;bottom:3px;background:rgba(10,12,13,.82);color:#F2EDE4;
+  font-size:10.5px;padding:0 4px;border-radius:2px;line-height:1.5;
+}
+.thumb .pv{
+  position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+  color:#fff;opacity:0;transition:opacity .15s;background:rgba(10,12,13,.35);font-size:20px;
+}
+.thumb:hover .pv, .thumb:focus-visible .pv{opacity:1}
+.res-t{font-size:14px;font-weight:500;line-height:1.35;margin:0;overflow-wrap:anywhere;
+  display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.res-s{font-size:12px;color:var(--muted);margin:3px 0 0}
+.res-a{display:flex;flex-direction:column;gap:5px;align-items:stretch}
+.res-a .btn{white-space:nowrap;padding:6px 10px;font-size:12.5px}
+@media (max-width:560px){
+  .res li{grid-template-columns:92px minmax(0,1fr);grid-template-areas:"t m" "a a";row-gap:8px}
+  .thumb{width:92px;grid-area:t} .res-m{grid-area:m} .res-a{grid-area:a;flex-direction:row}
+  .res-a .btn{flex:1}
+}
+.preview{position:relative;aspect-ratio:16/9;background:var(--screen);border-radius:3px;overflow:hidden;border:1px solid var(--screen-line)}
+.preview iframe{position:absolute;inset:0;width:100%;height:100%;border:0}
+.preview .ph{
+  position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;
+  gap:8px;color:#9A907E;font-size:13px;text-align:center;padding:16px;
+  background:repeating-linear-gradient(180deg, rgba(255,255,255,.028) 0 1px, transparent 1px 4px), radial-gradient(120% 90% at 50% 20%, #1B2024 0%, var(--screen) 70%);
+}
+.qlist{list-style:none;margin:0;padding:0;max-height:340px;overflow-y:auto}
+.qlist li{display:grid;grid-template-columns:24px minmax(0,1fr) auto;gap:8px;align-items:center;padding:7px 12px;border-bottom:1px solid var(--line-soft);font-size:12.5px}
+.qlist li:last-child{border-bottom:0}
+.qlist .n{color:var(--faint);font-size:11px;text-align:right}
+.qlist p{margin:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.qlist .sub{font-size:11px;color:var(--muted)}
+.seg{display:flex;gap:0}
+.seg-btn{border-radius:0;padding:5px 10px;font-size:12.5px}
+.seg-btn:first-child{border-radius:4px 0 0 4px}
+.seg-btn:last-child{border-radius:0 4px 4px 0;margin-left:-1px}
+</style>
+</head>
+<body>
+<header class="topbar"><div class="topbar-in"><div class="wordmark"><span class="lamp" id="lamp" aria-hidden="true"></span>MIXTAPE DECK<span class="ko">곡 찾기</span></div><div class="spacer"></div><div class="counts mono"><span>큐 <b id="cnt-total">0</b>곡</span></div></div></header>
+<nav class="nav"><div class="nav-in"><a href="index.html">유튜브</a><a href="search.html" aria-current="page">곡 찾기</a><a href="files.html">내 음악 파일</a><a href="links.html">링크 · 라디오</a><a href="check.html">진단</a></div></nav>
+<main class="wrap">
+  <p class="lead">곡을 검색해서 마음에 드는 영상을 큐에 담습니다. 담은 곡은 <a href="index.html">유튜브</a> 탭에서 순서대로 재생돼요. 썸네일을 누르면 여기서 바로 미리 들어볼 수 있습니다.</p>
+
+  <section class="panel" style="margin-bottom:20px">
+    <div class="field">
+      <div class="searchbar">
+        <input class="txt" id="q" type="search" placeholder="곡 제목, 가수 이름, 아무거나" spellcheck="false" autocomplete="off" aria-label="검색어">
+        <button class="btn" id="go">검색</button>
+        <div class="seg" role="group" aria-label="검색 방식">
+          <button class="btn seg-btn" id="mode-auto" aria-pressed="true">공개 서버</button>
+          <button class="btn seg-btn" id="mode-key" aria-pressed="false">API 키</button>
+        </div>
+      </div>
+      <p class="status" id="st"></p>
+      <div id="keyrow" hidden>
+        <input class="txt" id="apikey" type="password" placeholder="AIza..." autocomplete="off" spellcheck="false" aria-label="YouTube Data API 키">
+        <div class="actions">
+          <button class="btn" id="key-save">키 저장</button>
+          <button class="btn ghost" id="key-clear">삭제</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <div class="deck">
+    <section class="panel" aria-label="검색 결과">
+      <div class="panel-head">
+        <span class="eyebrow">Results · 검색 결과</span>
+        <div class="spacer"></div>
+        <button class="btn ghost" id="add-all" disabled>전부 담기</button>
+      </div>
+      <ul class="res" id="res"></ul>
+      <div class="empty" id="res-empty">검색어를 넣고 <b>검색</b>을 눌러 보세요.</div>
+    </section>
+
+    <div style="display:grid;gap:20px">
+      <section class="panel" aria-label="미리듣기">
+        <div class="panel-head">
+          <span class="eyebrow">Preview · 미리듣기</span>
+          <div class="spacer"></div>
+          <button class="btn ghost" id="pv-stop" hidden>정지</button>
+        </div>
+        <div class="field" style="padding:10px">
+          <div class="preview" id="pv">
+            <div class="ph" id="pv-ph"><span class="eyebrow">Preview</span>결과의 썸네일을 누르면 여기서 재생됩니다</div>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel" aria-label="큐">
+        <div class="panel-head">
+          <span class="eyebrow">Queue · 큐</span>
+          <div class="spacer"></div>
+          <a class="btn ghost" href="index.html">재생하러 가기</a>
+          <button class="btn ghost" id="q-clear">비우기</button>
+        </div>
+        <ul class="qlist" id="qlist"></ul>
+      </section>
+    </div>
+  </div>
+</main>
+
+<footer><span>큐는 이 브라우저에 저장되고 유튜브 탭과 함께 씁니다.</span></footer>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<script>
+(function(){
+"use strict";
+var $ = function(s){ return document.querySelector(s); };
+var K = {tracks:"mixtape.tracks", key:"mixtape.apikey", set:"mixtape.settings",
+         cache:"mixtape.cache", inst:"mixtape.instance", custom:"mixtape.custom", mirrors:"mixtape.mirrors"};
+function lsGet(k,d){ try{ var v=localStorage.getItem(k); return v==null?d:JSON.parse(v); }catch(e){ return d; } }
+function lsSet(k,v){ try{ localStorage.setItem(k, JSON.stringify(v)); }catch(e){} }
+function lsDel(k){ try{ localStorage.removeItem(k); }catch(e){} }
+function fmt(sec){
+  if(!isFinite(sec)||sec<=0) return "";
+  var s=Math.floor(sec%60), m=Math.floor(sec/60)%60, h=Math.floor(sec/3600);
+  return (h?h+":":"") + (h&&m<10?"0"+m:""+m) + ":" + (s<10?"0"+s:""+s);
+}
+function decodeEntities(s){ var t=document.createElement("textarea"); t.innerHTML=s||""; return t.value; }
+function thumbFor(id){ return "https://i.ytimg.com/vi/"+id+"/mqdefault.jpg"; }
+var uidSeed=0;
+function nid(){ uidSeed++; return "t"+Date.now().toString(36)+uidSeed.toString(36); }
+var toastTimer=null;
+function toast(msg, ms){
+  var t=$("#toast"); t.textContent=msg; t.classList.add("show");
+  clearTimeout(toastTimer);
+  toastTimer=setTimeout(function(){ t.classList.remove("show"); }, ms||2600);
+}
+function say(msg, kind){ var s=$("#st"); s.textContent=msg; s.className="status"+(kind?" "+kind:""); }
+
+/* ---------- 검색 (유튜브 탭과 같은 방식) ---------- */
+var MAX_RESULTS = 20;
+var settings = Object.assign({mode:"auto"}, lsGet(K.set, {}));
+var apiKey = lsGet(K.key, "") || "";
+var lastGood = lsGet(K.inst, "") || "";
+var customBase = lsGet(K.custom, "") || "";
+var dynMirrors = lsGet(K.mirrors, null);
+var refreshedThisSession = false;
+var cache = lsGet(K.cache, {});
+
+var MIRRORS = [
+  {kind:"piped",     base:"https://pipedapi.kavin.rocks"},
+  {kind:"piped",     base:"https://pipedapi.adminforge.de"},
+  {kind:"piped",     base:"https://api.piped.yt"},
+  {kind:"piped",     base:"https://pipedapi.ducks.party"},
+  {kind:"piped",     base:"https://pipedapi.drgns.space"},
+  {kind:"invidious", base:"https://inv.nadeko.net"},
+  {kind:"invidious", base:"https://invidious.nerdvpn.de"},
+  {kind:"invidious", base:"https://iv.ggtyler.dev"},
+  {kind:"invidious", base:"https://invidious.jing.rocks"}
+];
+function mirrorList(){
+  var out=[], seen={};
+  function push(m){
+    var b=String(m.base||"").replace(/\/+$/,"");
+    if(!b||seen[b]) return;
+    seen[b]=1; out.push({kind:m.kind||"auto", base:b});
+  }
+  if(customBase) push({kind:"auto", base:customBase});
+  if(lastGood) push({kind:"auto", base:lastGood});
+  MIRRORS.forEach(push);
+  if(dynMirrors && dynMirrors.list) dynMirrors.list.forEach(push);
+  return out.slice(0,14);
+}
+function fetchJSON(url, ms){
+  var ctrl = typeof AbortController!=="undefined" ? new AbortController() : null;
+  var timer = setTimeout(function(){ if(ctrl) ctrl.abort(); }, ms||8000);
+  return fetch(url, ctrl?{signal:ctrl.signal}:undefined)
+    .then(function(r){ if(!r.ok) throw new Error("HTTP "+r.status); return r.json(); })
+    .then(function(j){ clearTimeout(timer); return j; }, function(e){ clearTimeout(timer); throw e; });
+}
+function readPiped(j){
+  var items=(j&&j.items)||[], out=[];
+  for(var i=0;i<items.length && out.length<MAX_RESULTS;i++){
+    var it=items[i];
+    var m=String(it.url||"").match(/[?&]v=([A-Za-z0-9_-]{11})/);
+    if(!m) continue;
+    out.push({videoId:m[1], title:decodeEntities(it.title||""), channel:decodeEntities(it.uploaderName||""),
+              thumb:thumbFor(m[1]), dur:(typeof it.duration==="number"&&it.duration>0)?it.duration:0});
+  }
+  return out;
+}
+function readInvidious(j){
+  var items=Array.isArray(j)?j:((j&&j.items)||[]), out=[];
+  for(var i=0;i<items.length && out.length<MAX_RESULTS;i++){
+    var it=items[i];
+    if(!it||!it.videoId) continue;
+    out.push({videoId:it.videoId, title:decodeEntities(it.title||""), channel:decodeEntities(it.author||""),
+              thumb:thumbFor(it.videoId), dur:(typeof it.lengthSeconds==="number"&&it.lengthSeconds>0)?it.lengthSeconds:0});
+  }
+  return out;
+}
+function askMirror(m, query, ms){
+  var q=encodeURIComponent(query);
+  function piped(){ return fetchJSON(m.base+"/search?q="+q+"&filter=videos", ms).then(readPiped); }
+  function invid(){ return fetchJSON(m.base+"/api/v1/search?q="+q+"&type=video", ms).then(readInvidious); }
+  var run = m.kind==="invidious" ? invid() : m.kind==="piped" ? piped() : piped().catch(invid);
+  return run.then(function(list){ if(!list||!list.length) throw new Error("결과 없음"); return list; });
+}
+function refreshMirrors(){
+  var found=[];
+  function piped(){
+    return fetchJSON("https://piped-instances.kavin.rocks/", 9000).then(function(j){
+      (j||[]).forEach(function(it){ if(it&&it.api_url) found.push({kind:"piped", base:it.api_url}); });
+    });
+  }
+  function invid(){
+    return fetchJSON("https://api.invidious.io/instances.json", 9000).then(function(j){
+      (j||[]).forEach(function(pair){
+        var info=pair&&pair[1];
+        if(info&&info.type==="https"&&info.api===true&&info.uri) found.push({kind:"invidious", base:info.uri});
+      });
+    });
+  }
+  return piped().catch(function(){}).then(invid).catch(function(){}).then(function(){
+    refreshedThisSession=true;
+    if(!found.length) return 0;
+    dynMirrors={ts:Date.now(), list:found.slice(0,30)};
+    lsSet(K.mirrors, dynMirrors);
+    return found.length;
+  });
+}
+function sweep(query, list){
+  var i=0;
+  return (function attempt(){
+    if(i>=list.length) return Promise.reject(new Error("all-down"));
+    var m=list[i++];
+    return askMirror(m, query, 8000).then(function(info){
+      if(lastGood!==m.base){ lastGood=m.base; lsSet(K.inst, lastGood); }
+      return info;
+    }, function(){ return attempt(); });
+  })();
+}
+function searchKeyless(query){
+  var NO_SERVER="공개 검색 서버에 모두 연결하지 못했어요. 진단 페이지에서 서버 상태를 확인해 보세요.";
+  return sweep(query, mirrorList()).catch(function(){
+    if(refreshedThisSession) throw new Error(NO_SERVER);
+    say("서버 목록을 새로 받아오는 중…");
+    return refreshMirrors().then(function(){
+      return sweep(query, mirrorList()).catch(function(){ throw new Error(NO_SERVER); });
+    });
+  });
+}
+function apiError(status, body){
+  var reason="";
+  try{ reason=body.error.errors[0].reason; }catch(e){}
+  if(reason==="quotaExceeded") return "오늘 검색 할당량을 다 썼어요.";
+  if(reason==="keyInvalid"||status===400) return "API 키가 올바르지 않아요.";
+  if(status===403) return "API 키가 거부됐어요. YouTube Data API v3가 사용 설정됐는지 확인해 주세요.";
+  return "검색에 실패했어요 ("+status+")";
+}
+function searchYouTube(query){
+  if(!apiKey) return Promise.reject(new Error("API 키가 없어요."));
+  var params=new URLSearchParams({part:"snippet", type:"video", videoEmbeddable:"true",
+                                  maxResults:String(MAX_RESULTS), q:query, key:apiKey});
+  return fetch("https://www.googleapis.com/youtube/v3/search?"+params.toString())
+    .then(function(r){
+      if(!r.ok) return r.json().catch(function(){ return {}; }).then(function(b){ throw new Error(apiError(r.status,b)); });
+      return r.json();
+    })
+    .then(function(j){
+      var items=(j&&j.items)||[], out=[];
+      for(var i=0;i<items.length;i++){
+        var it=items[i];
+        if(!it||!it.id||!it.id.videoId) continue;
+        out.push({videoId:it.id.videoId, title:decodeEntities(it.snippet.title),
+                  channel:decodeEntities(it.snippet.channelTitle), thumb:thumbFor(it.id.videoId), dur:0});
+      }
+      if(!out.length) throw new Error("검색 결과가 없어요.");
+      return out;
+    });
+}
+function doSearch(q){ return settings.mode==="key" ? searchYouTube(q) : searchKeyless(q); }
+
+/* ---------- 큐 (유튜브 탭과 같은 저장소) ---------- */
+var tracks = lsGet(K.tracks, []) || [];
+function saveTracks(){
+  lsSet(K.tracks, tracks.map(function(t){
+    return {id:t.id, query:t.query||"", videoId:t.videoId||"", title:t.title||"",
+            channel:t.channel||"", thumb:t.thumb||"", status:t.videoId?"ready":"pending"};
+  }));
+}
+function inQueue(videoId){
+  for(var i=0;i<tracks.length;i++) if(tracks[i].videoId===videoId) return true;
+  return false;
+}
+function addResult(c){
+  if(inQueue(c.videoId)){ toast("이미 큐에 있어요"); return false; }
+  tracks.push({id:nid(), query:c.title, videoId:c.videoId, title:c.title,
+               channel:c.channel, thumb:c.thumb, status:"ready"});
+  cache[String(c.title).toLowerCase()] = {videoId:c.videoId, title:c.title, channel:c.channel, thumb:c.thumb};
+  lsSet(K.cache, cache);
+  saveTracks(); renderQueue(); renderResults();
+  return true;
+}
+function renderQueue(){
+  var ul=$("#qlist");
+  ul.textContent="";
+  if(!tracks.length){
+    var em=document.createElement("li");
+    em.className="empty"; em.style.gridColumn="1/-1";
+    em.textContent="큐가 비었어요. 검색해서 담아 보세요.";
+    ul.appendChild(em);
+  } else {
+    tracks.forEach(function(t,i){
+      var li=document.createElement("li");
+      var n=document.createElement("span"); n.className="n mono"; n.textContent=(i+1)<10?"0"+(i+1):String(i+1);
+      var mid=document.createElement("div");
+      var p=document.createElement("p"); p.textContent=t.title||t.query;
+      mid.appendChild(p);
+      if(t.channel){ var s=document.createElement("p"); s.className="sub"; s.textContent=t.channel; mid.appendChild(s); }
+      var del=document.createElement("button");
+      del.className="btn ghost"; del.dataset.i=String(i); del.textContent="✕";
+      del.setAttribute("aria-label",(t.title||"")+" 빼기");
+      li.appendChild(n); li.appendChild(mid); li.appendChild(del);
+      ul.appendChild(li);
+    });
+  }
+  $("#cnt-total").textContent = tracks.length;
+}
+$("#qlist").addEventListener("click", function(e){
+  var b=e.target.closest("button[data-i]"); if(!b) return;
+  tracks.splice(Number(b.dataset.i),1);
+  saveTracks(); renderQueue(); renderResults();
+});
+$("#q-clear").addEventListener("click", function(){
+  if(!tracks.length) return;
+  tracks=[]; saveTracks(); renderQueue(); renderResults(); toast("큐를 비웠어요");
+});
+/* 다른 탭(유튜브 페이지)에서 큐가 바뀌면 따라간다 */
+window.addEventListener("storage", function(e){
+  if(e.key !== K.tracks) return;
+  tracks = lsGet(K.tracks, []) || [];
+  renderQueue(); renderResults();
+});
+
+/* ---------- 결과 ---------- */
+var results = [];
+function renderResults(){
+  var ul=$("#res");
+  ul.textContent="";
+  $("#res-empty").hidden = results.length > 0;
+  $("#add-all").disabled = !results.length;
+  results.forEach(function(c, i){
+    var added = inQueue(c.videoId);
+    var li=document.createElement("li");
+    if(added) li.className="is-added";
+
+    var th=document.createElement("div");
+    th.className="thumb"; th.dataset.act="preview"; th.dataset.i=String(i);
+    th.setAttribute("role","button"); th.tabIndex=0;
+    th.title="미리듣기";
+    var im=document.createElement("img");
+    im.src=c.thumb; im.alt=""; im.loading="lazy";
+    im.onerror=function(){ this.style.visibility="hidden"; };
+    th.appendChild(im);
+    if(c.dur){ var d=document.createElement("span"); d.className="dur mono"; d.textContent=fmt(c.dur); th.appendChild(d); }
+    var pv=document.createElement("span"); pv.className="pv"; pv.textContent="▶"; th.appendChild(pv);
+    li.appendChild(th);
+
+    var mid=document.createElement("div"); mid.className="res-m";
+    var t=document.createElement("p"); t.className="res-t"; t.textContent=c.title;
+    var s=document.createElement("p"); s.className="res-s"; s.textContent=c.channel||"";
+    mid.appendChild(t); mid.appendChild(s);
+    li.appendChild(mid);
+
+    var act=document.createElement("div"); act.className="res-a";
+    var add=document.createElement("button");
+    add.className="btn"; add.dataset.act="add"; add.dataset.i=String(i);
+    add.textContent = added ? "✓ 담김" : "+ 담기";
+    add.disabled = added;
+    var open=document.createElement("a");
+    open.className="btn ghost"; open.target="_blank"; open.rel="noopener";
+    open.href="https://www.youtube.com/watch?v="+c.videoId;
+    open.textContent="유튜브에서";
+    act.appendChild(add); act.appendChild(open);
+    li.appendChild(act);
+    ul.appendChild(li);
+  });
+}
+$("#res").addEventListener("click", function(e){
+  var hit=e.target.closest("[data-act]"); if(!hit) return;
+  var c=results[Number(hit.dataset.i)]; if(!c) return;
+  if(hit.dataset.act==="add"){ if(addResult(c)) toast("‘"+c.title+"’ 담았어요"); return; }
+  if(hit.dataset.act==="preview") preview(c);
+});
+$("#res").addEventListener("keydown", function(e){
+  if(e.key!=="Enter" && e.key!==" ") return;
+  var th=e.target.closest('.thumb'); if(!th) return;
+  e.preventDefault();
+  var c=results[Number(th.dataset.i)]; if(c) preview(c);
+});
+$("#add-all").addEventListener("click", function(){
+  var n=0;
+  results.forEach(function(c){ if(!inQueue(c.videoId) && addResult(c)) n++; });
+  toast(n ? n+"곡을 담았어요" : "이미 다 담겨 있어요");
+});
+
+/* ---------- 미리듣기 (스크립트 없이 임베드만) ---------- */
+function preview(c){
+  var box=$("#pv");
+  box.textContent="";
+  var f=document.createElement("iframe");
+  f.title="미리듣기: "+c.title;
+  f.setAttribute("allow","autoplay; encrypted-media; picture-in-picture");
+  f.setAttribute("allowfullscreen","");
+  var origin=(location.protocol.indexOf("http")===0) ? "&origin="+encodeURIComponent(location.origin) : "";
+  f.src="https://www.youtube-nocookie.com/embed/"+c.videoId+"?autoplay=1&rel=0&playsinline=1&modestbranding=1"+origin;
+  box.appendChild(f);
+  $("#pv-stop").hidden=false;
+}
+$("#pv-stop").addEventListener("click", function(){
+  var box=$("#pv");
+  box.textContent="";
+  var ph=document.createElement("div");
+  ph.className="ph";
+  var eb=document.createElement("span"); eb.className="eyebrow"; eb.textContent="Preview";
+  ph.appendChild(eb);
+  ph.appendChild(document.createTextNode("결과의 썸네일을 누르면 여기서 재생됩니다"));
+  box.appendChild(ph);
+  this.hidden=true;
+});
+
+/* ---------- 검색 실행 ---------- */
+function run(){
+  var q=$("#q").value.trim();
+  if(!q){ say("검색어를 넣어 주세요.","bad"); $("#q").focus(); return; }
+  if(settings.mode==="key" && !apiKey){ say("API 키를 저장하거나 ‘공개 서버’로 바꿔 주세요.","bad"); return; }
+  $("#go").disabled=true;
+  say("‘"+q+"’ 찾는 중…");
+  doSearch(q).then(function(list){
+    results=list; renderResults();
+    say(list.length+"개를 찾았어요. 썸네일을 누르면 미리듣기, ‘담기’로 큐에 넣습니다.","ok");
+  }, function(err){
+    results=[]; renderResults();
+    say(err.message,"bad");
+  }).then(function(){ $("#go").disabled=false; });
+}
+$("#go").addEventListener("click", run);
+$("#q").addEventListener("keydown", function(e){ if(e.key==="Enter") run(); });
+
+/* ---------- 검색 방식 ---------- */
+function applyMode(){
+  var auto = settings.mode!=="key";
+  $("#mode-auto").setAttribute("aria-pressed", String(auto));
+  $("#mode-key").setAttribute("aria-pressed", String(!auto));
+  $("#keyrow").hidden = auto;
+}
+$("#mode-auto").addEventListener("click", function(){
+  settings.mode="auto"; lsSet(K.set, settings); applyMode();
+});
+$("#mode-key").addEventListener("click", function(){
+  settings.mode="key"; lsSet(K.set, settings); applyMode();
+});
+$("#apikey").value = apiKey;
+$("#key-save").addEventListener("click", function(){
+  apiKey=$("#apikey").value.trim();
+  if(apiKey){ lsSet(K.key, apiKey); say("키를 저장했어요.","ok"); }
+  else { lsDel(K.key); say("키를 비웠어요."); }
+});
+$("#key-clear").addEventListener("click", function(){
+  apiKey=""; $("#apikey").value=""; lsDel(K.key); say("키를 삭제했어요.");
+});
+
+applyMode();
+renderQueue();
+renderResults();
+$("#q").focus();
+})();
+</script>
+</body>
+</html>
