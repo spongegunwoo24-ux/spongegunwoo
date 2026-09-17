@@ -295,6 +295,39 @@ function fmt(sec){
 }
 function decodeEntities(s){ var t=document.createElement("textarea"); t.innerHTML=s||""; return t.value; }
 function thumbFor(id){ return "https://i.ytimg.com/vi/"+id+"/mqdefault.jpg"; }
+/* 미러마다 필드 이름도, 단위도, 형식도 제각각이다. 건질 수 있는 건 다 건진다. */
+function toMillis(v){
+  if(typeof v!=="number" || !isFinite(v) || v<=0) return 0;
+  return v < 1e11 ? v*1000 : v;   /* 초 단위면 ms 로 */
+}
+var AGO_UNITS = [
+  [/(\d+)\s*(초|sec)/i, 1000],
+  [/(\d+)\s*(분|min)/i, 60000],
+  [/(\d+)\s*(시간|hour)/i, 3600000],
+  [/(\d+)\s*(일|day)/i, 86400000],
+  [/(\d+)\s*(주|week)/i, 604800000],
+  [/(\d+)\s*(개월|달|month)/i, 2592000000],
+  [/(\d+)\s*(년|year)/i, 31536000000]
+];
+function parseWhen(text){
+  if(!text) return 0;
+  var s=String(text);
+  for(var i=0;i<AGO_UNITS.length;i++){
+    var m=s.match(AGO_UNITS[i][0]);
+    if(m) return Date.now() - Number(m[1])*AGO_UNITS[i][1];
+  }
+  if(/\d{4}/.test(s)){
+    var abs=Date.parse(s);
+    if(!isNaN(abs)) return abs;
+  }
+  return 0;
+}
+function pickDate(it, numFields, textFields){
+  var i, v;
+  for(i=0;i<numFields.length;i++){ v=toMillis(it[numFields[i]]); if(v) return v; }
+  for(i=0;i<textFields.length;i++){ v=parseWhen(it[textFields[i]]); if(v) return v; }
+  return 0;
+}
 function ago(ms){
   if(!ms || !isFinite(ms)) return "";
   var d = Math.floor((Date.now()-ms)/86400000);
@@ -379,7 +412,7 @@ function readPiped(j){
     if(!m) continue;
     out.push({videoId:m[1], title:decodeEntities(it.title||""), channel:decodeEntities(it.uploaderName||""),
               thumb:thumbFor(m[1]), dur:(typeof it.duration==="number"&&it.duration>0)?it.duration:0,
-              at:(typeof it.uploaded==="number"&&it.uploaded>0)?it.uploaded:0});
+              at:pickDate(it, ["uploaded","uploadedTime"], ["uploadedDate","uploadedText","uploadDate"])});
   }
   return out;
 }
@@ -390,7 +423,7 @@ function readInvidious(j){
     if(!it||!it.videoId) continue;
     out.push({videoId:it.videoId, title:decodeEntities(it.title||""), channel:decodeEntities(it.author||""),
               thumb:thumbFor(it.videoId), dur:(typeof it.lengthSeconds==="number"&&it.lengthSeconds>0)?it.lengthSeconds:0,
-              at:(typeof it.published==="number"&&it.published>0)?it.published*1000:0});
+              at:pickDate(it, ["published","publishedDate"], ["publishedText"])});
   }
   return out;
 }
@@ -729,15 +762,27 @@ function showPool(){
   if(settings.sort==="date") list.sort(byNewest);
   results = list.slice(0, MAX_SHOW);
   renderResults();
+  var dated = 0;
+  for(var i=0;i<pool.length;i++) if(pool[i].at > 0) dated++;
   var msg = results.length+"개를 보여주고 있어요";
   if(lastPool > results.length) msg += " (후보 "+lastPool+"개 중)";
   msg += ".";
+  var kind = "ok";
   if(settings.sort==="date"){
-    msg += lastApprox
-      ? " 이 서버는 최신순 검색을 지원하지 않아, 받아온 "+lastPool+"개를 업로드 날짜순으로 정렬한 것입니다. ‘더 찾기’로 후보를 늘리면 더 정확해져요."
-      : " 최신순으로 정렬됐어요.";
+    if(!dated){
+      msg += " 그런데 이 서버가 업로드 날짜를 하나도 주지 않아서 최신순 정렬이 불가능했어요. ‘더 찾기’로 다른 서버가 잡히게 하거나, API 키 방식으로 바꾸면 제대로 정렬됩니다.";
+      kind = "bad";
+    } else if(dated < pool.length * 0.6){
+      msg += " 다만 이 서버가 "+lastPool+"개 중 "+dated+"개만 날짜를 줘서, 날짜 없는 것들은 뒤로 밀렸어요.";
+      kind = "warn";
+    } else if(lastApprox){
+      msg += " 이 서버는 최신순 검색을 지원하지 않아, 받아온 "+lastPool+"개를 업로드 날짜순으로 정렬한 것입니다. ‘더 찾기’로 후보를 늘리면 더 정확해져요.";
+      kind = "warn";
+    } else {
+      msg += " 최신순으로 정렬됐어요.";
+    }
   }
-  say(msg, lastApprox ? "warn" : "ok");
+  say(msg, kind);
 }
 $("#more").addEventListener("click", function(){
   if(!cursor) return;
