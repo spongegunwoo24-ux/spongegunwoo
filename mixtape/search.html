@@ -166,6 +166,10 @@ footer{max-width:1180px;margin:0 auto;padding:0 16px 40px;font-size:12px;color:v
   border:1px solid var(--line-soft);background:var(--panel-2);cursor:pointer;
 }
 .thumb img{width:100%;height:100%;object-fit:cover}
+.thumb .live{
+  position:absolute;left:3px;top:3px;background:#C62828;color:#fff;font-size:10px;font-weight:700;
+  letter-spacing:.06em;padding:1px 5px;border-radius:2px;line-height:1.5;
+}
 .thumb .dur{
   position:absolute;right:3px;bottom:3px;background:rgba(10,12,13,.82);color:#F2EDE4;
   font-size:10.5px;padding:0 4px;border-radius:2px;line-height:1.5;
@@ -223,6 +227,11 @@ footer{max-width:1180px;margin:0 auto;padding:0 16px 40px;font-size:12px;color:v
       <div class="searchbar">
         <input class="txt" id="q" type="search" placeholder="곡 제목, 가수 이름, 아무거나" spellcheck="false" autocomplete="off" aria-label="검색어">
         <button class="btn" id="go">검색</button>
+        <div class="seg" role="group" aria-label="실시간">
+          <button class="btn seg-btn" id="live-all" aria-pressed="true">전체</button>
+          <button class="btn seg-btn" id="live-no" aria-pressed="false">실시간 빼기</button>
+          <button class="btn seg-btn" id="live-only" aria-pressed="false">실시간만</button>
+        </div>
         <div class="seg" role="group" aria-label="정렬">
           <button class="btn seg-btn" id="sort-rel" aria-pressed="true">관련순</button>
           <button class="btn seg-btn" id="sort-date" aria-pressed="false">최신순</button>
@@ -333,6 +342,13 @@ function parseWhen(text){
   }
   return 0;
 }
+function isLive(it){
+  if(!it) return false;
+  if(it.isLive === true || it.liveNow === true || it.live === true) return true;
+  if(typeof it.duration === "number" && it.duration < 0) return true;
+  if(it.type === "livestream" || it.type === "live") return true;
+  return false;
+}
 function pickDate(it, numFields, textFields){
   var i, v;
   for(i=0;i<numFields.length;i++){ v=toMillis(it[numFields[i]]); if(v) return v; }
@@ -402,7 +418,7 @@ function diagShow(dated, total){
   $("#diag").textContent = lines.join(String.fromCharCode(10));
   $("#diagbox").hidden = false;
 }
-var settings = Object.assign({mode:"auto", sort:"relevance"}, lsGet(K.set, {}));
+var settings = Object.assign({mode:"auto", sort:"relevance", live:"all"}, lsGet(K.set, {}));
 var apiKey = lsGet(K.key, "") || "";
 var lastGood = lsGet(K.inst, "") || "";
 var customBase = lsGet(K.custom, "") || "";
@@ -462,6 +478,7 @@ function readPiped(j){
     if(!m) continue;
     out.push({videoId:m[1], title:decodeEntities(it.title||""), channel:decodeEntities(it.uploaderName||""),
               thumb:thumbFor(m[1]), dur:(typeof it.duration==="number"&&it.duration>0)?it.duration:0,
+              live:isLive(it),
               at:pickDate(it, ["uploaded","uploadedTime"], ["uploadedDate","uploadedText","uploadDate"])});
   }
   return out;
@@ -473,6 +490,7 @@ function readInvidious(j){
     if(!it||!it.videoId) continue;
     out.push({videoId:it.videoId, title:decodeEntities(it.title||""), channel:decodeEntities(it.author||""),
               thumb:thumbFor(it.videoId), dur:(typeof it.lengthSeconds==="number"&&it.lengthSeconds>0)?it.lengthSeconds:0,
+              live:isLive(it),
               at:pickDate(it, ["published","publishedDate"], ["publishedText"])});
   }
   return out;
@@ -615,7 +633,8 @@ function searchYouTube(query, sort){
         if(!it||!it.id||!it.id.videoId) continue;
         out.push({videoId:it.id.videoId, title:decodeEntities(it.snippet.title),
                   channel:decodeEntities(it.snippet.channelTitle), thumb:thumbFor(it.id.videoId),
-                  dur:0, at:Date.parse(it.snippet.publishedAt)||0});
+                  dur:0, live:(it.snippet.liveBroadcastContent === "live"),
+                  at:Date.parse(it.snippet.publishedAt)||0});
       }
       if(!out.length) throw new Error("검색 결과가 없어요.");
       return {list:out, approx:false};
@@ -727,7 +746,9 @@ function renderResults(){
     im.src=c.thumb; im.alt=""; im.loading="lazy";
     im.onerror=function(){ this.style.visibility="hidden"; };
     th.appendChild(im);
+    if(c.live){ var lv=document.createElement("span"); lv.className="live"; lv.textContent="LIVE"; th.appendChild(lv); }
     if(c.dur){ var d=document.createElement("span"); d.className="dur mono"; d.textContent=fmt(c.dur); th.appendChild(d); }
+    else if(c.live){ var dl=document.createElement("span"); dl.className="dur mono"; dl.textContent="실시간"; th.appendChild(dl); }
     var pv=document.createElement("span"); pv.className="pv"; pv.textContent="▶"; th.appendChild(pv);
     li.appendChild(th);
 
@@ -817,13 +838,20 @@ function run(){
 function showPool(){
   lastPool = pool.length;
   var list = pool.slice();
+  if(settings.live==="no")   list = list.filter(function(c){ return !c.live; });
+  if(settings.live==="only") list = list.filter(function(c){ return  c.live; });
   if(settings.sort==="date") list.sort(byNewest);
   results = list.slice(0, MAX_SHOW);
   renderResults();
   var dated = 0;
   for(var i=0;i<pool.length;i++) if(pool[i].at > 0) dated++;
+  var liveCount = 0;
+  for(var L=0;L<pool.length;L++) if(pool[L].live) liveCount++;
   var msg = results.length+"개를 보여주고 있어요";
   if(lastPool > results.length) msg += " (후보 "+lastPool+"개 중)";
+  if(settings.live==="all" && liveCount) msg += " · 실시간 방송 "+liveCount+"개 포함";
+  else if(settings.live==="no") msg += " · 실시간 "+liveCount+"개는 뺐어요";
+  else if(settings.live==="only") msg += " · 실시간만";
   msg += ".";
   var kind = "ok";
   if(settings.sort==="date"){
@@ -863,7 +891,17 @@ function applyMode(){
   var byDate = settings.sort==="date";
   $("#sort-rel").setAttribute("aria-pressed", String(!byDate));
   $("#sort-date").setAttribute("aria-pressed", String(byDate));
+  $("#live-all").setAttribute("aria-pressed", String(settings.live==="all"));
+  $("#live-no").setAttribute("aria-pressed", String(settings.live==="no"));
+  $("#live-only").setAttribute("aria-pressed", String(settings.live==="only"));
 }
+function setLive(v){
+  settings.live=v; lsSet(K.set, settings); applyMode();
+  if(pool.length) showPool();   /* 이미 받아둔 후보를 다시 거르기만 하면 된다 */
+}
+$("#live-all").addEventListener("click", function(){ setLive("all"); });
+$("#live-no").addEventListener("click", function(){ setLive("no"); });
+$("#live-only").addEventListener("click", function(){ setLive("only"); });
 $("#sort-rel").addEventListener("click", function(){
   settings.sort="relevance"; lsSet(K.set, settings); applyMode();
   if(results.length) run();

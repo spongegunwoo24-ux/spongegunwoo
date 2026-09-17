@@ -715,6 +715,12 @@ function fetchJSON(url, ms){
           function(e){ clearTimeout(timer); throw e; });
 }
 function thumbFor(id){ return "https://i.ytimg.com/vi/" + id + "/default.jpg"; }
+function isLive(it){
+  if(!it) return false;
+  if(it.isLive === true || it.liveNow === true || it.live === true) return true;
+  if(typeof it.duration === "number" && it.duration < 0) return true;
+  return it.type === "livestream" || it.type === "live";
+}
 var MAX_RESULTS = 10;
 function readPiped(j){
   var items = (j && j.items) || [], out = [];
@@ -723,7 +729,8 @@ function readPiped(j){
     var m = String(it.url || "").match(/[?&]v=([A-Za-z0-9_-]{11})/);
     if(!m) continue;
     out.push({videoId:m[1], title:decodeEntities(it.title || ""), channel:decodeEntities(it.uploaderName || ""),
-              thumb:thumbFor(m[1]), dur:(typeof it.duration === "number" && it.duration > 0) ? it.duration : 0});
+              thumb:thumbFor(m[1]), dur:(typeof it.duration === "number" && it.duration > 0) ? it.duration : 0,
+              live:isLive(it)});
   }
   return out;
 }
@@ -733,7 +740,8 @@ function readInvidious(j){
     var it = items[i];
     if(!it || !it.videoId) continue;
     out.push({videoId:it.videoId, title:decodeEntities(it.title || ""), channel:decodeEntities(it.author || ""),
-              thumb:thumbFor(it.videoId), dur:(typeof it.lengthSeconds === "number" && it.lengthSeconds > 0) ? it.lengthSeconds : 0});
+              thumb:thumbFor(it.videoId), dur:(typeof it.lengthSeconds === "number" && it.lengthSeconds > 0) ? it.lengthSeconds : 0,
+              live:isLive(it)});
   }
   return out;
 }
@@ -804,7 +812,7 @@ function searchYouTube(query){
           title: decodeEntities(it.snippet.title),
           channel: decodeEntities(it.snippet.channelTitle),
           thumb: (it.snippet.thumbnails && it.snippet.thumbnails.default && it.snippet.thumbnails.default.url) || thumbFor(it.id.videoId),
-          dur: 0
+          dur: 0, live: (it.snippet.liveBroadcastContent === "live")
         });
       }
       if(!out.length) throw new Error("검색 결과가 없어요.");
@@ -1197,7 +1205,9 @@ function buildPicker(t){
     mid.appendChild(ti); mid.appendChild(su);
     mid.dataset.act = "cand"; mid.dataset.i = String(i);
     var du = document.createElement("span");
-    du.className = "cand-d mono"; du.textContent = c.dur ? fmt(c.dur) : "";
+    du.className = "cand-d mono";
+    du.textContent = c.live ? "실시간" : (c.dur ? fmt(c.dur) : "");
+    if(c.live) du.style.color = "var(--bad)";
     du.dataset.act = "cand"; du.dataset.i = String(i);
     row.appendChild(im); row.appendChild(mid); row.appendChild(du);
     box.appendChild(row);
@@ -1218,7 +1228,8 @@ function inQueue(videoId){
 function addFound(c){
   if(inQueue(c.videoId)){ toast("이미 큐에 있어요"); return; }
   tracks.push({id:nid(), query:c.title, videoId:c.videoId, title:c.title,
-               channel:c.channel, thumb:c.thumb, status:"ready", note:""});
+               channel:c.channel, thumb:c.thumb, status:"ready",
+               note:c.live ? "실시간 방송 — 끝나지 않아요" : ""});
   if(c.title){ cache[c.title.toLowerCase()] = {videoId:c.videoId, title:c.title, channel:c.channel, thumb:c.thumb}; lsSet(K.cache, cache); }
   rebuildOrder(); render(); save(); renderFound();
   toast("‘" + c.title + "’ 담았어요");
@@ -1244,7 +1255,9 @@ function renderFound(){
     var su = document.createElement("p"); su.className = "cand-s"; su.textContent = c.channel || "";
     mid.appendChild(t); mid.appendChild(su);
     var tag = document.createElement("span");
-    tag.className = "cand-d mono"; tag.textContent = already ? "담김" : (c.dur ? fmt(c.dur) : "+");
+    tag.className = "cand-d mono";
+    tag.textContent = already ? "담김" : (c.live ? "실시간" : (c.dur ? fmt(c.dur) : "+"));
+    if(c.live && !already) tag.style.color = "var(--bad)";
     row.appendChild(im); row.appendChild(mid); row.appendChild(tag);
     list.appendChild(row);
   });
