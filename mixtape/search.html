@@ -391,7 +391,7 @@ var PAGES_FLAT = 2;   /* 관련순: 두 페이지면 충분하다 */
 var PAGES_DEEP = 5;   /* 최신순 근사: 풀을 넓게 잡아야 정렬이 쓸모 있다 */
 var MAX_SHOW   = 40;  /* 화면에 보여줄 상한 */
 var MORE_PAGES = 3;   /* ‘더 찾기’ 한 번에 이어받을 페이지 수 */
-var lastApprox = false, lastPool = 0, cursor = null, lastQuery = "";
+var lastApprox = false, lastPool = 0, cursor = null, lastQuery = "", filling = false;
 var diag = {};
 function diagReset(){ diag = {server:"", kind:"", url:"", sorted:false, sample:"", allKeys:""}; }
 function diagSample(raw){
@@ -575,15 +575,44 @@ function refreshMirrors(){
     return found.length;
   });
 }
-function sweep(query, list, sort, pages, onStep){
-  var i=0;
-  return (function attempt(){
-    if(i>=list.length) return Promise.reject(new Error("all-down"));
-    var m=list[i++];
-    return askMirror(m, query, 8000, sort, pages, onStep).then(function(r){
-      if(lastGood!==m.base){ lastGood=m.base; lsSet(K.inst, lastGood); }
-      return r;
-    }, function(){ return attempt(); });
+/* 첫 결과만 먼저 가져온다. 뒷 페이지는 이긴 서버에서 배경으로 이어받는다. */
+function probeFirst(m, query, ms, sort){
+  var run = m.kind==="invidious" ? invidSearch(m.base, query, ms, sort, 1, 1, null)
+          : m.kind==="piped"     ? pipedSearch(m.base, query, ms, 1, null, null)
+          : invidSearch(m.base, query, ms, sort, 1, 1, null)
+              .catch(function(){ return pipedSearch(m.base, query, ms, 1, null, null); });
+  return run.then(function(r){
+    if(!r || !r.list || !r.list.length) throw new Error("결과 없음");
+    r.base = m.base;
+    return r;
+  });
+}
+/* 먼저 성공하는 하나를 취한다. 모두 실패해야 실패. */
+function firstGood(promises){
+  return new Promise(function(resolve, reject){
+    var left = promises.length, settled = false;
+    if(!left) return reject(new Error("all-down"));
+    promises.forEach(function(p){
+      p.then(function(v){
+        if(settled) return;
+        settled = true; resolve(v);
+      }, function(){
+        if(!settled && --left === 0) reject(new Error("all-down"));
+      });
+    });
+  });
+}
+/* 죽은 서버 하나당 8초씩 줄서서 기다리던 것을, 4개씩 동시에 던져 가장 빠른 응답을 쓴다. */
+function sweep(query, list, sort){
+  var HEAT = 4, i = 0;
+  return (function wave(){
+    if(i >= list.length) return Promise.reject(new Error("all-down"));
+    var batch = list.slice(i, i + HEAT); i += HEAT;
+    return firstGood(batch.map(function(m){ return probeFirst(m, query, 6000, sort); }))
+      .then(function(r){
+        if(lastGood !== r.base){ lastGood = r.base; lsSet(K.inst, lastGood); }
+        return r;
+      }, function(){ return wave(); });
   })();
 }
 /* 최신순일 때는 진짜 정렬을 지원하는 Invidious 쪽을 먼저 찔러 본다. */
@@ -593,13 +622,13 @@ function orderedMirrors(sort){
   function of(k){ return list.filter(function(m){ return m.kind===k; }); }
   return of("invidious").concat(of("auto")).concat(of("piped"));
 }
-function searchKeyless(query, sort, pages, onStep){
+function searchKeyless(query, sort){
   var NO_SERVER="공개 검색 서버에 모두 연결하지 못했어요. 진단 페이지에서 서버 상태를 확인해 보세요.";
-  return sweep(query, orderedMirrors(sort), sort, pages, onStep).catch(function(){
+  return sweep(query, orderedMirrors(sort), sort).catch(function(){
     if(refreshedThisSession) throw new Error(NO_SERVER);
     say("서버 목록을 새로 받아오는 중…");
     return refreshMirrors().then(function(){
-      return sweep(query, orderedMirrors(sort), sort, pages, onStep)
+      return sweep(query, orderedMirrors(sort), sort)
         .catch(function(){ throw new Error(NO_SERVER); });
     });
   });
@@ -640,27 +669,50 @@ function searchYouTube(query, sort){
       return {list:out, approx:false};
     });
 }
-function doSearch(q, sort, onStep){
-  var pages = sort==="date" ? PAGES_DEEP : PAGES_FLAT;
-  var run = settings.mode==="key" ? searchYouTube(q, sort) : searchKeyless(q, sort, pages, onStep);
+function doSearch(q, sort){
+  var run = settings.mode==="key" ? searchYouTube(q, sort) : searchKeyless(q, sort);
   return run.then(function(r){
     lastApprox = sort==="date" && !!r.approx;
     cursor = r.cursor || null;
     return dedupe(r.list);
   });
 }
-/* 이미 받은 것에 이어서 더 긁어온다. 풀이 커질수록 최신순 근사가 정확해진다. */
-function loadMore(){
-  if(!cursor) return Promise.reject(new Error("더 받을 게 없어요"));
-  var onStep=function(n,total,got){ say("더 찾는 중… "+n+"/"+total+"페이지 · "+(pool.length+got)+"개"); };
+/* 이긴 서버에서 뒷 페이지를 이어받는다. 한 장 받을 때마다 화면을 갱신한다. */
+function pageOn(pages){
+  if(!cursor) return Promise.resolve();
   var run = cursor.kind==="piped"
-    ? pipedSearch(cursor.base, lastQuery, 8000, MORE_PAGES, cursor.token, onStep)
-    : invidSearch(cursor.base, lastQuery, 8000, cursor.sort, MORE_PAGES, cursor.page, onStep);
+    ? pipedSearch(cursor.base, lastQuery, 7000, pages, cursor.token, null)
+    : invidSearch(cursor.base, lastQuery, 7000, cursor.sort, pages, cursor.page, null);
   return run.then(function(r){
     cursor = r.cursor || null;
     pool = dedupe(pool.concat(r.list));
-    return pool;
-  });
+    showPool();
+  }, function(){ cursor = null; });
+}
+function loadMore(){
+  if(!cursor) return Promise.reject(new Error("더 받을 게 없어요"));
+  filling = true;
+  return pageOn(MORE_PAGES).then(function(){ filling = false; showPool(); return pool; });
+}
+
+/* ---------- 같은 검색을 다시 하면 즉시 ---------- */
+var RC_KEY = "mixtape.rcache", RC_TTL = 30*60*1000, RC_MAX = 12;
+function rcKey(q, sort){ return sort + "|" + settings.mode + "|" + String(q).trim().toLowerCase(); }
+function rcGet(q, sort){
+  var c = lsGet(RC_KEY, {}) || {}, v = c[rcKey(q, sort)];
+  if(!v || (Date.now() - v.ts) > RC_TTL) return null;
+  return v;
+}
+function rcPut(q, sort){
+  try{
+    var c = lsGet(RC_KEY, {}) || {}, keys = Object.keys(c);
+    if(keys.length >= RC_MAX){
+      keys.sort(function(a,b){ return (c[a].ts||0) - (c[b].ts||0); });
+      for(var i=0;i<=keys.length-RC_MAX;i++) delete c[keys[i]];
+    }
+    c[rcKey(q, sort)] = {ts:Date.now(), list:pool.slice(0,60), cursor:cursor, approx:lastApprox, diag:diag};
+    lsSet(RC_KEY, c);
+  }catch(e){}
 }
 
 /* ---------- 큐 (유튜브 탭과 같은 저장소) ---------- */
@@ -824,14 +876,32 @@ function run(){
   if(!q){ say("검색어를 넣어 주세요.","bad"); $("#q").focus(); return; }
   if(settings.mode==="key" && !apiKey){ say("API 키를 저장하거나 ‘공개 서버’로 바꿔 주세요.","bad"); return; }
   $("#go").disabled=true; $("#more").disabled=true;
-  lastQuery=q; pool=[]; cursor=null; diagReset();
+  lastQuery=q; pool=[]; cursor=null; filling=false; diagReset();
+
+  /* 30분 안에 했던 검색이면 네트워크를 타지 않는다 */
+  var hit = rcGet(q, settings.sort);
+  if(hit){
+    pool = hit.list || []; cursor = hit.cursor || null;
+    lastApprox = !!hit.approx; if(hit.diag) diag = hit.diag;
+    showPool();
+    $("#go").disabled=false; $("#more").disabled=!cursor;
+    return;
+  }
+
   say("‘"+q+"’ "+(settings.sort==="date"?"최신순으로 ":"")+"찾는 중…");
-  doSearch(q, settings.sort, function(n,total,got){
-    say("찾는 중… "+n+"/"+total+"페이지 · "+got+"개");
-  }).then(function(list){
-    pool=list; showPool();
+  doSearch(q, settings.sort).then(function(list){
+    /* 첫 페이지가 오면 곧바로 보여주고, 나머지는 배경에서 채운다 */
+    pool = list;
+    var want = (settings.sort==="date" ? PAGES_DEEP : PAGES_FLAT) - 1;
+    filling = want > 0 && !!cursor;
+    showPool();
+    $("#go").disabled = false;
+    if(!filling) { rcPut(q, settings.sort); return; }
+    return pageOn(want).then(function(){
+      filling = false; showPool(); rcPut(q, settings.sort);
+    });
   }, function(err){
-    pool=[]; results=[]; renderResults();
+    pool=[]; results=[]; cursor=null; renderResults();
     say(err.message,"bad");
   }).then(function(){ $("#go").disabled=false; });
 }
@@ -868,6 +938,7 @@ function showPool(){
       msg += " 최신순으로 정렬됐어요.";
     }
   }
+  if(filling) msg += " · 더 받는 중…";
   say(msg, kind);
   if(settings.sort==="date") diagShow(dated, pool.length);
   else $("#diagbox").hidden = true;
@@ -875,7 +946,7 @@ function showPool(){
 $("#more").addEventListener("click", function(){
   if(!cursor) return;
   $("#more").disabled=true; $("#go").disabled=true;
-  loadMore().then(function(){ showPool(); toast("후보 "+pool.length+"개로 늘렸어요"); },
+  loadMore().then(function(){ toast("후보 "+pool.length+"개로 늘렸어요"); },
                   function(err){ say(err.message,"bad"); })
             .then(function(){ $("#go").disabled=false; $("#more").disabled=!cursor; });
 });
