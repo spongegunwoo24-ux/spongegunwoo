@@ -200,6 +200,12 @@ footer{max-width:1180px;margin:0 auto;padding:0 16px 40px;font-size:12px;color:v
 .qlist .n{color:var(--faint);font-size:11px;text-align:right}
 .qlist p{margin:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .qlist .sub{font-size:11px;color:var(--muted)}
+.diagbox{margin-top:10px;border:1px solid var(--line);border-radius:4px;background:var(--bg)}
+.diagbox summary{cursor:pointer;padding:8px 10px;font-size:12.5px;color:var(--muted)}
+.diagbox pre{
+  margin:0;padding:10px;font-family:"IBM Plex Mono",monospace;font-size:11.5px;line-height:1.7;
+  white-space:pre-wrap;word-break:break-all;color:var(--ink);border-top:1px solid var(--line-soft);
+}
 .seg{display:flex;gap:0}
 .seg-btn{border-radius:0;padding:5px 10px;font-size:12.5px}
 .seg-btn:first-child{border-radius:4px 0 0 4px}
@@ -227,6 +233,11 @@ footer{max-width:1180px;margin:0 auto;padding:0 16px 40px;font-size:12px;color:v
         </div>
       </div>
       <p class="status" id="st"></p>
+      <details class="diagbox" id="diagbox" hidden>
+        <summary>최신순이 이상할 때 — 무슨 일이 있었는지 보기</summary>
+        <pre id="diag"></pre>
+        <p class="hint" style="padding:0 10px 10px">이 내용을 그대로 복사해서 알려주면 원인을 정확히 짚을 수 있어요.</p>
+      </details>
       <div id="keyrow" hidden>
         <input class="txt" id="apikey" type="password" placeholder="AIza..." autocomplete="off" spellcheck="false" aria-label="YouTube Data API 키">
         <div class="actions">
@@ -365,6 +376,32 @@ var PAGES_DEEP = 5;   /* 최신순 근사: 풀을 넓게 잡아야 정렬이 쓸
 var MAX_SHOW   = 40;  /* 화면에 보여줄 상한 */
 var MORE_PAGES = 3;   /* ‘더 찾기’ 한 번에 이어받을 페이지 수 */
 var lastApprox = false, lastPool = 0, cursor = null, lastQuery = "";
+var diag = {};
+function diagReset(){ diag = {server:"", kind:"", url:"", sorted:false, sample:"", allKeys:""}; }
+function diagSample(raw){
+  if(diag.sample || !raw) return;
+  try{
+    var keep={}, k, n=0;
+    for(k in raw){
+      if(!Object.prototype.hasOwnProperty.call(raw,k)) continue;
+      if(/upload|publish|date|time|age/i.test(k)){ keep[k]=raw[k]; n++; }
+    }
+    diag.sample = n ? JSON.stringify(keep) : "(날짜로 보이는 필드가 하나도 없음)";
+    diag.allKeys = Object.keys(raw).join(", ");
+  }catch(e){}
+}
+function diagShow(dated, total){
+  var lines=[
+    "응답한 서버  : " + (diag.server||"?") + "  [" + (diag.kind||"?") + "]",
+    "요청 주소    : " + (diag.url||"?"),
+    "정렬 파라미터: " + (diag.sorted ? "보냄 — 서버가 최신순으로 정렬" : "없음 — 받은 결과를 브라우저에서 재정렬"),
+    "날짜 읽힌 수 : " + dated + " / " + total,
+    "날짜 필드    : " + (diag.sample||"?")
+  ];
+  if(diag.allKeys) lines.push("전체 필드    : " + diag.allKeys);
+  $("#diag").textContent = lines.join(String.fromCharCode(10));
+  $("#diagbox").hidden = false;
+}
 var settings = Object.assign({mode:"auto", sort:"relevance"}, lsGet(K.set, {}));
 var apiKey = lsGet(K.key, "") || "";
 var lastGood = lsGet(K.inst, "") || "";
@@ -384,15 +421,28 @@ var MIRRORS = [
   {kind:"invidious", base:"https://iv.ggtyler.dev"},
   {kind:"invidious", base:"https://invidious.jing.rocks"}
 ];
+function knownKind(base){
+  var b=String(base||"").replace(/[/]+$/,""), i;
+  for(i=0;i<MIRRORS.length;i++) if(MIRRORS[i].base===b) return MIRRORS[i].kind;
+  if(dynMirrors && dynMirrors.list){
+    for(i=0;i<dynMirrors.list.length;i++){
+      if(String(dynMirrors.list[i].base).replace(/[/]+$/,"")===b) return dynMirrors.list[i].kind;
+    }
+  }
+  return "auto";
+}
 function mirrorList(){
   var out=[], seen={};
   function push(m){
-    var b=String(m.base||"").replace(/\/+$/,"");
+    var b=String(m.base||"").replace(/[/]+$/,"");
     if(!b||seen[b]) return;
     seen[b]=1; out.push({kind:m.kind||"auto", base:b});
   }
-  if(customBase) push({kind:"auto", base:customBase});
-  if(lastGood) push({kind:"auto", base:lastGood});
+  /* 지난번에 성공한 서버를 먼저 쓰되 종류를 잃지 않는다. 예전에는 Piped 서버가
+     "auto" 로 들어간 뒤 seen 에 걸려 진짜 종류를 영영 못 찾았고, 그래서 최신순
+     경로를 계속 가로챘다. */
+  if(customBase) push({kind:knownKind(customBase), base:customBase});
+  if(lastGood) push({kind:knownKind(lastGood), base:lastGood});
   MIRRORS.forEach(push);
   if(dynMirrors && dynMirrors.list) dynMirrors.list.forEach(push);
   return out.slice(0,14);
@@ -433,6 +483,8 @@ function pipedPage(base, query, token, ms){
   var url = token ? base+"/nextpage/search?nextpage="+encodeURIComponent(token)+"&q="+q+"&filter=videos"
                   : base+"/search?q="+q+"&filter=videos";
   return fetchJSON(url, ms).then(function(j){
+    diag.server=base; diag.kind="piped"; diag.url=url; diag.sorted=false;
+    diagSample(j && j.items && j.items[0]);
     return {list:readPiped(j), token:(j&&j.nextpage)||null};
   });
 }
@@ -457,7 +509,10 @@ function invidSearch(base, query, ms, sort, pages, from, onStep){
   var all=[], page=from||1, done=0;
   var want = (sort==="date") ? Math.min(pages, 2) : pages;
   function step(){
-    return fetchJSON(u+(page>1?"&page="+page:""), ms).then(function(j){
+    var full=u+(page>1?"&page="+page:"");
+    return fetchJSON(full, ms).then(function(j){
+      diag.server=base; diag.kind="invidious"; diag.url=full; diag.sorted=(sort==="date");
+      diagSample(Array.isArray(j)?j[0]:(j&&j.items&&j.items[0]));
       var got=readInvidious(j);
       all=all.concat(got); page++; done++;
       if(onStep) onStep(done, want, all.length);
@@ -517,9 +572,8 @@ function sweep(query, list, sort, pages, onStep){
 function orderedMirrors(sort){
   var list=mirrorList();
   if(sort!=="date") return list;
-  var inv=list.filter(function(m){ return m.kind==="invidious"||m.kind==="auto"; });
-  var rest=list.filter(function(m){ return m.kind!=="invidious"&&m.kind!=="auto"; });
-  return inv.concat(rest);
+  function of(k){ return list.filter(function(m){ return m.kind===k; }); }
+  return of("invidious").concat(of("auto")).concat(of("piped"));
 }
 function searchKeyless(query, sort, pages, onStep){
   var NO_SERVER="공개 검색 서버에 모두 연결하지 못했어요. 진단 페이지에서 서버 상태를 확인해 보세요.";
@@ -552,6 +606,10 @@ function searchYouTube(query, sort){
     })
     .then(function(j){
       var items=(j&&j.items)||[], out=[];
+      diag.server="googleapis.com"; diag.kind="Data API";
+      diag.url="search?order="+(sort==="date"?"date":"relevance");
+      diag.sorted=(sort==="date");
+      diagSample(items[0] && items[0].snippet);
       for(var i=0;i<items.length;i++){
         var it=items[i];
         if(!it||!it.id||!it.id.videoId) continue;
@@ -745,7 +803,7 @@ function run(){
   if(!q){ say("검색어를 넣어 주세요.","bad"); $("#q").focus(); return; }
   if(settings.mode==="key" && !apiKey){ say("API 키를 저장하거나 ‘공개 서버’로 바꿔 주세요.","bad"); return; }
   $("#go").disabled=true; $("#more").disabled=true;
-  lastQuery=q; pool=[]; cursor=null;
+  lastQuery=q; pool=[]; cursor=null; diagReset();
   say("‘"+q+"’ "+(settings.sort==="date"?"최신순으로 ":"")+"찾는 중…");
   doSearch(q, settings.sort, function(n,total,got){
     say("찾는 중… "+n+"/"+total+"페이지 · "+got+"개");
@@ -783,6 +841,8 @@ function showPool(){
     }
   }
   say(msg, kind);
+  if(settings.sort==="date") diagShow(dated, pool.length);
+  else $("#diagbox").hidden = true;
 }
 $("#more").addEventListener("click", function(){
   if(!cursor) return;
