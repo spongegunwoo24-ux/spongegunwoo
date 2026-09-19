@@ -1,0 +1,2873 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>VOCA DAY : Digital Vocabulary Learning System</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+KR:wght@500;600;700&family=Noto+Sans+KR:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#F3ECDB;
+    --surface:#FFFFFF;
+    --surface-alt:#EADFC5;
+    --ink:#1F2A3C;
+    --ink-soft:#6B7484;
+    --ink-faint:#98A0AC;
+    --accent:#2E4B7A;
+    --accent-soft:#DCE6F2;
+    --accent-warm:#8A4A2C;
+    --accent-warm-soft:#EDDACB;
+    --correct:#2F7A44;
+    --correct-soft:#DFEFE2;
+    --wrong:#B4463F;
+    --wrong-soft:#F6E2E0;
+    --border:#DED0B2;
+    --shadow: 0 8px 24px rgba(31,42,60,0.08);
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --bg:#0F1A2E;
+      --surface:#172441;
+      --surface-alt:#1E2C4C;
+      --ink:#EAE6DA;
+      --ink-soft:#96A2BA;
+      --ink-faint:#6B7692;
+      --accent:#7EA3D6;
+      --accent-soft:#28374C;
+      --accent-warm:#B0602F;
+      --accent-warm-soft:#3C2A1E;
+      --correct:#6FBE7E;
+      --correct-soft:#1F3327;
+      --wrong:#E2837C;
+      --wrong-soft:#3A2422;
+      --border:#2B3B5C;
+      --shadow: 0 8px 24px rgba(0,0,0,0.35);
+    }
+  }
+  :root[data-theme="dark"]{
+    --bg:#0F1A2E;
+    --surface:#172441;
+    --surface-alt:#1E2C4C;
+    --ink:#EAE6DA;
+    --ink-soft:#96A2BA;
+    --ink-faint:#6B7692;
+    --accent:#7EA3D6;
+    --accent-soft:#28374C;
+    --accent-warm:#B0602F;
+    --accent-warm-soft:#3C2A1E;
+    --correct:#6FBE7E;
+    --correct-soft:#1F3327;
+    --wrong:#E2837C;
+    --wrong-soft:#3A2422;
+    --border:#2B3B5C;
+    --shadow: 0 8px 24px rgba(0,0,0,0.35);
+  }
+
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  .hidden{display:none !important;}
+  body{
+    background:var(--bg);
+    color:var(--ink);
+    font-family:'Noto Sans KR', sans-serif;
+    -webkit-font-smoothing:antialiased;
+    min-height:100vh;
+    transition:background .25s ease, color .25s ease;
+  }
+  .serif{font-family:'Noto Serif KR', serif;}
+  button, input, select{font-family:inherit; color:inherit;}
+  button{cursor:pointer;}
+
+  .app{
+    max-width:640px;
+    margin:0 auto;
+    min-height:100vh;
+    display:flex;
+    flex-direction:column;
+    padding:0 18px 28px;
+  }
+
+  /* ---------- Top bar ---------- */
+  .topbar{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    padding:14px 0 10px;
+    position:sticky;
+    top:0;
+    background:var(--bg);
+    z-index:20;
+  }
+  .wordmark{
+    display:flex;
+    flex-direction:column;
+    gap:2px;
+  }
+  .wordmark .mark{
+    font-family:'Noto Serif KR', serif;
+    font-weight:700;
+    font-size:18px;
+    letter-spacing:.2px;
+  }
+  .wordmark .tag{
+    font-size:10.5px;
+    color:var(--ink-faint);
+    letter-spacing:.3px;
+  }
+  .theme-toggle{
+    width:34px;height:34px;
+    border-radius:50%;
+    border:1px solid var(--border);
+    background:var(--surface);
+    display:flex;align-items:center;justify-content:center;
+    font-size:15px;
+    transition:border-color .2s;
+  }
+  .theme-toggle:hover{border-color:var(--accent);}
+
+  nav.tabs{
+    display:flex;
+    gap:4px;
+    padding:4px;
+    background:var(--surface-alt);
+    border-radius:12px;
+    margin-bottom:12px;
+  }
+  nav.tabs button{
+    flex:1;
+    border:none;
+    background:transparent;
+    padding:7px 6px;
+    border-radius:9px;
+    font-size:13px;
+    font-weight:500;
+    color:var(--ink-soft);
+    transition:background .18s, color .18s;
+  }
+  nav.tabs button.active{
+    background:var(--surface);
+    color:var(--ink);
+    box-shadow:0 1px 4px rgba(0,0,0,0.06);
+    font-weight:700;
+  }
+
+  .view{display:none;}
+  .view.active{display:block; animation:fadeIn .3s ease;}
+  @keyframes fadeIn{from{opacity:0; transform:translateY(4px);} to{opacity:1; transform:translateY(0);}}
+
+  /* ---------- Home ---------- */
+  .hero{
+    padding:16px 18px 16px;
+    background:var(--surface);
+    border:1px solid var(--border);
+    border-radius:16px;
+    margin-bottom:12px;
+  }
+  .hero .stat{
+    font-family:'Noto Serif KR', serif;
+    font-weight:700;
+    font-size:30px;
+    line-height:1.1;
+    letter-spacing:-.5px;
+  }
+  .hero .stat span{color:var(--accent-warm);}
+  .hero p{
+    margin:6px 0 0;
+    color:var(--ink-soft);
+    font-size:13px;
+    line-height:1.6;
+  }
+
+  .daytabs{
+    display:flex;
+    gap:2px;
+    margin-top:12px;
+    height:18px;
+    align-items:flex-end;
+  }
+  .daytabs i{
+    flex:1;
+    background:var(--surface-alt);
+    border-radius:2px 2px 0 0;
+    height:60%;
+  }
+
+  .entry-cards{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:12px;
+    margin-bottom:12px;
+  }
+  .entry-card{
+    position:relative;
+    background:var(--surface);
+    border:1px solid var(--border);
+    border-radius:14px;
+    padding:14px 12px 12px;
+    text-align:left;
+    box-shadow:var(--shadow);
+    overflow:hidden;
+  }
+  .entry-card::after{
+    content:"";
+    position:absolute;
+    top:0; right:0;
+    width:0; height:0;
+    border-style:solid;
+    border-width:0 18px 18px 0;
+    border-color:transparent var(--bg) transparent transparent;
+  }
+  .entry-card .ico{font-size:18px; display:block; margin-bottom:6px;}
+  .entry-card .title{font-family:'Noto Serif KR', serif; font-weight:700; font-size:14.5px; display:block;}
+  .entry-card .desc{font-size:11.5px; color:var(--ink-soft); margin-top:4px; display:block; line-height:1.5;}
+
+  .about{
+    font-size:12px;
+    color:var(--ink-faint);
+    line-height:1.7;
+    padding:0 4px;
+  }
+
+  /* ---------- Section shared ---------- */
+  .section-title{
+    font-family:'Noto Serif KR', serif;
+    font-weight:700;
+    font-size:17px;
+    margin:0 0 4px;
+  }
+  .section-sub{
+    font-size:12px;
+    color:var(--ink-soft);
+    margin:0 0 12px;
+  }
+  .card{
+    background:var(--surface);
+    border:1px solid var(--border);
+    border-radius:14px;
+    padding:14px;
+    margin-bottom:12px;
+  }
+  .field-label{
+    font-size:11.5px;
+    font-weight:700;
+    color:var(--ink-soft);
+    margin-bottom:6px;
+    display:block;
+  }
+
+  /* range picker */
+  .range-row{display:flex; align-items:center; gap:8px; margin-bottom:10px;}
+  .range-row input[type=number]{
+    width:64px;
+    padding:7px 8px;
+    border-radius:8px;
+    border:1px solid var(--border);
+    background:var(--bg);
+    font-size:14px;
+    text-align:center;
+    font-weight:700;
+  }
+  .range-row span.dash{color:var(--ink-faint); font-size:12px;}
+  .ticks{
+    display:flex;
+    gap:1.5px;
+    height:16px;
+    align-items:flex-end;
+    margin-bottom:8px;
+  }
+  .ticks i{
+    flex:1;
+    background:var(--surface-alt);
+    border-radius:1.5px 1.5px 0 0;
+    height:45%;
+    transition:background .15s, height .15s;
+  }
+  .ticks i.on{
+    background:var(--accent-warm);
+    height:100%;
+  }
+  .range-hint{font-size:11px; color:var(--ink-faint); margin-bottom:12px;}
+
+  .presets{display:flex; flex-wrap:wrap; gap:6px; margin-bottom:12px;}
+  .chip{
+    border:1px solid var(--border);
+    background:var(--surface);
+    border-radius:20px;
+    padding:5px 10px;
+    font-size:11.5px;
+    color:var(--ink-soft);
+  }
+  .chip:hover{border-color:var(--accent);}
+
+  .segmented{
+    display:flex;
+    border:1px solid var(--border);
+    border-radius:10px;
+    overflow:hidden;
+    margin-bottom:12px;
+  }
+  .segmented button{
+    flex:1;
+    border:none;
+    background:var(--bg);
+    padding:7px 5px 8px;
+    font-size:12.5px;
+    font-weight:500;
+    color:var(--ink-soft);
+    border-right:1px solid var(--border);
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    justify-content:center;
+    gap:2px;
+    line-height:1.3;
+  }
+  .segmented button:last-child{border-right:none;}
+  .segmented button.active{
+    background:var(--accent-soft);
+    color:var(--accent);
+    font-weight:700;
+  }
+  .segmented .seg-sub{
+    font-size:8.5px;
+    font-weight:400;
+    color:var(--ink-faint);
+  }
+  .segmented button.active .seg-sub{color:var(--accent);opacity:.75;}
+
+  .count-row{display:flex; gap:8px; margin-bottom:12px;}
+  .count-row button{
+    flex:1;
+    padding:8px 5px;
+    border-radius:10px;
+    border:1px solid var(--border);
+    background:var(--bg);
+    font-size:12.5px;
+    font-weight:500;
+    color:var(--ink-soft);
+  }
+  .count-row button.active{
+    background:var(--accent-soft);
+    border-color:var(--accent);
+    color:var(--accent);
+    font-weight:700;
+  }
+
+  .btn-primary{
+    width:100%;
+    padding:12px;
+    border:none;
+    border-radius:12px;
+    background:var(--accent);
+    color:#fff;
+    font-size:14px;
+    font-weight:700;
+    letter-spacing:.2px;
+  }
+  .btn-primary:disabled{opacity:.45;}
+  .btn-secondary{
+    width:100%;
+    padding:10px;
+    border:1px solid var(--border);
+    border-radius:12px;
+    background:transparent;
+    color:var(--ink-soft);
+    font-size:13px;
+    font-weight:500;
+    margin-top:8px;
+  }
+  .error-msg{
+    font-size:11.5px;
+    color:var(--wrong);
+    margin:-4px 0 10px;
+    display:none;
+  }
+  .error-msg.show{display:block;}
+
+  /* ---------- Quiz play ---------- */
+  .quiz-progress{
+    display:flex; align-items:center; gap:10px;
+    font-size:12.5px; color:var(--ink-faint);
+    margin-bottom:6px;
+  }
+  .quiz-progress .bar{
+    flex:1; height:4px; background:var(--surface-alt); border-radius:2px; overflow:hidden;
+  }
+  .quiz-progress .bar i{
+    display:block; height:100%; background:var(--accent-warm); border-radius:2px;
+    transition:width .25s ease;
+  }
+  .auto-advance-row{
+    display:flex; align-items:center; justify-content:flex-end; gap:8px;
+    margin-bottom:8px;
+  }
+  .auto-advance-label{font-size:11.5px; color:var(--ink-soft);}
+  .auto-advance-switch{
+    position:relative;
+    width:36px; height:20px;
+    border-radius:999px;
+    border:1px solid var(--border);
+    background:var(--surface-alt);
+    cursor:pointer;
+    padding:0;
+    flex:none;
+    transition:background .15s ease, border-color .15s ease;
+  }
+  .auto-advance-switch i{
+    position:absolute; top:1px; left:1px;
+    width:16px; height:16px;
+    border-radius:50%;
+    background:var(--surface);
+    box-shadow:0 1px 2px rgba(0,0,0,0.25);
+    transition:transform .15s ease;
+  }
+  .auto-advance-switch.on{background:var(--accent); border-color:var(--accent);}
+  .auto-advance-switch.on i{transform:translateX(16px); background:#fff;}
+
+  .quiz-card{
+    background:var(--surface);
+    border:1px solid var(--border);
+    border-radius:16px;
+    padding:16px 16px 14px;
+    margin-bottom:10px;
+    text-align:center;
+  }
+  .quiz-daytag{
+    display:inline-block;
+    font-size:11px;
+    color:var(--accent-warm);
+    background:var(--accent-warm-soft);
+    padding:3px 9px;
+    border-radius:6px;
+    margin-bottom:8px;
+    font-weight:700;
+  }
+  .quiz-prompt{
+    font-family:'Noto Serif KR', serif;
+    font-weight:700;
+    font-size:20px;
+    line-height:1.4;
+    word-break:keep-all;
+  }
+  .quiz-prompt.eng{font-size:24px;}
+  .quiz-prompt.instruction{
+    font-size:15px;
+    line-height:1.7;
+    font-weight:600;
+  }
+  .quiz-prompt.instruction u{text-decoration-color:var(--accent-warm); text-decoration-thickness:2px;}
+  .option .pair-word{font-weight:700;}
+  .option .pair-sep{color:var(--ink-faint); margin:0 2px;}
+
+  .options{display:flex; flex-direction:column; gap:8px;}
+  .option{
+    text-align:left;
+    padding:10px 12px;
+    border-radius:11px;
+    border:1px solid var(--border);
+    background:var(--surface);
+    font-size:13px;
+    line-height:1.5;
+    display:flex;
+    gap:10px;
+    align-items:flex-start;
+  }
+  .option .num{
+    flex:none;
+    width:18px; height:18px;
+    border-radius:50%;
+    border:1px solid var(--border);
+    font-size:11px;
+    display:flex; align-items:center; justify-content:center;
+    color:var(--ink-faint);
+    margin-top:1px;
+  }
+  .option:hover{border-color:var(--accent);}
+  .option.correct{background:var(--correct-soft); border-color:var(--correct); color:var(--correct);}
+  .option.correct .num{border-color:var(--correct); color:var(--correct);}
+  .option.wrong{background:var(--wrong-soft); border-color:var(--wrong); color:var(--wrong);}
+  .option.wrong .num{border-color:var(--wrong); color:var(--wrong);}
+  .option[disabled]{cursor:default;}
+  .option.dim{opacity:.5;}
+
+  .next-row{margin-top:10px;}
+  .key-hint{
+    text-align:center;
+    font-size:10.5px;
+    color:var(--ink-faint);
+    margin:6px 0 0;
+  }
+
+  /* ---------- Question type ---------- */
+  .type-note{font-size:10.5px;color:var(--ink-faint);margin:-6px 0 10px;line-height:1.5;}
+
+  .practice-mode-box{
+    border:1px solid var(--border);
+    background:var(--surface-alt);
+    border-radius:12px;
+    padding:12px 13px;
+    margin-bottom:12px;
+  }
+  .practice-mode-row{
+    display:flex; align-items:center; justify-content:space-between; gap:10px;
+  }
+  .practice-mode-row + .practice-mode-row{margin-top:10px;}
+  .practice-mode-label{display:flex; flex-direction:column; gap:2px;}
+  .practice-mode-title{font-size:13px; font-weight:700; color:var(--ink);}
+  .practice-mode-desc{font-size:11px; color:var(--ink-soft); line-height:1.5;}
+  .practice-sub-row{
+    padding-top:10px; border-top:1px dashed var(--border);
+  }
+
+  .short-answer-box{display:flex;gap:8px;margin-top:10px;}
+  .short-answer-box input{flex:1;min-width:0;border:1px solid var(--border);background:var(--surface);border-radius:11px;padding:11px 12px;font-size:13px;outline:none;}
+  .short-answer-box input:focus{border-color:var(--accent);}
+  .short-answer-box input.correct{border-color:var(--correct);background:var(--correct-soft);}
+  .short-answer-box input.wrong{border-color:var(--wrong);background:var(--wrong-soft);}
+  .short-answer-box button{flex:none;border:none;border-radius:11px;padding:0 15px;background:var(--accent);color:#fff;font-size:12.5px;font-weight:700;}
+  .short-answer-box button:disabled{opacity:.45;cursor:default;}
+  .answer-feedback{min-height:19px;text-align:center;font-size:11.5px;font-weight:700;margin-top:7px;}
+  .answer-feedback.correct{color:var(--correct);}
+  .answer-feedback.wrong{color:var(--wrong);}
+  .control-disabled{opacity:.42;pointer-events:none;}
+
+  /* ---------- Result ---------- */
+  .result-score{
+    text-align:center;
+    padding:20px 16px 18px;
+    background:var(--surface);
+    border:1px solid var(--border);
+    border-radius:16px;
+    margin-bottom:12px;
+  }
+  .result-score .big{
+    font-family:'Noto Serif KR', serif;
+    font-weight:700;
+    font-size:34px;
+  }
+  .result-score .big .of{font-size:18px; color:var(--ink-faint); font-weight:500;}
+  .result-score .label{font-size:12px; color:var(--ink-soft); margin-top:4px;}
+
+  .review-item{
+    display:flex;
+    gap:12px;
+    padding:9px 0;
+    border-bottom:1px solid var(--border);
+  }
+  .review-item:last-child{border-bottom:none;}
+  .review-item .rword{font-weight:700; font-size:13px; min-width:70px; display:flex; align-items:center; gap:5px;}
+  .review-item .rmeta{font-size:11.5px; line-height:1.6;}
+  .review-item .rmeta .yourpick{color:var(--wrong);}
+  .review-item .rmeta .correctpick{color:var(--correct);}
+
+  .empty-note{
+    font-size:13px; color:var(--ink-faint); text-align:center; padding:12px 0;
+  }
+
+  /* ---------- Wrongbook ---------- */
+  .wrongbook-hero{
+    background:var(--surface);
+    border:1px solid var(--border);
+    border-radius:16px;
+    padding:16px;
+    margin-bottom:12px;
+  }
+  .wrongbook-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:12px;}
+  .wrongbook-title{font-family:'Noto Serif KR',serif;font-size:20px;font-weight:700;margin:0;}
+  .wrongbook-sub{font-size:11.5px;color:var(--ink-soft);line-height:1.5;margin:4px 0 0;}
+  .wrongbook-badge{min-width:68px;text-align:center;padding:7px 8px;border-radius:10px;background:var(--accent-warm-soft);color:var(--accent-warm);font-weight:700;font-size:12px;}
+  .wrongbook-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;}
+  .wb-stat{padding:9px 8px;border:1px solid var(--border);border-radius:10px;background:var(--bg);text-align:center;}
+  .wb-stat .v{font-family:'Noto Serif KR',serif;font-size:20px;font-weight:700;line-height:1.1;}
+  .wb-stat .l{font-size:10.5px;color:var(--ink-faint);margin-top:3px;}
+  .wrongbook-filter-wrap{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:10px;margin-bottom:12px;}
+  .wrongbook-filters{display:flex;gap:5px;overflow-x:auto;padding-bottom:2px;scrollbar-width:thin;}
+  .wrongbook-filters button{flex:none;border:1px solid var(--border);background:var(--bg);color:var(--ink-soft);border-radius:20px;padding:7px 10px;font-size:11.5px;font-weight:600;white-space:nowrap;}
+  .wrongbook-filters button.active{background:var(--accent-soft);border-color:var(--accent);color:var(--accent);}
+  .wrongbook-list{background:var(--surface);border:1px solid var(--border);border-radius:14px;overflow:hidden;margin-bottom:12px;}
+  .wrongbook-row{padding:12px;border-bottom:1px solid var(--border);display:flex;gap:10px;align-items:center;}
+  .wrongbook-row:last-child{border-bottom:none;}
+  .wb-main{min-width:0;flex:1;}
+  .wb-word-line{display:flex;align-items:center;gap:7px;flex-wrap:wrap;}
+  .wb-word{font-family:'Noto Serif KR',serif;font-size:14px;font-weight:700;}
+  .wb-day{font-size:9.5px;color:var(--accent-warm);background:var(--accent-warm-soft);border-radius:5px;padding:2px 5px;font-weight:700;}
+  .wb-meaning{font-size:12px;color:var(--ink-soft);line-height:1.5;margin-top:3px;}
+  .wb-meta{font-size:10px;color:var(--ink-faint);margin-top:4px;}
+  .wb-actions{display:flex;gap:5px;flex:none;}
+  .wb-actions button{border:1px solid var(--border);background:var(--bg);border-radius:8px;padding:6px 8px;font-size:10.5px;color:var(--ink-soft);}
+  .wb-actions button:hover{border-color:var(--accent);color:var(--accent);}
+  .wb-actions .delete:hover{border-color:var(--wrong);color:var(--wrong);}
+  .wrongbook-controls{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:14px;}
+  .wb-control-title{font-family:'Noto Serif KR',serif;font-size:15px;font-weight:700;margin:0 0 10px;}
+  .wb-control-row{display:flex;gap:6px;margin-bottom:10px;}
+  .wb-control-row button{flex:1;padding:8px 6px;border:1px solid var(--border);background:var(--bg);border-radius:9px;color:var(--ink-soft);font-size:11.5px;font-weight:600;}
+  .wb-control-row button.active{background:var(--accent-soft);border-color:var(--accent);color:var(--accent);font-weight:700;}
+  .wb-primary{width:100%;padding:11px;border:none;border-radius:11px;background:var(--accent);color:#fff;font-size:13px;font-weight:700;}
+  .wb-primary:disabled{opacity:.45;}
+  .wb-clear{margin-top:8px;}
+  .wb-empty{padding:34px 12px;text-align:center;color:var(--ink-faint);font-size:13px;}
+  .quiz-result-wb{margin-top:4px;}
+  @media (max-width:420px){
+    .entry-cards{grid-template-columns:1fr 1fr;}
+    .wrongbook-stats{grid-template-columns:1fr 1fr 1fr;gap:6px;}
+    .wb-stat .v{font-size:18px;}
+    .wrongbook-row{align-items:flex-start;}
+    .wb-actions{flex-direction:column;}
+  }
+
+  /* ---------- Dictionary ---------- */
+  .search-box{
+    display:flex; align-items:center; gap:8px;
+    background:var(--surface);
+    border:1px solid var(--border);
+    border-radius:12px;
+    padding:9px 12px;
+    margin-bottom:8px;
+  }
+  .search-box input{
+    border:none; background:transparent; outline:none;
+    width:100%; font-size:14px;
+  }
+  .search-box .icon{color:var(--ink-faint); font-size:14px;}
+
+  .dict-filter{
+    display:flex; align-items:center; gap:8px;
+    margin-bottom:10px;
+    font-size:12.5px;
+    color:var(--ink-soft);
+  }
+  .dict-filter input[type=number]{
+    width:48px; padding:6px 4px; text-align:center;
+    border-radius:7px; border:1px solid var(--border);
+    background:var(--bg); font-size:13px; font-weight:700;
+  }
+
+  .dict-count{font-size:12px; color:var(--ink-faint); margin-bottom:6px;}
+
+  .dict-list{
+    background:var(--surface);
+    border:1px solid var(--border);
+    border-radius:14px;
+    overflow:hidden;
+  }
+  .dict-row{
+    display:flex;
+    align-items:baseline;
+    gap:12px;
+    padding:9px 12px;
+    border-bottom:1px solid var(--border);
+  }
+  .dict-row:last-child{border-bottom:none;}
+  .dict-row .dtag{
+    flex:none;
+    font-size:10.5px;
+    color:var(--ink-faint);
+    width:40px;
+  }
+  .dict-row .dword{
+    flex:none;
+    font-family:'Noto Serif KR', serif;
+    font-weight:700;
+    font-size:13px;
+    width:118px;
+    word-break:break-word;
+  }
+  .dict-row .dmeaning{
+    font-size:12.5px;
+    color:var(--ink-soft);
+    line-height:1.5;
+    flex:1;
+  }
+
+  .fav-star{
+    flex:none;
+    border:none;
+    background:transparent;
+    cursor:pointer;
+    font-size:16px;
+    line-height:1;
+    color:var(--ink-faint);
+    padding:2px;
+  }
+  .fav-star.on{color:var(--accent-warm);}
+  .fav-star:hover{color:var(--accent-warm);}
+
+  @media (max-width:420px){
+    .dict-row .dword{width:78px; font-size:12px;}
+    .quiz-prompt{font-size:17px;}
+    .quiz-prompt.eng{font-size:20px;}
+    .result-score .big{font-size:28px;}
+  }
+
+  footer.credit{
+    text-align:center;
+    font-size:11px;
+    color:var(--ink-faint);
+    margin-top:14px;
+  }
+
+  /* ---------- Word Search ---------- */
+  .ws-intro{font-size:12px; color:var(--ink-soft); margin:0 0 12px; line-height:1.65;}
+  .ws-intro b{color:var(--accent-warm);}
+
+  .ws-daygrid{display:grid; grid-template-columns:repeat(5,1fr); gap:6px; margin-bottom:12px;}
+  .ws-daycell{
+    border:1px solid var(--border); background:var(--bg); border-radius:9px;
+    padding:7px 2px 6px; display:flex; flex-direction:column; align-items:center;
+    gap:1px; line-height:1.2;
+  }
+  .ws-daycell .d{font-family:'Noto Serif KR',serif; font-size:12px; font-weight:700; color:var(--ink);}
+  .ws-daycell .p{font-size:9.5px; color:var(--ink-faint); font-variant-numeric:tabular-nums;}
+  .ws-daycell.has .p{color:var(--accent-warm); font-weight:700;}
+  .ws-daycell.active{background:var(--accent-soft); border-color:var(--accent);}
+  .ws-daycell.active .d{color:var(--accent);}
+  .ws-daycell:disabled{opacity:.3;}
+
+  .ws-bestbox{border:1px solid var(--border); background:var(--bg); border-radius:10px; padding:10px 12px; margin-bottom:12px;}
+  .ws-bestbox .t{font-size:11.5px; font-weight:700; color:var(--ink-soft); margin-bottom:8px;}
+  .ws-bestrow{display:flex; gap:6px;}
+  .ws-bestrow>div{flex:1; min-width:0; text-align:center; padding:7px 3px; border-radius:8px; background:var(--surface); border:1px solid var(--border);}
+  .ws-bestrow .lv{display:block; font-size:10px; color:var(--ink-faint); margin-bottom:2px;}
+  .ws-bestrow .sc{display:block; font-family:'Noto Serif KR',serif; font-size:15px; font-weight:700; font-variant-numeric:tabular-nums;}
+  .ws-bestrow .tm{display:block; font-size:9.5px; color:var(--ink-faint); font-variant-numeric:tabular-nums;}
+
+  .ws-hud{display:flex; gap:6px; margin-bottom:10px;}
+  .ws-hud .pill{flex:1; min-width:0; text-align:center; background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:6px 4px;}
+  .ws-hud .pill span{display:block; font-size:9.5px; color:var(--ink-faint);}
+  .ws-hud .pill b{font-family:'Noto Serif KR',serif; font-size:15px; font-variant-numeric:tabular-nums; letter-spacing:.3px;}
+
+  /* author display: rules beat the UA [hidden] rule, so restore it explicitly */
+  .ws-hintbar[hidden], .ws-board[hidden], .ws-list[hidden]{display:none;}
+  .ws-hintbar{
+    display:flex; align-items:flex-start; gap:8px; background:var(--accent-warm-soft);
+    border:1px solid var(--accent-warm); border-radius:10px; padding:8px 10px;
+    margin-bottom:10px; font-size:11.5px; color:var(--accent-warm); line-height:1.5;
+  }
+  .ws-hintbar b{font-weight:700;}
+  .ws-hintbar .sp{opacity:.75;}
+  .ws-hintbar button{
+    margin-left:auto; flex-shrink:0; border:1px solid var(--accent-warm); background:transparent;
+    color:var(--accent-warm); border-radius:7px; padding:3px 8px; font-size:11px; font-weight:700;
+  }
+
+  .ws-boardwrap{
+    position:relative; container-type:inline-size;
+    background:var(--surface); border:1px solid var(--border);
+    border-radius:14px; padding:10px; margin-bottom:12px;
+  }
+  .ws-board{
+    position:relative; display:grid; width:100%; aspect-ratio:1;
+    touch-action:none; user-select:none; -webkit-user-select:none;
+  }
+  .ws-cell{
+    position:relative; z-index:2; display:flex; align-items:center; justify-content:center;
+    font-family:'Noto Serif KR',serif; font-weight:600; color:var(--ink);
+    border-radius:4px; transition:background .12s, color .12s;
+    font-size:13px;
+    font-size:calc(62cqw / var(--ws-n, 14));
+  }
+  .ws-cell.sel{background:var(--accent-soft); color:var(--accent);}
+  .ws-cell.wrong{background:var(--wrong-soft); color:var(--wrong);}
+  .ws-cell.found{color:var(--accent);}
+  .ws-cell.hint{color:var(--accent-warm); font-weight:700; animation:wsPulse 1.1s ease-in-out infinite;}
+  @keyframes wsPulse{0%,100%{opacity:1;} 50%{opacity:.3;}}
+  @media (prefers-reduced-motion:reduce){ .ws-cell.hint{animation:none; text-decoration:underline; text-underline-offset:2px;} }
+
+  .ws-overlay{position:absolute; inset:0; width:100%; height:100%; z-index:1; pointer-events:none; color:var(--accent);}
+
+  .ws-list{display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:2px 12px;}
+  .ws-li{display:flex; flex-direction:column; min-width:0; padding:5px 0; border-bottom:1px dashed var(--border);}
+  .ws-li .w{
+    font-family:'Noto Serif KR',serif; font-size:12.5px; font-weight:700;
+    letter-spacing:.4px; text-transform:uppercase; overflow-wrap:anywhere;
+  }
+  .ws-li .m{font-size:10.5px; color:var(--ink-soft); overflow-wrap:anywhere;}
+  .ws-li.done .w{color:var(--accent); text-decoration:underline; text-decoration-thickness:2px; text-underline-offset:3px;}
+  .ws-li.done .m{color:var(--ink-faint);}
+  .ws-li.hinted .w{color:var(--accent-warm);}
+
+  .ws-result-score{text-align:center; padding:4px 0 14px;}
+  .ws-result-score .big{font-family:'Noto Serif KR',serif; font-size:40px; font-weight:700; color:var(--accent); line-height:1.1; font-variant-numeric:tabular-nums;}
+  .ws-result-score .sub{font-size:11.5px; color:var(--ink-soft); margin-top:3px;}
+  .ws-newbest{display:inline-block; margin-top:8px; background:var(--accent-warm); color:#fff; border-radius:20px; padding:4px 12px; font-size:11px; font-weight:700;}
+  .ws-break{display:flex; justify-content:space-between; gap:10px; font-size:12px; padding:7px 0; border-bottom:1px solid var(--border);}
+  .ws-break:last-child{border-bottom:none;}
+  .ws-break span{color:var(--ink-soft);}
+  .ws-break b{font-variant-numeric:tabular-nums; white-space:nowrap;}
+  .ws-break b.plus{color:var(--correct);}
+  .ws-break b.minus{color:var(--wrong);}
+  .ws-break.total span, .ws-break.total b{color:var(--ink); font-weight:700; font-size:13px;}
+
+  @media (max-width:380px){
+    .ws-daygrid{grid-template-columns:repeat(4,1fr);}
+    .ws-list{grid-template-columns:1fr;}
+  }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <div class="topbar">
+    <div class="wordmark">
+      <span class="mark serif">VOCA DAY</span>
+      <span class="tag">Digital Vocabulary Learning System</span>
+    </div>
+    <button class="theme-toggle" id="themeToggle" aria-label="테마 전환">🌙</button>
+  </div>
+
+  <nav class="tabs">
+    <button data-view="home" class="active">홈</button>
+    <button data-view="quiz">단어 퀴즈</button>
+    <button data-view="dict">단어 사전</button>
+    <button data-view="wrongbook">오답 노트</button>
+    <button data-view="favorites">즐겨찾기</button>
+  </nav>
+
+  <!-- ===== HOME ===== -->
+  <section class="view active" id="view-home">
+    <div class="hero">
+      <div class="stat serif"><span id="homeTotalWords">0</span>개 단어</div>
+      <p>DAY 01부터 DAY 50까지, 수능 필수 어휘를 하루 분량씩 나눠 외우고 객관식·주관식 퀴즈로 바로 점검해보세요.</p>
+      <div class="daytabs" id="homeDayTabs"></div>
+    </div>
+
+    <div class="entry-cards">
+      <button class="entry-card" data-goto="quiz">
+        <span class="ico">✏️</span>
+        <span class="title serif">단어 퀴즈</span>
+        <span class="desc">범위와 문제 유형을 골라 실력 점검</span>
+      </button>
+      <button class="entry-card" data-goto="dict">
+        <span class="ico">🔎</span>
+        <span class="title serif">단어 사전</span>
+        <span class="desc">단어장 속 단어를 바로 검색</span>
+      </button>
+      <button class="entry-card" data-goto="wrongbook">
+        <span class="ico">📕</span>
+        <span class="title serif">오답 노트</span>
+        <span class="desc">틀린 단어를 모아 필터별로 복습</span>
+      </button>
+    </div>
+
+    <p class="about">단어장 데이터는 업로드하신 원본 파일 그대로이며, 페이지를 새로고침해도 그대로 유지됩니다. 다크 모드는 우측 상단 버튼으로 전환할 수 있어요.</p>
+  </section>
+
+  <!-- ===== QUIZ SETUP ===== -->
+  <section class="view" id="view-quiz">
+    <h2 class="section-title">단어 퀴즈</h2>
+    <p class="section-sub">범위를 선택하면 그 안에서 문제가 출제돼요.</p>
+    <div class="segmented" id="quizModeSeg">
+      <button type="button" data-mode="classic" class="active"><span class="seg-main">문제 풀이</span><span class="seg-sub">객관식 · 주관식</span></button>
+      <button type="button" data-mode="wordsearch"><span class="seg-main">워드서치</span><span class="seg-sub">격자에서 단어 찾기</span></button>
+    </div>
+
+    <div id="quizClassicPanel">
+
+
+    <div class="card">
+      <span class="field-label">DAY 범위 선택 (1 ~ 50)</span>
+      <div class="range-row">
+        <input type="number" id="rangeN" min="1" max="50" value="1">
+        <span class="dash">DAY</span>
+        <span class="dash">～</span>
+        <input type="number" id="rangeM" min="1" max="50" value="5">
+        <span class="dash">DAY</span>
+      </div>
+      <div class="ticks" id="rangeTicks"></div>
+      <div class="range-hint" id="rangeHint">DAY 01 ~ DAY 05 범위 · 0개 단어</div>
+      <div class="error-msg" id="rangeError">시작 DAY는 끝 DAY보다 클 수 없어요.</div>
+
+      <div class="presets">
+        <button class="chip" data-preset="1-10">DAY 1~10</button>
+        <button class="chip" data-preset="11-20">DAY 11~20</button>
+        <button class="chip" data-preset="21-30">DAY 21~30</button>
+        <button class="chip" data-preset="31-40">DAY 31~40</button>
+        <button class="chip" data-preset="41-50">DAY 41~50</button>
+        <button class="chip" data-preset="1-50">전체 범위</button>
+      </div>
+
+      <span class="field-label">출제 방식</span>
+      <div class="segmented" id="directionSeg">
+        <button data-dir="word2mean" class="active"><span class="seg-main">단어 → 뜻</span></button>
+        <button data-dir="mean2word"><span class="seg-main">뜻 → 단어</span></button>
+        <button data-dir="real"><span class="seg-main">실전형</span><span class="seg-sub">기출문제 유형 기반</span></button>
+      </div>
+
+      <span class="field-label">문제 유형</span>
+      <div class="segmented" id="quizTypeSeg">
+        <button data-type="mc" class="active"><span class="seg-main">객관식</span></button>
+        <button data-type="short"><span class="seg-main">주관식</span></button>
+        <button data-type="mixed"><span class="seg-main">혼합</span></button>
+      </div>
+      <div class="type-note" id="quizTypeNote">객관식: 5지선다 · 주관식: 직접 입력 · 혼합: 두 유형이 섞여 출제됩니다.</div>
+
+      <div class="practice-mode-box">
+        <div class="practice-mode-row">
+          <div class="practice-mode-label">
+            <span class="practice-mode-title">주관식 연습모드</span>
+            <span class="practice-mode-desc">주관식으로만 출제되고, 틀린 단어는 범위를 한 바퀴 다 돈 뒤 다시 나와요. 맞힐 때까지 반복돼서 스펠링·뜻을 확실히 외울 수 있어요.</span>
+          </div>
+          <button type="button" class="auto-advance-switch" id="practiceModeToggle" role="switch" aria-checked="false" aria-label="연습모드 켜기/끄기"><i></i></button>
+        </div>
+        <div class="practice-mode-row practice-sub-row hidden" id="practiceWrongbookRow">
+          <span class="auto-advance-label">틀린 단어를 오답노트에 자동 추가</span>
+          <button type="button" class="auto-advance-switch on" id="practiceWrongbookToggle" role="switch" aria-checked="true" aria-label="오답노트 자동 추가 켜기/끄기"><i></i></button>
+        </div>
+      </div>
+
+      <div id="countSection">
+        <span class="field-label">문제 수</span>
+        <div class="count-row" id="countRow">
+          <button data-count="10" class="active">10문제</button>
+          <button data-count="20">20문제</button>
+          <button data-count="30">30문제</button>
+          <button data-count="all">범위 전체</button>
+        </div>
+      </div>
+
+      <button class="btn-primary" id="startQuizBtn">퀴즈 시작하기</button>
+    </div>
+    </div><!-- /#quizClassicPanel -->
+
+    <div id="quizWordsearchPanel" hidden>
+      <div class="card">
+        <p class="ws-intro">DAY 하나를 고르면 그 날의 단어 <b>15개</b>가 격자 속에 숨습니다. 격자를 드래그해서 찾을 때마다 아래 목록에 밑줄이 그어져요. 1분 동안 아무것도 못 찾으면 힌트로 첫 글자가 반짝입니다.</p>
+
+        <span class="field-label">난이도</span>
+        <div class="segmented" id="wsDiffSeg">
+          <button type="button" data-diff="easy" class="active"><span class="seg-main">하</span><span class="seg-sub">가로 · 세로</span></button>
+          <button type="button" data-diff="normal"><span class="seg-main">중</span><span class="seg-sub">＋ 대각선</span></button>
+          <button type="button" data-diff="hard"><span class="seg-main">상</span><span class="seg-sub">8방향 · 거꾸로</span></button>
+        </div>
+
+        <span class="field-label">DAY 선택 (하나만)</span>
+        <div class="ws-daygrid" id="wsDayGrid"></div>
+
+        <div class="ws-bestbox">
+          <div class="t" id="wsBestTitle">DAY 01 최고 기록</div>
+          <div class="ws-bestrow" id="wsBestRow"></div>
+        </div>
+
+        <button class="btn-primary" id="wsStartBtn">워드서치 시작하기</button>
+        <button class="btn-secondary" id="wsClearBestBtn">이 DAY 기록 지우기</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== WRONGBOOK ===== -->
+  <section class="view" id="view-wrongbook">
+    <div class="wrongbook-hero">
+      <div class="wrongbook-head">
+        <div>
+          <h2 class="wrongbook-title">오답 노트</h2>
+          <p class="wrongbook-sub">퀴즈에서 틀린 단어가 자동으로 저장됩니다. 원하는 기준으로 골라 다시 풀어보세요.</p>
+        </div>
+        <div class="wrongbook-badge" id="wrongbookBadge">0개</div>
+      </div>
+      <div class="wrongbook-stats">
+        <div class="wb-stat"><div class="v" id="wbTotal">0</div><div class="l">저장 단어</div></div>
+        <div class="wb-stat"><div class="v" id="wbTopCount">0</div><div class="l">최다 오답 횟수</div></div>
+        <div class="wb-stat"><div class="v" id="wbLatestDay">—</div><div class="l">최근 오답 DAY</div></div>
+      </div>
+    </div>
+
+    <div class="wrongbook-filter-wrap">
+      <div class="wrongbook-filters" id="wrongbookFilters"></div>
+    </div>
+
+    <div class="wrongbook-list" id="wrongbookList"></div>
+
+    <div class="wrongbook-controls">
+      <h3 class="wb-control-title">오답 테스트</h3>
+      <div class="field-label">문제 유형</div>
+      <div class="wb-control-row" id="wbTypeRow">
+        <button data-type="mc" class="active">객관식</button>
+        <button data-type="short">주관식</button>
+        <button data-type="mixed">혼합</button>
+      </div>
+      <div class="field-label">출제 방향</div>
+      <div class="wb-control-row" id="wbDirectionRow">
+        <button data-dir="mixed" class="active">영→한 / 한→영</button>
+        <button data-dir="word2mean">단어 → 뜻</button>
+        <button data-dir="mean2word">뜻 → 단어</button>
+      </div>
+      <div class="field-label">문제 수</div>
+      <div class="wb-control-row" id="wbCountRow">
+        <button data-count="10" class="active">10문제</button>
+        <button data-count="20">20문제</button>
+        <button data-count="all">전체</button>
+      </div>
+      <button class="wb-primary" id="startWrongbookBtn">오답 테스트 시작</button>
+      <button class="btn-secondary wb-clear" id="clearWrongbookBtn">오답 노트 전체 비우기</button>
+    </div>
+  </section>
+
+  <!-- ===== FAVORITES ===== -->
+  <section class="view" id="view-favorites">
+    <div class="wrongbook-hero">
+      <div class="wrongbook-head">
+        <div>
+          <h2 class="wrongbook-title">즐겨찾기</h2>
+          <p class="wrongbook-sub">단어 사전에서 별표(★)를 눌러 저장한 단어예요. 원하는 기준으로 골라 다시 풀어보세요.</p>
+        </div>
+        <div class="wrongbook-badge" id="favoritesBadge">0개</div>
+      </div>
+      <div class="wrongbook-stats">
+        <div class="wb-stat"><div class="v" id="favTotal">0</div><div class="l">저장 단어</div></div>
+        <div class="wb-stat"><div class="v" id="favLatestDay">—</div><div class="l">최근 추가 DAY</div></div>
+      </div>
+    </div>
+
+    <div class="wrongbook-filter-wrap">
+      <div class="wrongbook-filters" id="favoritesFilters"></div>
+    </div>
+
+    <div class="wrongbook-list" id="favoritesList"></div>
+
+    <div class="wrongbook-controls">
+      <h3 class="wb-control-title">즐겨찾기 테스트</h3>
+      <div class="field-label">문제 유형</div>
+      <div class="wb-control-row" id="favTypeRow">
+        <button data-type="mc" class="active">객관식</button>
+        <button data-type="short">주관식</button>
+        <button data-type="mixed">혼합</button>
+      </div>
+      <div class="field-label">출제 방향</div>
+      <div class="wb-control-row" id="favDirectionRow">
+        <button data-dir="mixed" class="active">영→한 / 한→영</button>
+        <button data-dir="word2mean">단어 → 뜻</button>
+        <button data-dir="mean2word">뜻 → 단어</button>
+      </div>
+      <div class="field-label">문제 수</div>
+      <div class="wb-control-row" id="favCountRow">
+        <button data-count="10" class="active">10문제</button>
+        <button data-count="20">20문제</button>
+        <button data-count="all">전체</button>
+      </div>
+      <button class="wb-primary" id="startFavoritesBtn">즐겨찾기 테스트 시작</button>
+      <button class="btn-secondary wb-clear" id="clearFavoritesBtn">즐겨찾기 전체 비우기</button>
+    </div>
+  </section>
+
+  <section class="view" id="view-quiz-play">
+    <div class="quiz-progress">
+      <span id="quizProgressLabel">문항 1 / 10</span>
+      <div class="bar"><i id="quizProgressBar" style="width:0%"></i></div>
+      <span id="quizScoreLabel">0점</span>
+    </div>
+    <div class="auto-advance-row">
+      <span class="auto-advance-label">자동 넘김 (1초 후)</span>
+      <button type="button" class="auto-advance-switch on" id="autoAdvanceToggle" role="switch" aria-checked="true" aria-label="자동 넘김 켜기/끄기"><i></i></button>
+    </div>
+    <div class="quiz-card">
+      <span class="quiz-daytag" id="quizDayTag">DAY 01</span>
+      <div class="quiz-prompt serif" id="quizPrompt">word</div>
+    </div>
+    <div class="options" id="quizOptions"></div>
+    <div class="short-answer-box hidden" id="shortAnswerBox">
+      <input id="shortAnswerInput" type="text" autocomplete="off" placeholder="정답을 입력하세요">
+      <button id="shortAnswerSubmit" type="button">정답 확인</button>
+    </div>
+    <div class="answer-feedback" id="answerFeedback"></div>
+    <p class="key-hint" id="quizKeyHint">숫자 키 1~5로 선택 · Enter/Space로 다음 문제 · 선택 후 1초 뒤 자동 진행</p>
+    <div class="next-row">
+      <button class="btn-primary" id="nextBtn" disabled>다음 문제</button>
+    </div>
+  </section>
+
+  <section class="view" id="view-quiz-result">
+    <div class="result-score">
+      <div class="big serif"><span id="resultScore">0</span><span class="of" id="resultTotal">/ 0</span></div>
+      <div class="label" id="resultLabel">정답률 0%</div>
+    </div>
+    <h2 class="section-title" id="quizResultTitle">퀴즈 결과</h2>
+    <p class="section-sub" id="reviewSub">틀린 문제가 없어요. 완벽해요!</p>
+    <div class="card" id="reviewList" style="display:none;"></div>
+    <button class="btn-primary" id="retryBtn">같은 범위 다시 풀기</button>
+    <button class="btn-secondary" id="reselectBtn">범위 다시 선택하기</button>
+  </section>
+
+  <!-- ===== DICTIONARY ===== -->
+  <section class="view" id="view-dict">
+    <h2 class="section-title">단어 사전</h2>
+    <p class="section-sub">단어장에 있는 단어를 검색해보세요.</p>
+
+    <div class="search-box">
+      <span class="icon">🔎</span>
+      <input type="text" id="dictSearch" placeholder="영단어 또는 뜻 입력 (예: overlook, 간과)">
+    </div>
+
+    <div class="dict-filter">
+      <span>DAY</span>
+      <input type="number" id="dictN" min="1" max="50" value="1">
+      <span>～</span>
+      <input type="number" id="dictM" min="1" max="50" value="50">
+      <button class="chip" id="dictResetRange">전체</button>
+    </div>
+
+    <div class="dict-count" id="dictCount">2,360개 중 2,360개 표시</div>
+    <div class="dict-list" id="dictList"></div>
+  </section>
+
+  <!-- ===== WORD SEARCH PLAY ===== -->
+  <section class="view" id="view-quiz-ws-play">
+    <div class="ws-hud">
+      <div class="pill"><span>DAY</span><b id="wsHudDay">01</b></div>
+      <div class="pill"><span>찾은 단어</span><b id="wsHudFound">0 / 15</b></div>
+      <div class="pill"><span>경과 시간</span><b id="wsHudTime">00:00</b></div>
+    </div>
+
+    <div class="ws-hintbar" id="wsHintBar" hidden></div>
+
+    <div class="ws-boardwrap">
+      <div class="ws-board" id="wsBoard">
+        <svg class="ws-overlay" id="wsOverlay" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true"></svg>
+      </div>
+    </div>
+
+    <div class="card">
+      <span class="field-label" id="wsListLabel">찾을 단어</span>
+      <div class="ws-list" id="wsList"></div>
+    </div>
+
+    <button class="btn-secondary" id="wsGiveUpBtn">그만두고 결과 보기</button>
+  </section>
+
+  <!-- ===== WORD SEARCH RESULT ===== -->
+  <section class="view" id="view-quiz-ws-result">
+    <h2 class="section-title" id="wsResultTitle">워드서치 결과</h2>
+    <div class="card">
+      <div class="ws-result-score">
+        <div class="big" id="wsResultScore">0</div>
+        <div class="sub" id="wsResultSub"></div>
+        <div id="wsNewBestWrap"></div>
+      </div>
+      <div id="wsBreakdown"></div>
+    </div>
+    <div class="card">
+      <span class="field-label">못 찾은 단어</span>
+      <div class="ws-list" id="wsMissedList"></div>
+    </div>
+    <button class="btn-primary" id="wsRetryBtn">같은 DAY 다시 풀기</button>
+    <button class="btn-secondary" id="wsBackBtn">퀴즈 설정으로 돌아가기</button>
+  </section>
+
+  <footer class="credit">특급 수능 EBS 기출 VOCA · 2021 개정 어휘리스트 기반</footer>
+</div>
+
+<script>
+const VOCAB = [[1,"social","사회의, 사회적인"],[1,"overlook","간과하다"],[1,"public","일반 사람들, 대중"],[1,"undo","원상태로 돌리다"],[1,"undermine","약화[손상]시키다"],[1,"reflect","반영하다, 나타내다"],[1,"object","반대하다"],[1,"lead","(결과적으로) ~에 이르다"],[1,"state","말하다, 진술하다"],[1,"instance","사례, 경우"],[1,"evidence","증거, 증명"],[1,"perform","공연[상연]하다"],[1,"influence","영향을 미치다"],[1,"achieve","이루다, 성취하다"],[1,"quarrel","다투다, 언쟁을 벌이다"],[1,"offer","제공하다"],[1,"occur","일어나다, 발생하다"],[1,"concern","걱정, 염려"],[1,"risk","위험"],[1,"individual","개인"],[1,"interpersonal","대인 관계에 관련된"],[1,"consume","먹다, 마시다"],[1,"impact","영향, 충격"],[1,"lack","~이 없다, 부족하다"],[1,"reduction","축소, 감소"],[1,"position","입장, 태도"],[1,"compact","조밀한, 촘촘한"],[1,"endanger","위험에 빠뜨리다, 위태롭게 하다"],[1,"term","용어"],[1,"demand","수요"],[1,"simplicity","간단함, 단순함"],[1,"medium","매체, 수단"],[1,"ubiquitous","어디에나 있는"],[1,"support","지지[옹호]하다"],[1,"contrast","대조하다, 대조를 보이다"],[1,"force","강요하다, 억지로 ~시키다"],[1,"mean","의도하다"],[1,"encode","암호화하다"],[1,"hygiene","위생"],[1,"condition","상태"],[1,"hue","색조, 빛깔"],[1,"rate","평가하다"],[1,"capacity","능력"],[1,"crude","천연 그대로의"],[2,"comparison","비교, 대조"],[2,"manner","방법, 방식"],[2,"intelligence","지능, 이해력, 사고력"],[2,"describe","서술[묘사]하다"],[2,"abnormal","비정상적인, 이상한"],[2,"critical","중대한, 결정적인"],[2,"political","정치의, 정치적인"],[2,"acoustic","청각의, 음향의"],[2,"maintain","유지[지속]하다"],[2,"accurate","정확한, 정밀한"],[2,"display","(감정, 성질 등을) 나타내다"],[2,"exploration","탐구"],[2,"value","가치 있게 생각하다"],[2,"remain","남다"],[2,"drive","(어떤 방향으로) 몰다"],[2,"moral","((pl.)) 도덕, 윤리"],[2,"reveal","보이다, 드러내다"],[2,"reward","보상[보답]하다"],[2,"potential","잠재력, 가능성"],[2,"deceptive","속이는, 기만적인, 오해를 사는"],[2,"curl","(몸을) 웅크리다"],[2,"resource","((pl.)) 자원, 재원, 원천"],[2,"crop","농작물"],[2,"access","접근하다, 들어가다"],[2,"appropriate","적절한"],[2,"perspective","관점, 시각"],[2,"diameter","지름, 직경"],[2,"influx","(사람, 자금 등의) 유입, 밀려듦"],[2,"personality","성격, 개성"],[2,"process","가공[처리]하다"],[2,"prevent","막다, 예방하다"],[2,"germinate","싹이 트다, 발아하다"],[2,"deal","다루다, 처리하다"],[2,"aspect","측면, 국면"],[2,"psyche","정신, 마음"],[2,"hold","보유하다"],[2,"headquarters","본사, 본부"],[2,"subject","주제"],[2,"degree","정도, 범위"],[2,"quality","질(質)"],[2,"immature","미숙한"],[2,"project","비추다, 투사[투영]하다"],[2,"claim","(사실을) 주장하다"],[2,"impede","저해[방해]하다"],[2,"approve","승인하다"],[2,"imminent","임박한, 절박한"],[3,"tendency","경향, 성향"],[3,"observe","(법률, 규칙 등을) 준수하다"],[3,"diversity","다양성"],[3,"nonverbal","말을 사용하지 않는, 비언어적인"],[3,"escalate","확대되다, 증가하다"],[3,"native","출생지의, 토착의"],[3,"contact","연락하다"],[3,"distance","거리"],[3,"enhance","높이다, 강화하다"],[3,"radiant","빛나는, 환한"],[3,"select","선택[선발]하다"],[3,"interaction","상호작용"],[3,"contribute","기여하다, 공헌하다"],[3,"specific","명확한, 구체적인, 특정한"],[3,"authority","권위, 권력"],[3,"ignore","무시하다"],[3,"relative","상대적인"],[3,"significant","상당한, 현저한"],[3,"identify","(신원을) 확인하다, 식별하다"],[3,"practice","연습"],[3,"aware","알고 있는, 의식하고 있는"],[3,"era","시대, 연대"],[3,"chemical","화학의, 화학적인"],[3,"previous","이전의, 앞의"],[3,"shiver","(추위, 공포 등으로) 몸을 떨다"],[3,"perceive","지각[인지]하다"],[3,"assume","(책임, 역할을) 맡다"],[3,"conduct","(열, 전기를) 전도하다"],[3,"prove","입증[증명]하다"],[3,"eradicate","근절하다, 뿌리 뽑다"],[3,"outcome","결과, 성과"],[3,"anxiety","불안, 걱정"],[3,"present","현재의"],[3,"genetic","유전(학)의"],[3,"promote","진급[승진]시키다"],[3,"irrational","비이성적인, 분별이 없는"],[3,"bear","참다, 견디다"],[3,"bias","편견, 편향"],[3,"heritage","(사회적, 문화적) 유산, 전통"],[3,"colleague","동료"],[3,"majority","다수 (집단)"],[3,"inclusive","(~을) 포함한"],[3,"fast","단식[금식]하다"],[3,"conflict","충돌, 갈등"],[3,"enrich","풍부하게 하다, 질을 높이다"],[3,"mindful","염두에 두는, 주의하는"],[4,"emission","배출, 방출"],[4,"consequence","중요성, 중대함"],[4,"plausible","이치에 맞는, 그럴듯한"],[4,"narrow","(폭이) 좁은"],[4,"status","신분, 자격, 지위"],[4,"seemingly","외견상으로, 겉보기에는"],[4,"stock","비축하다, 저장하다"],[4,"ensure","확실하게 하다, 보장하다"],[4,"invariable","변함없는"],[4,"property","특성, 속성"],[4,"measure","평가하다, 판단하다"],[4,"indicate","나타내다, 보여주다"],[4,"extent","정도, 규모"],[4,"content","만족[자족]하는"],[4,"scale","저울"],[4,"institution","기관, 협회"],[4,"principle","원리, 원칙"],[4,"premise","전제"],[4,"creativity","창조성, 창의력"],[4,"duration","지속 (기간)"],[4,"fallacy","오류, 착오"],[4,"combine","결합[연합]하다"],[4,"merely","단지, 그저"],[4,"tantrum","성질, 짜증"],[4,"rhyme","(시의) 운, 압운, 각운"],[4,"flow","흐르다, 이동하다"],[4,"setback","방해, 실패, 좌절"],[4,"vibrant","활기찬, 생명력이 넘치는"],[4,"due","~하기로 예정된"],[4,"myth","(근거 없는) 믿음"],[4,"possibility","가능성, 기회"],[4,"overall","종합적인, 전체[전부]의"],[4,"decisive","결정적인, 중대한"],[4,"prolonged","오래 계속되는, 장기적인"],[4,"vary","서로 다르다, 여러 가지이다"],[4,"camouflage","위장, 속임수"],[4,"rigorous","정확한, 정밀한"],[4,"firm","확고한"],[4,"momentous","중대한, 중요한"],[4,"feature","(배우를) 주연시키다"],[4,"deforestation","삼림 벌채"],[4,"tactic","전략, 작전"],[4,"elastic","탄력[신축성] 있는"],[4,"apply","적용하다"],[4,"crack","갈라지다, 금이 가다"],[4,"function","기능, 작용"],[4,"mist","안개"],[5,"urban","도시의"],[5,"superior","(~보다) 우수한, 우세한"],[5,"effective","효과적인"],[5,"discourage","낙담시키다"],[5,"judge","판단[평가]하다"],[5,"obvious","분명한, 명백한, 알기 쉬운"],[5,"vivid","(상상력이) 활발한"],[5,"unlikely","~할 것 같지 않은, 가망 없는"],[5,"annual","연간의, 한 해의"],[5,"concentrate","응축[농축]하다"],[5,"irregular","가지런하지 않은"],[5,"dye","염료"],[5,"demonstrate","입증하다"],[5,"compete","경쟁하다, 겨루다"],[5,"notice","알아차리다, 주목하다"],[5,"oppose","반대[저항]하다"],[5,"strike","파업"],[5,"surface","표면, 표층"],[5,"aesthetic","심미적인, 미학적인"],[5,"swallow","삼키다"],[5,"establish","설립[수립]하다"],[5,"derive","~에서 비롯되다"],[5,"progress","진보[향상]하다"],[5,"metabolic","신진[물질]대사의"],[5,"praise","칭찬하다"],[5,"appliance","(가정용) 기기, 장치, 가전제품"],[5,"industrial","산업[공업]의"],[5,"pile","더미, 쌓아 놓은 것"],[5,"identical","동일한, 똑같은"],[5,"limit","한계, 제한"],[5,"manage","간신히 해내다"],[5,"shift","변화"],[5,"internal","내부의"],[5,"natal","출생의"],[5,"inspire","고무[격려]하다"],[5,"tremble","떨(리)다"],[5,"intense","극심한, 강렬한"],[5,"recess","휴식, 휴회"],[5,"arrogant","오만한, 건방진"],[5,"startle","깜짝 놀라게 하다"],[5,"figure","인물"],[5,"staple","주된, 주요한"],[5,"attribute","(~의) 덕분[탓]으로 돌리다"],[5,"evaluate","평가하다, 감정하다"],[6,"alter","변경하다, 바꾸다"],[6,"endeavor","노력하다, 시도하다"],[6,"anticipate","예상[기대]하다"],[6,"optimistic","낙관적인"],[6,"practical","실용적인, 유용한"],[6,"replace","대신하다, 교체하다"],[6,"contemporary","동시대의"],[6,"apparent","분명한, 명백한"],[6,"arise","발생하다, 유발되다"],[6,"successive","연속적인, 연이은"],[6,"innovation","혁신, 쇄신"],[6,"obstacle","장애(물)"],[6,"minority","소수 (집단)"],[6,"operate","작동하다"],[6,"income","소득, 수입"],[6,"advance","나아가다, 전진하다"],[6,"gene","유전자, 유전 인자"],[6,"habitat","서식지, 거주지"],[6,"notion","개념, 관념, 생각"],[6,"efficient","능률[효율]적인"],[6,"expenditure","소비, 소모"],[6,"productivity","생산성, 생산력"],[6,"conference","회의, 학회"],[6,"currency","통화, 화폐"],[6,"compatible","양립[공존]할 수 있는"],[6,"falsify","거짓임을 입증하다"],[6,"adopt","채택하다, 받아들이다"],[6,"aim","목적, 목표"],[6,"reputation","평판, 명성"],[6,"negotiation","협상, 교섭"],[6,"blaze","불길, 화재"],[6,"distinguish","구별[식별]하다"],[6,"civilian","민간인"],[6,"deny","부인[부정]하다"],[6,"precisely","정확히, 정밀하게"],[6,"engage","(마음을) 사로잡다"],[6,"recall","기억해 내다, 상기하다"],[6,"volume","부피, 양"],[6,"routine","(틀에 박힌) 일상[일과]"],[6,"itinerary","여행 일정표"],[6,"intact","손상되지 않은, 그대로의"],[6,"narrative","이야기, 서술"],[6,"mischief","나쁜 짓, 장난"],[6,"bold","용감한, 대담한"],[6,"edge","끝, 가장자리"],[6,"motivate","동기를 부여하다, 자극하다"],[6,"justify","정당화하다"],[7,"yield","양보하다"],[7,"stimulate","자극하다, 고무하다"],[7,"definitive","최종적인, 확정적인"],[7,"fashion","방법, 방식"],[7,"encounter","(우연히) 만나다"],[7,"convey","(생각, 감정 등을) 전달하다"],[7,"constantly","끊임없이, 항상"],[7,"appearance","외모, 외양"],[7,"artificial","인공의"],[7,"admit","인정[시인]하다"],[7,"emphasize","강조하다, 두드러지게 하다"],[7,"charge","(대가, 요금을) 청구하다"],[7,"infant","유아"],[7,"profit","이득을 얻다[주다]"],[7,"reinforce","강화하다, 증강하다"],[7,"howl","(개, 늑대 등이) 길게 짖다"],[7,"crucial","결정적인, 중대한"],[7,"mechanism","(생물체 내에서 특정 기능을 수행하는) 구조, 기제"],[7,"essential","필수적인"],[7,"conventional","전통[관습]적인, 틀에 박힌"],[7,"duplicate","되풀이하다"],[7,"induce","초래하다"],[7,"frustrated","좌절한, 짜증이 난, 불만스러운"],[7,"mass","대량의, 대규모의"],[7,"greed","탐욕, 욕심"],[7,"cognitive","인식[인지]의"],[7,"stern","엄격한, 단호한"],[7,"contrary","반대되는"],[7,"enforce","집행[시행]하다"],[7,"facility","((pl.)) 시설, 설비"],[7,"resist","저항[반대]하다"],[7,"seal","밀봉하다, 밀폐하다"],[7,"inclination","경향, 의향"],[7,"candidate","후보자, 지원자"],[7,"variation","변화, 변형"],[7,"altitude","고도"],[7,"epic","서사시, 대작"],[7,"penetrate","침투하다, 뚫고 들어가다"],[7,"remark","언급하다, 말하다"],[7,"account","(비율을) 차지하다"],[7,"accomplish","성취[완수]하다"],[7,"distinct","별개의, 구별되는"],[7,"conservation","보존, 보호"],[7,"subordinate","종속된, 하위의, 부수적인"],[7,"ease","편하게 하다, 경감시키다"],[7,"retrieve","되찾다, 회복하다"],[8,"interpret","통역하다"],[8,"appeal","호소하다"],[8,"accompany","동반[수반]하다"],[8,"ignite","불이 붙다, 불을 붙이다"],[8,"deceased","사망한"],[8,"stereotype","고정관념"],[8,"ethnic","민족의, 인종의"],[8,"plot","구성, 줄거리"],[8,"barrier","장벽, 장애(물)"],[8,"employ","이용하다"],[8,"imitate","모방하다, 흉내 내다"],[8,"commit","(범죄 등을) 저지르다"],[8,"destination","목적지, 도착지"],[8,"vendor","판매 회사"],[8,"behalf","측, 편, 이익"],[8,"magnificent","장엄한, 훌륭한"],[8,"intend","의도[작정]하다"],[8,"misconception","오해"],[8,"net","에누리 없는, 순 ~, 실 ~"],[8,"complex","복잡한"],[8,"rational","합리적인, 이성적인"],[8,"react","반응[대응]하다"],[8,"release","개봉(작), 발표 (음반)"],[8,"diminish","줄어들다, 감소하다"],[8,"ecosystem","생태계"],[8,"steady","꾸준한"],[8,"sustain","유지하다"],[8,"manifest","나타내다, 드러내다"],[8,"underlie","~의 기초가 되다"],[8,"longevity","장수"],[8,"assess","평가하다"],[8,"colony","식민지"],[8,"consciousness","의식, 자각"],[8,"credit","칭찬, 인정, 공로"],[8,"preference","선호"],[8,"modest","그다지 대단하지 않은, 보통의"],[8,"agriculture","농업, 농사"],[8,"source","원천, 근원"],[8,"impersonal","인간미 없는, 비인격적인"],[8,"suppose","가정[상상]하다"],[8,"earthly","현세의, 세속적인"],[8,"stuff","물건"],[8,"inherent","타고난, 내재하는"],[8,"momentary","순간적인, 잠깐의"],[8,"biodiversity","생물의 다양성"],[8,"regard","(~으로) 간주하다, 여기다"],[8,"entice","유도[유인]하다"],[9,"estimate","(~을) 어림잡다, 추정하다"],[9,"breathtaking","숨 막히는, 깜짝 놀랄만한"],[9,"clay","점토, 찰흙"],[9,"hybrid","(동식물의) 잡종"],[9,"pursue","추구하다"],[9,"sophisticated","정교한, 복잡한"],[9,"polygraph","거짓말탐지기"],[9,"secure","안심하는, 안전한"],[9,"indifferent","무관심한"],[9,"overlap","겹치다, 중복하다"],[9,"vital","생명 유지에 필수적인"],[9,"purify","정화하다"],[9,"conscience","양심"],[9,"neglect","무시하다, 도외시하다"],[9,"electrical","전기의"],[9,"proportion","비율"],[9,"expense","돈, 비용"],[9,"pointless","무의미한, 할 가치가 없는"],[9,"devote","바치다, 전념하다"],[9,"lift","향상시키다"],[9,"outgoing","외향적인, 사교적인"],[9,"forbid","금지하다"],[9,"outdated","구식의, 시대에 뒤진"],[9,"shelter","대피처"],[9,"enormous","막대한, 거대한"],[9,"priority","우선(권)"],[9,"relevant","관련된, 적절한"],[9,"remove","제거하다, 없애다"],[9,"physician","내과 의사"],[9,"omission","소홀, 태만"],[9,"radioactive","방사능[성]의"],[9,"guarantee","보장하다, 약속하다"],[9,"core","중심부, 핵심"],[9,"sequence","순서, 차례"],[9,"classical","인문적인"],[9,"radiation","(열, 에너지 등의) 복사, 방사(선)"],[9,"pastime","취미, 오락"],[9,"instinct","본능, 직관"],[9,"frequency","빈도"],[9,"solitude","고독, 독거"],[9,"overcome","극복하다"],[9,"ground","~에 근거를 두다"],[9,"malnutrition","영양실조"],[9,"linear","직선의"],[9,"midwife","산파, 조산사"],[9,"inflict","(괴로움 등을) 가하다"],[9,"paralyzed","마비된"],[9,"intermediate","중간의, 중급의"],[10,"disposable","1회용의, 쓰고 버리는"],[10,"urge","촉구하다, 재촉하다"],[10,"illusion","오해, 착각"],[10,"supernatural","초자연적인"],[10,"compensate","보상[배상]하다"],[10,"facilitate","가능[용이]하게 하다, 촉진하다"],[10,"inferior","질 낮은, 열등한"],[10,"theme","주제, 테마"],[10,"freeze","얼다, 냉동하다"],[10,"shortcut","지름길, 손쉬운 방법"],[10,"welfare","복지, 행복"],[10,"resume","재개하다, 다시 시작하다"],[10,"molecule","분자"],[10,"sob","흐느껴 울다"],[10,"reasonable","적당한, (가격이) 알맞은"],[10,"benevolent","자애로운"],[10,"remarkable","주목할 만한, 놀랄 만한"],[10,"resort","의지하다, 호소하다"],[10,"autonomous","자율적인"],[10,"thermometer","온도계, 체온계"],[10,"humidity","습도, 습기"],[10,"trim","(깎아서) 다듬다, 손질[정돈]하다"],[10,"deadlock","교착 상태"],[10,"transit","운송, 수송"],[10,"application","적용, 사용"],[10,"capable","~을 할 수 있는"],[10,"renowned","유명한, 명성 있는"],[10,"fundamental","필수적인, 중요한"],[10,"context","문맥, 맥락"],[10,"cultivate","함양[양성]하다"],[10,"rip","찢다, 뜯어내다"],[10,"biological","생물학의, 생물학적인"],[10,"homogeneous","동종의, 동질적인"],[10,"court","법정, 법원"],[10,"range","(범위가) ~에 이르다"],[10,"illustrate","설명[실증]하다"],[10,"conjecture","추측"],[10,"psychic","마음의, 정신의"],[10,"profess","공언[선언]하다"],[10,"rally","집결[단결]하다"],[10,"pollinate","수분하다"],[10,"refract","굴절시키다"],[10,"masculine","남자다운"],[10,"rein","통제하다, 제어하다"],[10,"intolerance","참을 수 없음, 편협"],[10,"shortcoming","((pl.)) 결점, 단점"],[11,"insight","통찰력, 식견"],[11,"monitor","감시하다, 관찰하다"],[11,"predict","예측하다"],[11,"vigorous","활발한, 활기찬"],[11,"withstand","저항하다, 견뎌내다"],[11,"restrict","제한[한정]하다"],[11,"substance","물질"],[11,"lull","달래다, 안심[진정]시키다"],[11,"betrayal","배신, 배반"],[11,"tune","(악기를) 조율하다"],[11,"adjoin","인접하다, 붙어 있다"],[11,"boundary","경계(선)"],[11,"amplify","증폭시키다, 확대하다"],[11,"confront","직면하다, 맞서다"],[11,"deliver","배달하다"],[11,"accuse","고발[기소]하다"],[11,"dominate","지배하다"],[11,"eliminate","제거하다, 없애다"],[11,"hypocrisy","위선"],[11,"evolve","진화[발전]하다[시키다]"],[11,"excess","초과, 과잉"],[11,"adorn","꾸미다, 장식하다"],[11,"exponential","(증가율이) 기하급수적인"],[11,"immigrant","(외국으로부터의) 이민자, 이주민"],[11,"psychological","심리적인, 정신적인"],[11,"isolate","격리하다, 고립시키다"],[11,"phrase","구, 관용구"],[11,"portion","부분, 일부"],[11,"fiber","섬유(질)"],[11,"radical","근본적인"],[11,"fright","두려움, 공포"],[11,"resolve","결심하다"],[11,"affliction","고통, 괴로움"],[11,"severe","심각한"],[11,"abolition","(법률, 제도의) 폐지, 폐기"],[11,"sum","합계"],[11,"hierarchical","계층의, 계급에 따른"],[11,"weary","지친, 피곤한"],[11,"evacuation","대피, 철수"],[11,"ultimate","근본적인, 근원적인"],[11,"organism","유기체, 생명체"],[11,"murmur","속삭이다, 중얼거리다"],[11,"shed","(허물, 옷을) 벗다"],[11,"numerical","수의, 숫자로 표시한"],[11,"brief","간결한, 간단한"],[11,"fade","시들다, 약해지다"],[11,"diffuse","분산되다[시키다], 확산되다[시키다]"],[12,"amuse","즐겁게 하다"],[12,"blush","얼굴을 붉히다"],[12,"complicate","복잡하게 만들다"],[12,"decay","부패[부식]하다"],[12,"obedient","순종적인, 복종하는"],[12,"consistent","일관된, 모순되지 않는"],[12,"detect","발견[탐지]하다"],[12,"disturb","방해하다"],[12,"familiarity","익숙함, 친밀"],[12,"imply","시사[암시]하다, 내포[함축]하다"],[12,"buoyant","부력이 있는, 물에 뜰 수 있는"],[12,"chamber","방, 실"],[12,"bully","(약자를) 괴롭히는 사람"],[12,"liberal","자유민주적인"],[12,"void","무효의"],[12,"norm","((pl.)) 규범"],[12,"valid","(법적, 공식적으로) 유효한"],[12,"catastrophe","참사, 재앙"],[12,"prosperity","번영, 번성, 부"],[12,"cozy","편안한, 안락한"],[12,"assign","맡기다, 배정하다"],[12,"contempt","경멸, 멸시"],[12,"scatter","흩뿌리다, 흩어지게 하다"],[12,"underrate","과소평가하다"],[12,"cynical","냉소적인"],[12,"trigger","촉발시키다"],[12,"vague","애매한, 모호한"],[12,"abundant","풍부한, 많은"],[12,"adjust","적응하다"],[12,"signal","신호"],[12,"compromise","타협, 화해, 양보"],[12,"incorporate","포함[편입]하다"],[12,"commodity","상품, 물품"],[12,"esteem","존경[존중]하다"],[12,"fatigue","지치다, 지치게 하다"],[12,"egocentric","자기중심적인"],[12,"nocturnal","밤의, 야행성의"],[12,"salute","경의를 표하다"],[12,"luxuriant","무성한, 풍성한"],[12,"deposit","예금[예치]하다"],[12,"arrest","체포하다"],[12,"union","결합"],[12,"oppress","압박[억압]하다"],[12,"ordeal","시련, 고난"],[12,"struggle","분투하다, 애쓰다"],[13,"leap","뛰어오르다"],[13,"definite","분명한, 명확한"],[13,"abrupt","돌연한, 갑작스러운"],[13,"literally","문자[말] 그대로"],[13,"rescue","구하다, 구조하다"],[13,"sentence","(형을) 선고하다"],[13,"trait","특성, 특징"],[13,"occupy","(시간, 장소를) 차지하다"],[13,"overwhelm","압도하다"],[13,"reliable","믿을 수 있는"],[13,"occasional","가끔의, 때때로의"],[13,"entity","독립체, 실체, 존재"],[13,"trial","재판"],[13,"alternative","대안, 선택 가능한 것"],[13,"abstract","추상적인, 관념적인"],[13,"dreadful","끔찍한, 지독한"],[13,"exemplify","전형적인 예가 되다"],[13,"institute","도입[실시]하다"],[13,"archive","기록 (보관소)"],[13,"durability","내구성, 지속력"],[13,"declare","(세관 등에) 신고하다"],[13,"encompass","에워싸다"],[13,"foretell","예언[예지]하다"],[13,"subtle","미묘한, 포착하기 어려운"],[13,"modify","수정하다, 바꾸다"],[13,"dispatch","보내다, 파견하다"],[13,"distinctive","독특한"],[13,"transplant","이식하다"],[13,"engrave","새기다, 조각하다"],[13,"rationale","이유, 근거"],[13,"mutual","상호 간의"],[13,"impose","강요하다"],[13,"burst","폭발"],[13,"nurture","양성[교육]하다"],[13,"companion","친구, 동료"],[13,"intuition","직감, 직관"],[13,"legal","법률과 관련된"],[13,"reservoir","저수지"],[13,"fraud","사기(꾼)"],[13,"lung","폐, 허파"],[13,"ostensibly","표면상으로"],[13,"parliament","의회, 국회"],[13,"eminent","저명한, 고위의"],[13,"overbear","위압[제압]하다"],[13,"municipal","지방 자치제의, 시의"],[13,"recognize","알다, 인식하다"],[13,"jury","배심원단, 심사 위원단"],[13,"outcast","버림받은 사람"],[14,"primitive","원시 사회의, 원시적인"],[14,"dehydrate","탈수하다, 건조시키다"],[14,"procedure","절차, 방법"],[14,"profound","깊은, 심오한"],[14,"germ","근원, 기원"],[14,"supplement","보충하다, 메우다"],[14,"swell","붓다, 부풀다"],[14,"downfall","몰락, 파멸"],[14,"tense","긴장한, 긴장된"],[14,"accuracy","정확(성), 정밀도"],[14,"allocate","할당[배분]하다"],[14,"appreciate","(진가를) 알아보다"],[14,"circuit","(전기) 회로"],[14,"domestic","가정의, 집안의"],[14,"hibernation","동면, 겨울잠"],[14,"commute","통근하다"],[14,"insomnia","불면증"],[14,"exhale","숨을 내쉬다, (연기를) 내뿜다"],[14,"distract","(주의를) 흐트러뜨리다, 전환시키다"],[14,"equilibrium","평형, 균형"],[14,"equivalent","동등한, 상응하는"],[14,"phenomenon","현상"],[14,"evoke","떠올려 주다, 환기시키다"],[14,"possess","가지다, 소유하다"],[14,"innate","타고난, 선천적인"],[14,"seek","찾다, 구하다"],[14,"intake","섭취, 흡입"],[14,"misleading","호도하는, 오해의 소지가 있는"],[14,"obligation","의무, 책임, 책무"],[14,"imprison","투옥[감금]하다"],[14,"dense","밀도가 높은"],[14,"affirm","단언[확언]하다"],[14,"retain","유지[보유]하다"],[14,"simultaneously","동시에"],[14,"spontaneous","즉흥적인"],[14,"metaphor","은유, 비유"],[14,"immense","거대한, 엄청난"],[14,"submit","제출하다"],[14,"transaction","거래, 매매"],[14,"unpredictable","예측할 수 없는"],[14,"witness","목격하다"],[14,"nourish","영양분을 공급하다, 기르다"],[14,"embryo","배아"],[14,"sting","쏘다, 찌르다"],[14,"extract","뽑아내다, 추출하다"],[14,"adversarial","대립 관계에 있는"],[14,"heir","상속인"],[14,"cherish","소중히 여기다, 간직하다"],[15,"onset","시작, 착수"],[15,"accumulate","모으다, 축적하다"],[15,"myriad","무수한"],[15,"astonish","깜짝 놀라게 하다"],[15,"compliment","칭찬"],[15,"exotic","외국의, 이국적인"],[15,"oversee","감독하다, 두루 살피다"],[15,"compose","구성하다"],[15,"cue","신호, 단서"],[15,"dedicate","바치다, 전념하다"],[15,"dispute","반박하다"],[15,"obese","비만인, 뚱뚱한"],[15,"distress","고통, 괴로움"],[15,"faculty","능력, 기능"],[15,"reptile","파충류"],[15,"generous","관대한, 너그러운"],[15,"ripen","익다, 숙성하다"],[15,"genuine","진짜[진품]의"],[15,"extrovert","외향적인 사람"],[15,"grip","이해, 파악"],[15,"mortal","사람, 인간"],[15,"linguistic","언어(학)의"],[15,"parallel","유사하다, 필적하다"],[15,"lengthen","늘리다, 연장하다"],[15,"permanent","영구적인"],[15,"stagnant","고여 있는, 침체된"],[15,"profession","직업, 직종"],[15,"prompt","즉각적인"],[15,"consult","(참고서 등을) 찾아보다"],[15,"raw","날것의"],[15,"issue","발행하다"],[15,"regulation","규제, 통제, 단속"],[15,"representative","대표적인, 대표하는"],[15,"reserve","예약하다"],[15,"grateful","고맙게 여기는, 감사하는"],[15,"simplify","간소화[단순화]하다"],[15,"materialistic","물질주의적인"],[15,"proficient","숙달한, 능숙한"],[15,"rear","뒤쪽의"],[15,"premier","최고의, 제1의"],[15,"halt","멈추다, 세우다"],[15,"expertise","전문 지식[기술]"],[15,"languish","(강요에 의해) 머물다, (불편한 상황을) 겪다"],[15,"outlook","관점, 세계관"],[15,"merge","합치다, 합병하다, 어우러지다"],[16,"spill","흘리다, 쏟다"],[16,"conceal","감추다, 숨기다"],[16,"static","고정된, 정지 상태의"],[16,"ponder","숙고하다"],[16,"errand","심부름"],[16,"logical","논리적인"],[16,"credibility","신뢰성"],[16,"analogy","비유, 유사"],[16,"auditory","청각의, 귀의"],[16,"register","기록하다, 나타내다"],[16,"scrutinize","자세히 조사하다"],[16,"conservative","보수적인"],[16,"cooperate","협력[협동]하다"],[16,"separate","별개의, 관련 없는"],[16,"reciprocal","상호 간의, 호혜적인"],[16,"proactive","예방의, 사전 대책을 강구하는"],[16,"exclusive","배타적인"],[16,"obsolete","더 이상 쓸모가 없는, 구식의"],[16,"forfeit","박탈[몰수]당하다"],[16,"instruct","가르치다"],[16,"rebellious","반역의"],[16,"intrigue","흥미를 불러일으키다"],[16,"retreat","후퇴하다, 물러서다"],[16,"medieval","중세의"],[16,"prudence","신중, 사려 분별"],[16,"oral","구두의, 구어의"],[16,"aid","원조, 지원"],[16,"dividend","배당금"],[16,"replicate","모사하다, 반복하다"],[16,"presumably","아마, 추측하건대"],[16,"pasture","초원, 목초지"],[16,"applicable","해당되는, 적용할 수 있는"],[16,"prospect","(미래의) 전망, 예상"],[16,"rehabilitation","재활 (훈련), 회복"],[16,"qualify","~에게 자격을 주다, 자격을 얻다"],[16,"solution","해법, 해결(책)"],[16,"rid","없애다, 제거하다"],[16,"mingle","섞(이)다, 어우러지다"],[16,"involuntarily","무심결에, 본의 아니게"],[16,"advocate","옹호[지지]하다, 주장하다"],[16,"assure","~을 확실하게 하다"],[16,"curb","구속, 억제"],[16,"periodic","주기적인"],[16,"certificate","증명서, 자격증"],[16,"revert","되돌아가다"],[16,"pillar","기둥"],[16,"combustion","불이 탐, 연소"],[16,"sneak","살금살금[몰래] 들어오다"],[16,"wrap","싸다, 포장하다"],[17,"ban","금지하다"],[17,"stir","동요, 충격"],[17,"collapse","붕괴"],[17,"discard","버리다, 폐기하다"],[17,"sprint","전력 질주하다"],[17,"reference","추천서"],[17,"shatter","산산이 부서지다[부수다]"],[17,"convert","전환[변환]하다"],[17,"debt","빚, 부채"],[17,"spur","~에 박차를 가하다, 자극하다"],[17,"diploma","졸업장, 수료증"],[17,"dismiss","묵살하다"],[17,"flip","홱 뒤집다, 가볍게 던지다"],[17,"sentiment","정서, 감정"],[17,"acquaint","알게 하다, 숙지시키다"],[17,"odd","이상한"],[17,"translate","번역하다"],[17,"grasp","이해하다, 파악하다"],[17,"implement","시행하다"],[17,"constitute","구성하다"],[17,"impulse","충동, 욕구"],[17,"skeptical","회의적인, 의심 많은"],[17,"inhabitant","(특정 지역의) 주민, 서식 동물"],[17,"astrology","점성술, 점성학"],[17,"interfere","간섭하다, 방해하다"],[17,"intimate","사적인, 개인적인"],[17,"shield","보호하다"],[17,"promotion","홍보, 판매 촉진"],[17,"irrelevant","상관없는, 무관한"],[17,"miserable","비참한, 불행한"],[17,"initially","처음에, 시초에"],[17,"permit","허락하다, 허가하다"],[17,"tame","길들여진"],[17,"summit","꼭대기, 정상"],[17,"agent","직원, 요원"],[17,"snatch","잡아채다"],[17,"decline","감소하다, 쇠퇴하다"],[17,"refuge","피난(처), 도피(처)"],[17,"courtesy","정중함, 공손함"],[17,"integrity","성실, 정직"],[17,"rattle","달가닥거리다, 덜컹거리다"],[17,"stick","꼼짝 못하다"],[17,"testimony","증거, 증언"],[17,"pupil","학생"],[17,"federal","연방의, 연합의"],[17,"preach","설교하다, 전도하다"],[18,"superficial","피상적인, 표면적인"],[18,"chronological","발생[시간] 순서대로 된"],[18,"tolerate","참다, 용인하다"],[18,"underprivileged","(사회, 경제적으로) 혜택을 받지 못하는"],[18,"turnover","(직원의) 이직률"],[18,"uncover","(비밀 등을) 알아내다, 폭로하다"],[18,"versus","~대, ~와 대비하여"],[18,"dump","버리다, 쏟아 버리다"],[18,"violate","위반하다"],[18,"acid","산성의"],[18,"altruism","이타주의, 이타심"],[18,"literary","문학의"],[18,"upright","똑바른, 꼿꼿한"],[18,"border","접경하다"],[18,"bound","~할 것 같은, ~이 틀림없는"],[18,"articulate","분명히 표현하다[설명하다]"],[18,"corporate","기업의, 법인의"],[18,"alley","골목"],[18,"defeat","패배, 실패"],[18,"mitigation","완화, 경감"],[18,"desperate","절망적인"],[18,"vicious","나쁜, 악덕의"],[18,"disability","장애, 불리한 조건"],[18,"abound","아주 많다, 풍부하다"],[18,"endure","참다, 견디다"],[18,"entitle","자격을 주다"],[18,"gaze","응시하다, 바라보다"],[18,"asset","자산, 재산"],[18,"ambivalent","양면 가치의"],[18,"underway","진행 중인"],[18,"inherit","상속받다, 물려받다"],[18,"litter","쓰레기"],[18,"antibody","항체"],[18,"mature","성숙[발달]하다"],[18,"define","의미를 정의하다"],[18,"originate","비롯되다, 유래하다"],[18,"particle","입자"],[18,"tyranny","독재[전제] (정치)"],[18,"passage","복도, 통로"],[18,"surround","둘러싸다, 에워싸다"],[18,"persist","지속하다"],[18,"conceive","생각[상상]하다"],[18,"clog","막(히)다"],[18,"argument","논쟁, 언쟁"],[18,"hypothesis","가설, 가정"],[18,"precede","~에 앞서다, 선행하다"],[18,"plain","보통의, 평범한"],[19,"signify","의미하다, 나타내다"],[19,"bizarre","기이한, 특이한"],[19,"transfer","옮기다, 이동하다"],[19,"bleed","피를 흘리다, 출혈하다"],[19,"pigment","색소, 안료"],[19,"smooth","매끈한"],[19,"cuisine","요리(법)"],[19,"via","~을 통해서, ~에 의해서"],[19,"mobilize","(사람, 물자, 수단 등을) 동원하다"],[19,"combat","전투, 싸움"],[19,"subsequent","그 후의, 다음의"],[19,"temporary","일시적인, 임시의"],[19,"starvation","굶주림, 기아"],[19,"tremendous","엄청난, 굉장한"],[19,"urgent","긴급한, 다급한"],[19,"posterity","후세, 후대"],[19,"respectively","각각, 제각기"],[19,"cast","(의심을) 불러일으키다"],[19,"deed","행위, 행동"],[19,"counteract","대응[대항]하다, 상쇄[중화]하다"],[19,"fate","운명"],[19,"contagious","전염되는, 전염성의"],[19,"philosophy","철학"],[19,"appointment","임명, 지명"],[19,"bypass","우회로"],[19,"assemble","모으다, 집합시키다"],[19,"attest","증언하다, 입증하다"],[19,"bilingual","2개 국어를 말하는"],[19,"bloom","꽃이 피다, 꽃을 피우다"],[19,"customized","개개인의 요구에 맞춘"],[19,"boost","신장시키다, 북돋우다"],[19,"govern","좌우하다, 결정하다"],[19,"deduct","공제하다, 감하다"],[19,"preponderance","(수적, 양적으로) 우세함"],[19,"avid","열망하는, 열심인"],[19,"discrimination","차별"],[19,"choke","(성장을) 방해하다"],[19,"disguise","변장[위장]하다"],[19,"concise","간결한"],[19,"cumulative","누적되는, 누계의"],[19,"deliberate","숙고하다, 신중히 생각하다"],[19,"split","쪼개다, 나누다"],[19,"curse","저주, 악담"],[19,"pope","교황"],[19,"crush","으스러뜨리다, 뭉개다"],[19,"droopy","축 늘어진"],[19,"niche","딱 맞는 위치[지위], 적소"],[20,"hierarchy","계급, 계층, 서열"],[20,"intervention","간섭"],[20,"migrate","이주[이동]하다"],[20,"mute","말 없는, 무언의"],[20,"substantial","(양, 크기가) 상당한"],[20,"tissue","(세포들로 이뤄진) 조직"],[20,"grave","심각한, 중대한"],[20,"personnel","인원, 직원"],[20,"disciple","제자, 신봉자"],[20,"prejudice","편견"],[20,"prevail","이기다, 압도하다"],[20,"probe","탐색[조사]하다"],[20,"revive","소생하다, 부활시키다"],[20,"clarity","명료성, 명확성"],[20,"delude","착각하게 하다, 속이다"],[20,"scope","기회, 여지"],[20,"drawback","결점, 문제점"],[20,"spatial","공간의, 공간적인"],[20,"standardize","표준화하다, 통일시키다"],[20,"steep","가파른, 비탈진"],[20,"dusk","황혼, 어스름"],[20,"temporal","시간의"],[20,"territory","영역, 분야"],[20,"patch","(헝겊 등으로) 덧대다, 때우다"],[20,"eligible","자격이 있는"],[20,"dismantle","분해하다, 해체하다"],[20,"vanish","사라지다"],[20,"epoch","시대, 시기"],[20,"violence","폭행, 폭력"],[20,"exert","(힘, 영향력을) 가하다, 행사하다"],[20,"abuse","학대하다"],[20,"accommodate","숙박시키다, 수용하다"],[20,"marital","결혼 (생활)의, 부부의"],[20,"revise","변경[수정]하다"],[20,"affection","애착, 애정"],[20,"exterminate","근절하다, 몰살하다, 박멸하다"],[20,"extensive","넓은, 광범위한"],[20,"amend","개정[수정]하다"],[20,"aspiration","열망, 포부"],[20,"coherent","일관성 있는, 논리적인"],[20,"cite","언급하다"],[20,"botanical","식물(학)의"],[20,"universal","일반[보편]적인"],[20,"indispensable","없어서는 안 될, 필수적인"],[20,"proximity","가까움, 근접"],[20,"abstain","자제하다, 삼가다"],[20,"prelude","전조, 서막"],[21,"disregard","무시, 묵살"],[21,"condemn","비난하다, 책망하다"],[21,"deficiency","부족, 결핍"],[21,"hasty","서두르는, 성급한, 신속한"],[21,"consent","동의[허락]하다"],[21,"deprive","박탈하다, 빼앗다"],[21,"destiny","운명"],[21,"freight","화물, 운송"],[21,"virtue","미덕"],[21,"dissolve","녹다, 용해하다"],[21,"donate","기부[기증]하다"],[21,"ecological","생태계[학]의"],[21,"fluffy","가벼운, 푹신한"],[21,"exaggerate","과장하다"],[21,"incredible","믿을 수 없는, 굉장한"],[21,"prosocial","친사회적인"],[21,"earnings","소득, 수입"],[21,"hectic","정신없이 바쁜, 빡빡한"],[21,"fragile","연약한, 부서지기 쉬운"],[21,"glow","빛나다, 타다"],[21,"insult","모욕하다"],[21,"conversely","정반대로"],[21,"ideal","이상적인, 완벽한"],[21,"integral","필수적인"],[21,"flake","조각, 박편"],[21,"interrupt","방해하다, 중단하다"],[21,"fabulous","아주 멋진, 굉장한"],[21,"literacy","글을 읽고 쓸 줄 아는 능력"],[21,"greasy","기름투성이의, 기름진"],[21,"shrink","줄어들다"],[21,"dilute","희석하다, 묽게 하다"],[21,"recur","되풀이하다, 재발하다"],[21,"spectator","관중, 구경꾼"],[21,"reproduce","번식하다"],[21,"prestigious","명망 있는, 일류의"],[21,"prone","~하기 쉬운"],[21,"fad","(일시적) 유행"],[21,"vast","방대한, 막대한"],[21,"fertilize","(토지를) 비옥하게 하다, 비료를 주다"],[21,"glacier","빙하"],[21,"foresee","예상[예견]하다"],[21,"microbe","미생물, 세균"],[21,"prose","산문"],[21,"inflammation","염증"],[21,"resonance","울림, 반향"],[21,"glare","섬광, 환한 빛"],[21,"flatter","아첨하다"],[21,"extinguish","없애다, 끝내다"],[21,"hinder","막다, 방해하다, 저지하다"],[21,"dialect","방언, 사투리"],[22,"segment","부분, 단편, 조각"],[22,"divert","(주의를) 다른 곳으로 돌리다"],[22,"humility","겸손"],[22,"soak","담그다, 흠뻑 적시다"],[22,"adjacent","인접한, 가까운"],[22,"stationary","움직이지 않는, 정지된"],[22,"suspect","의심하다, 혐의를 두다"],[22,"therapeutic","치료상의, 치료법의"],[22,"aquatic","수생의, 수중의"],[22,"indiscriminate","무차별적인, 무분별한"],[22,"addiction","중독"],[22,"adverse","불리한, 불운한"],[22,"alternate","번갈아 하다"],[22,"interrogate","추궁[심문]하다"],[22,"imperil","위태롭게 하다"],[22,"artifact","인공물, 공예품"],[22,"attentive","주의 깊은, 세심한"],[22,"chronic","만성적인, 상습적인"],[22,"circulate","순환하다[시키다]"],[22,"incisive","예리한, 날카로운"],[22,"comprehend","이해하다"],[22,"plow","갈다, 경작하다"],[22,"consensus","의견 일치, 합의, 여론"],[22,"deem","~로 여기다, 생각하다"],[22,"deficit","적자, 부족(액)"],[22,"diagnose","(병을) 진단하다"],[22,"apex","꼭대기, 정점"],[22,"misfortune","불운, 불행"],[22,"discern","식별하다, 인지하다"],[22,"creep","천천히 움직이다"],[22,"eager","간절히 바라는, 열렬한"],[22,"insanity","정신 이상, 광기"],[22,"visualize","시각화하다, 마음속에 그리다"],[22,"ensue","(결과가) 뒤따르다, 뒤이어 일어나다"],[22,"enthusiastic","열렬한, 열정적인"],[22,"incurable","치유할 수 없는, 불치의"],[22,"frown","얼굴을 찌푸리다"],[22,"hypothesize","가설을 세우다"],[22,"imperative","필수적인, 중요한"],[22,"imprint","각인시키다, 감명시키다"],[22,"inability","무능, 불능"],[22,"indigenous","원산의, 토착의"],[22,"sufficient","충분한"],[22,"rugged","울퉁불퉁한, 바위투성이의"],[22,"gauge","측정하다"],[22,"repel","격퇴하다, 물리치다"],[22,"revolt","반란, 봉기, 저항"],[23,"numerous","많은"],[23,"exhaustion","고갈, 소진"],[23,"infect","감염[오염]시키다"],[23,"itchy","가려운"],[23,"reform","개혁[개선]하다"],[23,"naive","순진한"],[23,"intensive","집중적인"],[23,"provoke","(특정한 반응을) 유발하다, 도발하다"],[23,"negligent","태만한, 부주의한"],[23,"miscellaneous","잡다한, 갖가지의"],[23,"nutritious","영양분이 풍부한"],[23,"optimal","최적의, 최선의"],[23,"configuration","배열, 배치, 배치된 형태"],[23,"subconscious","잠재의식"],[23,"pave","(길을) 포장하다"],[23,"salvation","구조, 구제"],[23,"peculiar","이상한, 별난, 독특한"],[23,"infer","추론하다"],[23,"inhibit","금지하다, 억제[저해]하다"],[23,"potent","효력이 있는, 강력한"],[23,"leakage","누출, 누설"],[23,"exalt","칭송[찬양]하다"],[23,"suspend","유예[중단]하다"],[23,"toxic","유독성의"],[23,"undergraduate","학부생, 대학생"],[23,"investigate","조사[연구]하다"],[23,"ambiguous","애매모호한"],[23,"weave","짜다, 엮다"],[23,"lease","임대[임차]하다"],[23,"distill","증류[정제]하다"],[23,"misrepresent","(정보를) 잘못 전하다[표현하다]"],[23,"nausea","메스꺼움"],[23,"sow","(씨를) 뿌리다, 심다"],[23,"jeopardy","위험"],[23,"suck","빨다, 흡수하다"],[23,"notable","주목할 만한, 유명한"],[23,"keystone","핵심, 근본 원리"],[23,"span","걸치다, 뻗치다"],[23,"rite","의식, 의례"],[23,"relent","(마음이) 누그러지다, 풀리다"],[23,"surrealistic","초현실주의적인"],[23,"preliminary","예비의"],[23,"specimen","견본, 표본"],[23,"misbehave","못된 짓을 하다, 비행을 저지르다"],[23,"necessitate","~을 필요로 하다"],[23,"shallow","(견해 등이) 피상적인, 깊이 없는"],[23,"evaporate","증발하다"],[23,"realign","재조정하다"],[24,"anchor","닻"],[24,"scholarly","학문적인, 학구적인"],[24,"arouse","(감정 등을) 불러일으키다, 자아내다"],[24,"ominous","불길한"],[24,"epidemic","전염병"],[24,"canal","운하, 수로"],[24,"erroneous","잘못된, 틀린"],[24,"carbohydrate","탄수화물"],[24,"patronize","애용[후원]하다, 단골이 되다"],[24,"cease","그만두다, 중지하다, 중단되다"],[24,"perpetuate","영구화하다, 영속시키다"],[24,"blink","(눈, 불빛 등을) 깜박이다"],[24,"coincide","동시에 일어나다"],[24,"depend","의존하다, 의지하다"],[24,"compassion","연민, 동정심"],[24,"dazzling","눈부신, 현혹시키는"],[24,"concrete","구체적인, 실제의"],[24,"confine","범위, 한계"],[24,"dash","돌진하다, 질주하다"],[24,"readily","손쉽게"],[24,"perch","앉아 있다"],[24,"contract","계약(서)"],[24,"controversial","논란이 많은"],[24,"elusive","찾기[규정하기] 힘든"],[24,"batter","(야구의) 타자"],[24,"corrupt","부패[타락]시키다"],[24,"perimeter","주위, 주변, 둘레"],[24,"plight","역경, 곤경"],[24,"leisurely","한가한, 여유로운"],[24,"disparity","차이, 불균형"],[24,"deteriorate","악화되다, (가치 따위를) 저하시키다"],[24,"inquisitive","탐구적인, 호기심이 많은"],[24,"passerby","통행인"],[24,"dismay","경악하게 하다, 크게 실망시키다"],[24,"nun","수녀, 여승"],[24,"domesticate","길들이다, 사육하다"],[24,"doom","(보통 나쁘게) 운명 짓다"],[24,"drown","익사하다[시키다]"],[24,"partiality","편애, 편파"],[24,"empirical","경험에 의거한, 실증적인"],[24,"paradox","역설"],[24,"avalanche","쇄도"],[24,"equation","방정식, 등식"],[24,"protrude","튀어나오다, 돌출되다"],[24,"graze","풀을 뜯다, 방목하다"],[24,"lyric","((pl.)) 가사"],[24,"heighten","높이다, 고조시키다"],[24,"outgrow","너무 커져서 맞지 않게 되다, ~보다 빨리 성장하다"],[25,"communal","공동의, 공용의"],[25,"excel","(~보다) 뛰어나다, 탁월하다"],[25,"punctual","시간을 지키는"],[25,"execute","실행[수행]하다"],[25,"expire","만료되다, 만기가 되다"],[25,"famine","기근, 흉작"],[25,"invasion","침입, 침략, 침해"],[25,"extension","연장, 확장"],[25,"flaw","결점, 결함"],[25,"infiltrate","침투하다, 스며들다"],[25,"rigid","엄격한, 융통성 없는"],[25,"gear","조정[조절]하다"],[25,"explicit","명백한, 명쾌한"],[25,"incline","(마음이) ~쪽으로 기울다"],[25,"handful","한 움큼, 한 줌, 소량"],[25,"outweigh","~보다 더 크다, ~보다 중대[우수]하다"],[25,"fluid","액체, 유동체"],[25,"incandescent","백열의, 백열광을 내는"],[25,"grain","곡물, 낟알"],[25,"harsh","가혹한, 혹독한"],[25,"rebel","반역(자), 반대(자)"],[25,"hospitality","환대"],[25,"hostile","적대적인"],[25,"infinite","무한한, 셀 수 없는"],[25,"prefix","접두사"],[25,"mediate","중재[조정]하다"],[25,"sort","종류, 유형"],[25,"infrastructure","사회 기반 시설"],[25,"faint","기절하다"],[25,"margin","가장자리, 여백, 여유"],[25,"purposeful","목적의식이 있는, 의도적인"],[25,"tentacle","촉수"],[25,"progressive","진보[혁신]적인"],[25,"naked","벌거벗은, 노출된"],[25,"regime","정권, 체제, 제도"],[25,"mastery","숙달, 통달"],[25,"premature","시기상조의, 예상보다 이른"],[25,"obedience","복종, 순종"],[25,"prosecution","기소, 고발"],[25,"liable","책임이 있는"],[25,"quantify","양을 재다, 수량화하다"],[25,"recollection","기억(력), 회상, 추억"],[25,"serene","고요한, 평화로운"],[25,"firsthand","직접의"],[25,"scorn","경멸[멸시]하다"],[25,"rationalize","합리화하다"],[25,"stray","(바른 길에서) 벗어나다, 옆길로 새다"],[25,"remainder","나머지, 잔여"],[26,"quest","탐색, 탐구, 추구"],[26,"reminder","상기시키는 것"],[26,"distrust","불신하다"],[26,"repetitive","반복적인, 되풀이하는"],[26,"revolve","회전하다, 돌다"],[26,"conform","따르다, 순응하다"],[26,"mythological","신화의"],[26,"foster","조성하다, 발전시키다"],[26,"scrutiny","정밀 조사, 철저한 검토"],[26,"analytic","분석적인"],[26,"pronounce","발음하다"],[26,"seize","(감정이) 엄습하다"],[26,"sheer","순전한, 절대적인"],[26,"slaughter","도살[도축]하다"],[26,"soothe","(기분, 고통 등을) 달래다, 진정시키다"],[26,"zeal","열의, 열성"],[26,"stool","(등받이가 없는) 의자"],[26,"stabilize","안정되다[시키다]"],[26,"anonymity","익명(성)"],[26,"strain","접질리다"],[26,"subtract","빼다"],[26,"ripple","파문, 영향"],[26,"supreme","최고[최상]의"],[26,"sew","바느질하다, 깁다"],[26,"novice","초보자"],[26,"tackle","(문제 등을) 다루다"],[26,"tender","연약한, 다치기 쉬운"],[26,"transport","수송하다, 나르다"],[26,"snarl","으르렁거리다"],[26,"unprecedented","전례 없는"],[26,"submarine","잠수함"],[26,"verify","증명[입증]하다"],[26,"warrant","보증하다"],[26,"indignant","분개한, 성난"],[26,"upbringing","양육, 훈육, (가정) 교육"],[26,"abbreviation","축약(형), 약어"],[26,"agenda","의제, 안건"],[26,"administer","(약을) 투여하다"],[26,"alliance","동맹, 연합"],[26,"sterile","개성이 결핍된"],[26,"guilty","죄책감이 드는"],[26,"sneeze","재채기하다"],[26,"scrub","닦다, 문지르다"],[26,"seduce","유혹[매혹]하다"],[26,"resentful","화난, 억울해 하는"],[26,"sewage","하수, 오물"],[26,"spiritual","정신의, 정신적인"],[26,"spore","포자, 홀씨"],[27,"assault","공격[습격]하다, 폭행하다"],[27,"trivial","사소한, 하찮은"],[27,"awe","경외감, 두려움"],[27,"barren","척박한, 황량한"],[27,"autonomy","자율(성), 자주(성)"],[27,"blur","흐릿해지다"],[27,"prominent","중요한, 유명한"],[27,"deprivation","박탈, 부족, 궁핍"],[27,"tangible","실체가 있는, 유형의"],[27,"beam","발하다, 비추다"],[27,"immune","면역의, 면역성이 있는"],[27,"comet","혜성"],[27,"debris","잔해"],[27,"cosmic","우주의"],[27,"unpack","(가방에 있는 것을) 꺼내다, 짐을 풀다"],[27,"complementary","상호 보완적인"],[27,"depart","출발하다, 떠나다"],[27,"constraint","제약, 제한"],[27,"tranquility","평온"],[27,"precondition","전제 조건"],[27,"discourse","담론, 담화"],[27,"council","의회"],[27,"kneel","무릎을 꿇다"],[27,"terminate","끝나다, 종료되다"],[27,"casual","무심한, 대충의"],[27,"cliche","상투적인 문구"],[27,"donor","기부자, 기증자"],[27,"colonize","식민지로 만들다"],[27,"suffocate","질식시키다, 숨이 막히게 하다"],[27,"tenant","세입자, 임차인"],[27,"deficient","결함이 있는"],[27,"damp","축축한, 눅눅한"],[27,"antiquity","((pl.)) 유물"],[27,"synonym","동의어, 유의어"],[27,"unwind","긴장을 풀다"],[27,"testify","증언[진술]하다, 증명하다"],[27,"bureau","사무국, 부서"],[27,"dock","부두, 선창"],[27,"devour","집어삼키다, 파괴하다"],[27,"trustworthy","신뢰할 만한, 믿을 만한"],[27,"shred","조각조각으로 찢다"],[27,"ongoing","진행 중인"],[27,"stance","입장, 태도"],[27,"completion","완료, 완성"],[27,"sacred","성스러운, 종교적인"],[27,"conclude","(조약을) 체결하다"],[27,"confidential","비밀[기밀]의"],[27,"descend","내려가다"],[27,"rehearse","예행연습을 하다"],[27,"secondhand","간접의"],[28,"entail","수반하다"],[28,"contaminate","오염시키다"],[28,"erect","똑바로 선, 직립한"],[28,"validity","타당성, 유효함"],[28,"fraught","~으로 가득 찬"],[28,"verbalize","말로 표현하다"],[28,"fatal","죽음을 초래하는, 치명적인"],[28,"indebted","빚이 있는, 신세를 진"],[28,"feast","연회, 잔치, 축제"],[28,"strategic","전략적인"],[28,"flesh","(사람, 동물의) 살"],[28,"fluency","유창성, 능숙도"],[28,"victimize","희생시키다, 괴롭히다"],[28,"fossilize","화석화하다[되다]"],[28,"mnemonic","기억을 돕는, 기억술의"],[28,"dairy","유제품의"],[28,"furious","몹시 화가 난, 격노한"],[28,"fungus","균류, 곰팡이류"],[28,"disapprove","못마땅해하다"],[28,"furnish","제공하다"],[28,"whiny","불평하는, 짜증 내는"],[28,"geothermal","지열의"],[28,"wag","(개가 꼬리를) 흔들다"],[28,"solicit","구하다, 청하다"],[28,"immoral","비도덕적인, 부도덕한"],[28,"inborn","선천적인, 타고난"],[28,"membrane","(세포의) 얇은 막"],[28,"inconsistency","불일치, 모순"],[28,"preoccupy","몰두하게 하다"],[28,"inseparable","불가분한, 떨어질 수 없는"],[28,"intimidate","겁을 주다, 위협하다"],[28,"intricate","복잡한, 난해한"],[28,"whirl","빙빙 돌(리)다"],[28,"kin","친족, 친척"],[28,"kinesthetic","운동 감각의"],[28,"unanimously","만장일치로"],[28,"lag","뒤에 처지다, 뒤떨어지다"],[28,"leak","(비밀 등을) 누설[유출]하다"],[28,"loyal","충실한, 충성스러운"],[28,"zealous","열성적인"],[28,"woe","((pl.)) 재난, 불행"],[28,"marvelous","굉장히 멋진, 놀라운"],[28,"masterpiece","걸작, 명작"],[28,"vertebrate","척추동물"],[28,"undertake","착수하다, 시작하다"],[28,"supplementary","보충의, 추가의"],[28,"sober","술 취하지 않은, 맑은 정신의"],[28,"finite","한정된, 유한한"],[28,"illiterate","문맹의, 글을 모르는"],[28,"lament","애통[한탄]하다, 후회하다"],[29,"milestone","획기적 단계[사건], 중요한 시점"],[29,"optical","시각의, 눈의"],[29,"mimic","모방하다, 흉내를 내다"],[29,"moderate","온건한, 적당한"],[29,"monotonous","단조로운, 지루한"],[29,"mutation","변형, 돌연변이"],[29,"designate","지정[임명]하다"],[29,"notify","알리다, 통지하다"],[29,"obsess","사로잡다, ~에 집착하게 하다"],[29,"scar","흉터, 상처"],[29,"paternal","아버지의, 부계의"],[29,"outline","윤곽"],[29,"outstanding","뛰어난, 두드러진"],[29,"peasant","소작농, 농민"],[29,"spiral","나선형의"],[29,"pessimist","비관론자"],[29,"phobia","공포증"],[29,"counterpart","대응 관계에 있는 사람[물건]"],[29,"plague","(유해 동물, 곤충의) 이상[대량] 발생"],[29,"ramp","경사로"],[29,"reap","거두다, 수확하다"],[29,"resilience","회복력, 탄력, 탄성"],[29,"correspond","일치[부합]하다"],[29,"respiratory","호흡의"],[29,"orbit","궤도"],[29,"sibling","형제, 자매"],[29,"perish","죽다, 소멸하다"],[29,"sniff","코를 킁킁거리다, 냄새를 맡다"],[29,"snap","딱 하고 부러지다"],[29,"iconic","상징적인, ~의 상징이 되는"],[29,"proceed","진행하다, 계속하다"],[29,"costume","의상, 복장"],[29,"strand","좌초시키다, 오도 가도 못하게 하다"],[29,"dose","투여하다"],[29,"stake","이해관계"],[29,"substitute","대체하다, 대신하다"],[29,"acute","예리한, 민감한"],[29,"expand","커지다, 팽창하다[시키다]"],[29,"outburst","폭발, 분출"],[29,"enzyme","효소"],[29,"threshold","문지방, 입구, 문턱"],[29,"timber","목재"],[29,"dictate","지시[명령]하다"],[29,"paste","붙이다"],[30,"regional","지역의"],[30,"tract","관, 계"],[30,"enterprise","기업(체), 회사"],[30,"underpin","뒷받침하다, 근거를 대다"],[30,"straightforward","간단한, 쉬운, 복잡하지 않은"],[30,"validate","입증하다"],[30,"civilization","문명(사회)"],[30,"vow","맹세[서약]하다"],[30,"machinery","(집합적) 기계"],[30,"advent","도래, 출현"],[30,"cockpit","(비행기, 경주용 자동차의) 조종석"],[30,"pentagon","미국 국방부"],[30,"anatomy","해부(학), 해부학적 구조"],[30,"surge","(재빨리) 밀려들다, 쇄도하다"],[30,"anecdote","일화"],[30,"assist","돕다, 원조하다"],[30,"succinct","간단명료한"],[30,"ascribe","(원인을) ~에 돌리다, ~의 탓으로 하다"],[30,"censor","검열하다"],[30,"rub","문지르다, 비비다"],[30,"deviant","(표준에서) 벗어난, 일탈적인"],[30,"accord","일치, 조화, 합의"],[30,"aviation","항공(술), 항공기 산업"],[30,"candid","솔직한, 거리낌 없는"],[30,"stitch","바느질하다"],[30,"prestige","위신, 명성"],[30,"concede","인정[수긍]하다, 허용하다"],[30,"communist","공산주의자"],[30,"instill","주입시키다, 스며들게 하다"],[30,"comprise","구성[차지]하다, (~으로) 구성되다"],[30,"bystander","방관자, 구경꾼"],[30,"contradict","모순되다"],[30,"asteroid","소행성"],[30,"neat","정돈된, 깔끔한"],[30,"craze","대유행, 열풍"],[30,"criterion","기준, 규범"],[30,"faulty","흠이 있는, 불완전한"],[30,"surrender","항복하다"],[30,"curfew","통행금지(령)"],[30,"deck","(배의) 갑판, (버스의) 층"],[30,"intent","의향, 의도"],[30,"bind","의무를 지우다"],[30,"penalty","처벌, 형벌"],[30,"recipient","받는 사람, 수납자, 수령인"],[30,"connotation","함축 (의미), 내포"],[30,"airborne","공기로 운반되는"],[30,"constitution","구성, 구조"],[31,"kinship","친족(임), 친족 관계"],[31,"residue","잔여물"],[31,"harassment","괴롭힘"],[31,"displace","(밀어내고) 대신[대체]하다"],[31,"repertoire","레퍼토리, 연주 목록"],[31,"collide","충돌[상충]하다, 부딪히다"],[31,"retailer","소매상, 소매업, 소매 상점"],[31,"dreary","음울한, 따분한"],[31,"drift","(목적이나 목표 없이) 흘러가다, 방랑하다"],[31,"sensitivity","예민함, 민감함"],[31,"dub","재녹음[더빙]하다"],[31,"gravitational","중력[인력]의"],[31,"alongside","~ 옆에, 나란히"],[31,"ancestral","조상의"],[31,"enact","상연[연기]하다"],[31,"elevation","고도, 해발"],[31,"accidental","우연한, 돌발적인"],[31,"elated","의기양양한, 매우 기뻐하는"],[31,"encyclopedia","백과사전"],[31,"nomadic","유목의"],[31,"endow","~에게 (특징 등을) 부여하다"],[31,"approximately","거의, 대략"],[31,"associate","연상하다, 연관 짓다"],[31,"enlighten","계몽하다, 깨우치게 하다"],[31,"feminine","여성의, 여성스러운"],[31,"fluctuate","변동하다, 오르내리다"],[31,"foe","적"],[31,"factual","사실의, 실제의"],[31,"fraction","부분, 일부"],[31,"rush","서두르다"],[31,"frenzy","광분, 광란"],[31,"stale","진부한, 신선하지 않은"],[31,"orientation","방향, 지향"],[31,"gratitude","감사, 고마움"],[31,"spherical","구 모양의, 구체의"],[31,"garment","의복, 옷"],[31,"grin","(이를 드러내고) 활짝 웃다"],[31,"reproach","비난하다, 나무라다"],[31,"growl","으르렁거리다"],[31,"handicap","불리하게 만들다, 방해하다"],[31,"haunt","(유령 등이) 출몰하다"],[31,"spiny","가시가 많은"],[31,"overestimate","과대평가하다"],[31,"suspicion","의심, 불신, 혐의"],[31,"resentment","분함, 분노"],[31,"spawn","(알을) 낳다, 생산하다"],[32,"heap","더미, 무더기"],[32,"sedentary","한곳에 머물러 사는, 정착하고 있는"],[32,"tuition","수업료"],[32,"humble","겸손한"],[32,"impartial","공정한, (판단이) 치우치지 않은"],[32,"incur","(나쁜 상황을) 초래하다, (손해, 빚을) 발생시키다"],[32,"confederate","공범, 공모자"],[32,"indulge","(욕구, 쾌락에) 빠지다, 탐닉하다"],[32,"legislation","법률 (제정)"],[32,"thaw","녹다, 해동시키다"],[32,"inscription","새기기, 명각"],[32,"inspection","사찰, 점검, 정밀조사"],[32,"versatile","다재다능한, 다용도의"],[32,"invert","뒤집다, 도치시키다"],[32,"limp","기운이 없는, 축 처진"],[32,"leftover","((pl.)) 남은 음식"],[32,"intrinsic","고유한, 본질적인"],[32,"liken","~에 비유하다, 비기다"],[32,"limb","팔, 다리, (새의) 날개"],[32,"disseminate","(정보, 사상 등을) 퍼뜨리다, 전파하다"],[32,"prehistoric","선사 시대의"],[32,"linger","남아 있다, 오래 끌다"],[32,"circumstance","((pl.)) 상황, 환경"],[32,"lodge","오두막, 산장"],[32,"martial","싸움의, 전쟁의"],[32,"loom","어렴풋이 나타나다, 곧 닥칠 것처럼 보이다"],[32,"sorrowful","슬픈"],[32,"mainstream","(사상 등의) 주류, 대세"],[32,"peninsula","반도"],[32,"manuscript","(책, 악보 등의) 원고, 사본"],[32,"monk","수도자, 수도승"],[32,"erupt","(화산이) 분출하다, 폭발하다"],[32,"maternal","어머니의, 모성의"],[32,"mighty","강력한, 힘센"],[32,"minister","성직자, 목사"],[32,"hull","선체"],[32,"monetary","통화[화폐]의, 금전의"],[32,"muddy","진흙투성이인"],[32,"nostalgia","향수(병)"],[32,"nuisance","성가신 사람[일], 골칫거리"],[32,"oblige","의무적으로 ~하게 하다, 강요하다"],[32,"splendid","훌륭한, 멋진"],[32,"vocational","직업과 관련된, 직무상의"],[32,"strife","갈등, 불화, 다툼"],[32,"contestant","(대회, 시합의) 참가자"],[32,"stature","위상, 수준"],[32,"subside","가라앉다, 진정되다"],[32,"adversity","역경, 고난"],[32,"stiffen","뻣뻣해지다, 경직되다"],[32,"spacious","넓은"],[33,"onward","앞으로, 나아가서"],[33,"unconsciously","무의식적으로"],[33,"outlaw","불법화하다, 금하다"],[33,"authoritative","권위 있는"],[33,"outset","착수, 시초, 발단"],[33,"actualize","현실로 만들다, 실현하다"],[33,"overturn","뒤집(히)다"],[33,"console","위로하다"],[33,"ramification","((pl.)) 파문, 영향"],[33,"drag","끌다, 끌고 가다"],[33,"pathway","좁은 길, 통로"],[33,"authentic","진정한, 진짜의"],[33,"pierce","뚫다, 관통하다"],[33,"mammal","포유동물"],[33,"nutrient","영양소, 영양분"],[33,"plunge","돌입하다"],[33,"predominate","우세하다, 지배하다"],[33,"reconstruct","재구성[재현]하다"],[33,"gigantic","거대한"],[33,"enroll","등록하다"],[33,"rust","녹이 슬다, 부식하다[시키다]"],[33,"utilize","활용[이용]하다"],[33,"recede","물러나다, 약해지다"],[33,"dignity","위엄, 품위, 존엄(성)"],[33,"reprimand","질책하다"],[33,"slay","죽이다"],[33,"rhetorical","수사적인, 웅변적인"],[33,"presuppose","상정하다, 전제로 하다"],[33,"riddle","구멍을 숭숭 뚫다, 벌집같이 만들다"],[33,"examine","검사[조사]하다"],[33,"generalization","일반화"],[33,"saturate","포화시키다, 포화 상태를 만들다"],[33,"scramble","기어 오르다"],[33,"generate","발생시키다, 초래하다"],[33,"speculate","추측[짐작]하다"],[33,"sprout","싹이 나다"],[33,"stalk","(식물의) 줄기"],[33,"offend","기분을 상하게 하다"],[33,"stroll","산책하다, 거닐다"],[33,"infancy","유아기"],[33,"stumble","우연히 발견하다"],[33,"stink","악취를 풍기다, 냄새가 나다"],[33,"outrun","더 빨리[멀리] 달리다"],[33,"withdraw","취소[철회]하다"],[33,"squeeze","짜다"],[33,"paddle","노를 젓다, 첨벙거리다"],[33,"dumb","멍청한"],[33,"propose","(계획, 생각을) 제안[제시]하다"],[33,"stifle","억누르다, 억압하다"],[34,"submerge","물속에 넣다[잠기다]"],[34,"inescapable","피할 수 없는"],[34,"overtake","추월하다, 능가하다"],[34,"supervision","감독, 관리, 지휘"],[34,"expose","드러내다, 노출시키다"],[34,"synthetic","합성한, 인조의"],[34,"tariff","관세"],[34,"peer","응시하다, 유심히 보다"],[34,"utterly","완전히, 순전히, 전혀"],[34,"underestimate","너무 적게 잡다, 과소평가하다"],[34,"uphold","(법, 원칙 등을) 유지[옹호]하다"],[34,"undue","지나친, 과도한"],[34,"terrain","지형, 지역"],[34,"carve","조각하다, 새기다"],[34,"thermal","열의, 뜨거운"],[34,"descendant","자손, 후예"],[34,"thrust","(거칠게) 밀치다, 찌르다"],[34,"vein","정맥, 혈관"],[34,"vegetation","초목, 식물"],[34,"informative","유익한, 교육적인"],[34,"passionate","열정적인, 열렬한"],[34,"predator","포식자"],[34,"anthropology","인류학"],[34,"withhold","(~을) 주지 않다, 보류하다"],[34,"aboriginal","(특히 오스트레일리아의) 원주민의"],[34,"install","설치하다, 장착하다"],[34,"abide","(규칙을) 지키다"],[34,"absurd","불합리한"],[34,"sediment","침전[퇴적]물, 앙금"],[34,"archaeology","고고학"],[34,"magnify","확대[증대]하다"],[34,"apparatus","(신체의) 기관"],[34,"respondent","응답자"],[34,"acclaim","환호, 갈채"],[34,"alleviate","완화하다, 경감시키다"],[34,"herald","알리다, 발표하다"],[34,"alienate","멀리하다, 소원하게 하다"],[34,"succumb","굴복하다, (병 등으로) 쓰러지다"],[34,"aristocrat","귀족, 상류 계급의 사람"],[34,"stack","쌓다, 쌓이다"],[34,"savage","무참히 공격하다"],[34,"hostage","인질"],[34,"summon","소환[소집]하다, 호출하다"],[34,"thrift","절약, 검약"],[34,"empathy","공감, 감정이입"],[34,"anonymous","익명인, 신원 불명의"],[34,"unearth","밝혀내다, 찾다"],[34,"landfill","쓰레기 매립(지)"],[35,"assert","주장[단언]하다"],[35,"astound","경악시키다, 큰 충격을 주다"],[35,"forecast","예측[예보]하다"],[35,"bankrupt","파산한"],[35,"dart","쏜살같이 움직이다"],[35,"banquet","연회"],[35,"empathic","감정 이입의, 공감할 수 있는"],[35,"scant","부족한, 거의 없는"],[35,"consolidate","통합[합병]하다"],[35,"bitterness","신랄함, 쓰라림, 비통"],[35,"emerge","나오다, 드러나다"],[35,"fuse","융합시키다"],[35,"breakdown","붕괴, 몰락, 쇠약"],[35,"adapt","맞추다, 적응하다"],[35,"brutal","잔혹한, 무자비한, 거친"],[35,"willful","계획적인, 고의의"],[35,"buoyancy","부력"],[35,"bureaucracy","관료 제도[정치]"],[35,"catalyst","촉매제, 자극"],[35,"insurmountable","극복[해결]할 수 없는"],[35,"inquire","묻다, 알아보다"],[35,"inanimate","무생물의"],[35,"clap","박수를 치다"],[35,"layer","층, 겹"],[35,"conspire","협력하다, 함께 작용하다"],[35,"comply","응하다, 따르다"],[35,"invigorate","기운 나게 하다, 활기를 띠게 하다"],[35,"secular","세속적인"],[35,"capture","포착하다"],[35,"confess","자백[고백]하다, 인정하다"],[35,"pseudo","허위의, 가짜의"],[35,"confide","(비밀을) 털어놓다"],[35,"confrontation","직면, 대립"],[35,"considerate","사려 깊은, 배려하는"],[35,"contemplate","생각[고려]하다"],[35,"discrepancy","차이, 불일치"],[35,"ritual","(종교) 의식"],[35,"daze","멍하게 하다, 어리둥절하게 하다"],[35,"discipline","훈육하다, 단련하다"],[35,"decency","품위, 체면"],[35,"delicate","미묘한, 미세한"],[35,"enclose","동봉하다"],[35,"contend","주장하다, 논쟁하다"],[35,"swap","바꾸다, 교환하다"],[35,"blunt","둔화시키다, 무디게 하다"],[35,"cluster","무리, 송이"],[35,"edible","먹을 수 있는"],[36,"launch","시작[개시]하다"],[36,"deplete","격감[고갈]시키다"],[36,"aural","청각의"],[36,"excavate","발굴하다, 출토하다"],[36,"drowsy","졸리는"],[36,"grant","주다, 수여하다"],[36,"draft","원고, 초안"],[36,"envision","마음속에 그리다, 구상하다"],[36,"allegory","우화, 풍유(법)"],[36,"evade","피하다, 모면하다"],[36,"destined","~할 운명인, 예정된"],[36,"detract","(가치를) 떨어뜨리다"],[36,"notorious","악명 높은, 소문난"],[36,"friction","마찰(력)"],[36,"futile","헛된, 쓸모없는"],[36,"vulnerable","취약한, 연약한"],[36,"assembly","의회, 입법 기관"],[36,"queue","(사람, 자동차의) 줄"],[36,"dormant","휴지 상태의, 잠자고 있는"],[36,"embrace","껴안다, 포옹하다"],[36,"compel","강요하다, 억지로 ~하게 하다"],[36,"geographic","지리(학)의, 지리(학)적인"],[36,"geology","지질(학)"],[36,"glimpse","힐끗 보다"],[36,"dubious","의심하는, 미심쩍어하는"],[36,"enchant","매혹하다, 황홀하게 만들다"],[36,"fragment","조각, 파편, 일부분"],[36,"refugee","난민, 망명자"],[36,"real estate","부동산, 토지"],[36,"frantic","광분한, (두려움, 걱정으로) 제정신이 아닌"],[36,"derail","탈선하다"],[36,"flap","덮개, 늘어진 부분[물건]"],[36,"exceptional","극히 드문, 예외적인"],[36,"tilt","기울(이)다"],[36,"credential","((pl.)) 자격(증), 증명서"],[36,"entrust","맡기다, 위임하다"],[36,"deploy","배치[동원]하다"],[36,"foreshadow","전조가 되다, 조짐을 나타내다"],[36,"rummage","뒤지다, 샅샅이 찾다"],[36,"formulate","(세심히) 만들어내다"],[36,"groan","불평하다, 투덜대다"],[36,"grumble","투덜거리다, 불평하다"],[36,"syllable","음절, 한마디"],[36,"receptive","(제안, 생각 등을) 잘 받아들이는, 수용적인"],[36,"symmetry","대칭, 균형"],[36,"ascend","오르다, 올라가다"],[37,"swear","맹세하다, 단언하다"],[37,"handy","편리한, 유용한, 다루기 쉬운"],[37,"improvise","즉흥적으로 하다, 임시변통으로 만들다"],[37,"parasitic","기생하는"],[37,"humiliate","굴욕감을 주다"],[37,"originality","독창성"],[37,"illuminate","비추다, 밝게 하다"],[37,"implicit","암시된, 내포된"],[37,"hub","중심지, 중추"],[37,"malady","질병"],[37,"indefinitely","무기한으로, 무한히"],[37,"inflame","흥분[격분]시키다, 부추기다"],[37,"nasty","비열한, 심술궂은"],[37,"inhale","숨을 들이쉬다, (가스 등을) 흡입하다"],[37,"inject","(다른 것을) 도입하다, 넣다"],[37,"distribute","나누어 주다, 분배하다"],[37,"inventory","재고(품)"],[37,"keen","간절히 ~하고 싶은, ~을 열망하는"],[37,"breed","새끼를 낳다"],[37,"lean","기울(이)다"],[37,"specify","명시하다"],[37,"leather","가죽"],[37,"legitimate","합법적인, 정당한"],[37,"mediocre","보통의, 평범한"],[37,"democracy","민주주의"],[37,"rapport","(친밀한) 관계, 접촉, 친밀함"],[37,"magnetic","자성의, 자석 같은"],[37,"integrate","통합하다[되다]"],[37,"lurk","숨다, 잠복하다"],[37,"timid","소심한, 겁 많은"],[37,"infrared","적외선의"],[37,"meticulous","꼼꼼한, 세심한"],[37,"midst","중앙, 한가운데"],[37,"pervade","만연하다, 스며들다"],[37,"avail","이익, 효용, 효력"],[37,"mold","틀"],[37,"deformity","기형"],[37,"mutter","중얼거리다, 불평하다"],[37,"nibble","조금씩 먹다"],[37,"pedestrian","보행자"],[37,"bulk","부피가 커지다, 덩어리가 되다"],[37,"tersely","간결하게"],[37,"complicit","연루된, 공모한"],[37,"torment","괴롭히다, 고통을 주다"],[37,"prerequisite","전제 조건"],[37,"torture","고문하다, 괴롭히다"],[37,"haul","세게 끌다, 질질 끌고 가다"],[37,"tread","밟기, 걸음걸이"],[37,"maneuver","교묘하게 다루다, 조종[운용]하다"],[38,"overhear","우연히 듣다, 엿듣다"],[38,"outcompete","경쟁에서 이기다"],[38,"petty","사소한, 하찮은"],[38,"toss","던지다"],[38,"suppress","억압[진압]하다"],[38,"outrage","격분, 격노"],[38,"arrange","정렬[배열]하다"],[38,"pavement","포장도로, 노면, 인도"],[38,"paw","(동물의) 발"],[38,"pension","연금, 생활 보조금"],[38,"peripheral","주변적인, 지엽적인"],[38,"prohibit","금하다, 금지하다"],[38,"weird","기이한, 기묘한, 이상한"],[38,"fascinate","매혹하다, 반하게 하다"],[38,"quota","할당량"],[38,"loosen","느슨하게 하다"],[38,"petition","탄원[청원]하다, 간청하다"],[38,"oval","타원형"],[38,"pitfall","위험, 함정"],[38,"plagiarism","표절, 도용"],[38,"trail","자국, 흔적"],[38,"porch","현관, 베란다"],[38,"asthma","천식"],[38,"posture","자세, 태도"],[38,"sag","축 처지다"],[38,"pragmatic","실용적인"],[38,"horizon","수평선, 지평선"],[38,"morale","사기, 의욕"],[38,"prescribe","처방하다"],[38,"stain","얼룩지게 하다, 더럽히다"],[38,"priceless","매우 귀중한, 값을 매길 수 없는"],[38,"priest","성직자"],[38,"proclaim","선언[선포]하다"],[38,"dim","어둑한, 흐릿한"],[38,"procrastination","미루는 버릇, 지연"],[38,"patent","특허(권)"],[38,"reckless","무모한, 신중하지 못한"],[38,"reconciliation","화해, 중재"],[38,"innocent","결백한, 무죄인"],[38,"pitch","음조, 음의 높이"],[38,"bland","단조로운, 자극적이지 않은"],[38,"clarify","명확하게 하다"],[38,"uninterested","흥미 없는, 무관심한"],[38,"outbreak","(전쟁, 사고 등의) 발발[발생]"],[38,"trifling","하찮은, 사소한"],[38,"trot","빨리 걷다, 종종걸음치다"],[38,"primate","영장류"],[38,"wreck","망가뜨리다, 파괴하다"],[38,"realm","범위, 영역"],[38,"degradation","좌천, 하락, 강등"],[39,"regress","되돌아가다, 퇴보하다"],[39,"component","구성 요소, 성분"],[39,"incentive","자극, 동기"],[39,"deduce","추론하다, 연역하다"],[39,"remnant","나머지, 잔존물"],[39,"channel","보내다, 나르다"],[39,"reside","살다, 거주하다"],[39,"relinquish","포기하다, 내주다"],[39,"ethic","윤리, 도덕"],[39,"roar","으르렁거리다, 굉음을 내다"],[39,"sabotage","파괴하다, 방해하다"],[39,"sack","부대, 자루"],[39,"ratio","비율"],[39,"insurance","보호[예방] 수단"],[39,"shovel","삽"],[39,"edify","교화시키다"],[39,"inexplicable","설명할 수 없는, 불가해한"],[39,"shrug","(어깨를) 으쓱하다, 움츠리다"],[39,"slam","쾅 닫다[닫히다]"],[39,"shrub","관목"],[39,"resolutely","단호하게, 결연히"],[39,"smash","박살내다, 때려 부수다"],[39,"smuggle","밀수하다"],[39,"flourish","번창[번성]하다"],[39,"pause","중단, 멈춤"],[39,"desolate","외로운"],[39,"solidify","굳어지다, 굳히다"],[39,"sparsely","드문드문, 성기게"],[39,"scarce","부족한, 드문"],[39,"depict","그리다, 묘사하다"],[39,"subset","부분 집합"],[39,"embody","포함하다, 담다"],[39,"stun","멍하게 하다, 깜짝 놀라게 하다"],[39,"supposedly","아마"],[39,"glance","흘낏 봄"],[39,"terrific","훌륭한, 멋진"],[39,"depress","우울하게 만들다"],[39,"congestion","혼잡"],[39,"virtually","사실상, 실질적으로"],[39,"transparent","투명한, 속이 보이는"],[39,"ample","충분한, 풍부한"],[39,"utmost","최고의, 극도의"],[39,"amid","~의 가운데에"],[39,"turbulent","격동[격변]의, 거친"],[39,"transcribe","기록하다, 옮겨 쓰다"],[39,"disperse","흩어지다, 해산하다"],[39,"unfold","(접힌 것을) 펼치다"],[39,"cater","(요구를) 만족시키다"],[39,"tumor","종양"],[40,"ventilation","통풍, 환기"],[40,"sake","동기, 이유, 이익, 목적"],[40,"stability","안정(성)"],[40,"vicinity","근처, 주변"],[40,"distort","(형체를) 비틀다"],[40,"steer","조종하다, 이끌다"],[40,"impromptu","즉석의"],[40,"tangle","엉키게[얽히게] 하다"],[40,"verbal","언어의, 구두의"],[40,"wrath","분노, 노여움"],[40,"warehouse","창고, 저장소"],[40,"transition","변천, 변화"],[40,"adhere","들러붙다, 고수하다"],[40,"monarchy","왕실, 군주 일가"],[40,"antecedent","선례, 전례"],[40,"spouse","배우자"],[40,"agility","민첩, 명민함"],[40,"antipathy","반감, 혐오"],[40,"engross","몰두[열중]하게 하다"],[40,"albeit","비록 ~일지라도"],[40,"banish","제거하다"],[40,"basin","분지, (강의) 유역"],[40,"anguish","(극심한) 괴로움, 비통"],[40,"vie","우열을 다투다, 경쟁하다"],[40,"artery","동맥"],[40,"verse","운문, 시"],[40,"superstitious","미신적인, 미신을 믿는"],[40,"awry","잘못되어서, 엉망인, 뒤틀린"],[40,"bewilder","어리둥절하게 만들다, 당황하게 하다"],[40,"benign","(기후, 풍토가) 온화한, 양호한"],[40,"manipulate","(여론 등을) 조종[조작]하다"],[40,"allege","단언하다, 주장하다"],[40,"allot","할당[배당]하다"],[40,"burrow","굴을 파다"],[40,"segregate","분리[구분]하다"],[40,"trace","거슬러 올라가다"],[40,"valiant","용맹한, 용감한"],[40,"mandatory","의무[필수]적인"],[40,"vapor","증기"],[40,"viral","바이러스성의"],[40,"diabetes","당뇨병"],[40,"transmit","보내다, 전송하다"],[40,"latitude","위도"],[40,"apprentice","견습생, 도제"],[40,"conceit","자만심"],[40,"miser","구두쇠"],[41,"blossom","꽃"],[41,"dilate","확장하다, 키우다"],[41,"blurry","흐릿한, 모호한"],[41,"bond","유대감을 형성하다"],[41,"boast","자랑하다, 뽐내다"],[41,"vanity","자만심, 허영심"],[41,"bribe","뇌물을 주다, 매수하다"],[41,"cram","밀어 넣다, 쑤셔 넣다"],[41,"bump","돌출부, 튀어나온 부분"],[41,"incident","일어난 일, 사건"],[41,"cargo","화물, 짐"],[41,"captive","사로잡힌, 억류된"],[41,"preserve","지키다, 보호하다"],[41,"census","인구 조사"],[41,"label","~에 표를 붙이다, ~라고 부르다"],[41,"clash","충돌"],[41,"prophecy","예언, 계시"],[41,"clutch","움켜잡다"],[41,"clumsy","어설픈, 서투른"],[41,"taxonomic","분류의, 분류학상의"],[41,"cope","대처하다, 맞서다"],[41,"complement","보완하다"],[41,"subscribe","구독하다, 가입하다"],[41,"complimentary","무료의"],[41,"turnout","투표율"],[41,"profile","윤곽, 옆얼굴, 측면"],[41,"opponent","상대방, 반대자, 적수"],[41,"ailment","질병"],[41,"liberate","자유롭게 하다, 해방하다"],[41,"conducive","~에 좋은, 도움이 되는"],[41,"crash","(충돌, 추락) 사고"],[41,"constituent","구성 성분"],[41,"flexibility","유연성, 융통성"],[41,"corpse","시체"],[41,"hollow","(속이) 빈"],[41,"activate","작동시키다, 활성화시키다"],[41,"filtration","여과"],[41,"stall","꼼짝 못 하게 되다"],[41,"crouch","(몸을) 쭈그리다, 쭈그리고 앉다"],[41,"crunchy","아삭아삭한, 바삭바삭한"],[41,"impending","곧 닥칠, 임박한"],[41,"dangle","매달리다, 달랑거리다"],[41,"savor","음미하다, 맛보다"],[41,"veterinarian","수의사"],[41,"byproduct","부산물, 부작용"],[41,"pharmacy","약국"],[41,"torch","손전등, 횃불"],[41,"compress","압축하다"],[42,"decompose","분해하다"],[42,"craving","갈망, 열망"],[42,"eternal","영원한, 끝없는"],[42,"defy","반항[도전]하다, 무시하다"],[42,"reverse","뒤바꾸다, 뒤집다"],[42,"embark","시작[착수]하다"],[42,"disruption","중단, 혼란"],[42,"doctrine","교리, 신조, 원칙"],[42,"probability","확률, 개연성"],[42,"delegate","대표(자), 사절"],[42,"obscure","모호한, 이해하기 힘든"],[42,"dissent","반대"],[42,"fling","던지다, 팽개치다"],[42,"foremost","가장 중요한[유명한], 일류의"],[42,"fermentation","발효"],[42,"fertility","출생률"],[42,"pound","뚜벅뚜벅 걷다"],[42,"figurative","비유적인, 상징적인"],[42,"construe","이해하다, 해석하다"],[42,"pioneer","개척자, 선구자"],[42,"drainage","배수 (시설)"],[42,"pesticide","살충제, 농약"],[42,"falter","불안정해지다, 흔들리다"],[42,"fusion","융합, 결합, 용해"],[42,"dispense","나누어주다, 분배하다"],[42,"counter","대응[대항]하다, 반박하다"],[42,"sink","몰락하다"],[42,"juror","배심원"],[42,"aggressive","공격적인"],[42,"formidable","가공할, 무시무시한"],[42,"broaden","넓어지다, 넓히다"],[42,"forthcoming","준비되어 있는, 마련된"],[42,"substandard","기준[수준] 이하의"],[42,"executive","임원, 경영진"],[42,"fortify","강화하다, 확고히 하다"],[42,"discharge","(기체, 액체를) 방출하다"],[42,"emphatic","(어조, 행동이) 강한, 단호한"],[42,"invasive","침입하는, 침략적인"],[42,"dispose","처리하다"],[42,"protest","항의[반대]하다"],[42,"autopsy","(사체의) 검시, 부검"],[42,"flee","달아나다, 도망가다"],[42,"convict","죄인, 죄수"],[43,"relocate","이전[이동]하다"],[43,"compile","편집[편찬]하다"],[43,"detest","몹시 싫어하다, 혐오하다"],[43,"gem","보석"],[43,"astronomy","천문학"],[43,"antibiotic","항생제, 항생물질"],[43,"venture","위험을 무릅쓰다, 과감히 ~하다"],[43,"crumple","구기다, 구겨지다"],[43,"protagonist","주인공"],[43,"gust","돌풍, 세찬 바람"],[43,"hail","환호하다, 칭송하다"],[43,"harness","이용[활용]하다"],[43,"incubate","(알을) 품다"],[43,"heredity","유전(적 특징)"],[43,"surpass","능가하다, 뛰어넘다"],[43,"command","지배(력), 제어(력)"],[43,"austerity","검소, 내핍"],[43,"pedagogical","교육학적인"],[43,"hurdle","장애물, 난관"],[43,"stem","생기다, 일어나다"],[43,"impair","악화[손상]시키다"],[43,"grieve","비통해하다, 몹시 슬퍼하다"],[43,"impoverish","가난하게 하다"],[43,"output","생산량, 산출량"],[43,"persecution","(종교적, 정치적) 박해, 탄압"],[43,"accelerate","가속화하다"],[43,"sacrifice","희생하다, 바치다"],[43,"ingenious","독창적인, 기발한"],[43,"besiege","포위하다, 에워싸다"],[43,"inflate","부풀다, 부풀리다"],[43,"reluctant","꺼리는, 주저하는"],[43,"inflow","유입(량)"],[43,"herd","(가축을) 지키다, 몰다"],[43,"crawl","기다, 기어가다"],[43,"intertwine","뒤얽히다, 서로 엮다"],[43,"rotation","회전, (천체의) 자전"],[43,"intrusion","침범, 침해"],[43,"phase","단계적으로 실행하다"],[43,"kidney","신장, 콩팥"],[43,"slap","찰싹 때리다"],[43,"latch","걸쇠, 자물쇠"],[43,"viable","실행 가능한"],[43,"vibration","진동, (마음의) 동요"],[43,"fake","위조[날조]하다"],[43,"erosion","부식, 침식"],[44,"legacy","유산, 유물"],[44,"improbable","사실 같지 않은, 있을 것 같지 않은"],[44,"inevitable","불가피한, 필연적인"],[44,"poach","밀렵하다"],[44,"alert","경고하다, 위험을 알리다"],[44,"lure","유혹하다, 꾀다, 유인하다"],[44,"mandate","명령[규정]하다"],[44,"paramount","가장 중요한"],[44,"moss","이끼"],[44,"marginalize","사회적으로 무시[소외]하다"],[44,"collaboration","협동, 합작"],[44,"alien","이질적인, 다른"],[44,"mindset","사고방식, 태도"],[44,"onlooker","방관자, 구경꾼"],[44,"perplex","당혹하게[곤란하게] 하다"],[44,"soar","날아오르다"],[44,"overstate","과장하다, 허풍떨다"],[44,"hatch","부화하다"],[44,"parasite","기생 동물[식물]"],[44,"ulcer","궤양"],[44,"exploit","활용하다"],[44,"clan","씨족, 일가, 집단"],[44,"fluctuation","변동, 동요, 불안정"],[44,"villain","악당, 범인"],[44,"overview","개관, 개요"],[44,"meager","빈약한, 불충분한"],[44,"persevere","인내하다, 참다, 꾸준히 계속하다"],[44,"ingenuity","창의력, 독창성, 재간"],[44,"retention","보유, 유지"],[44,"pastor","목사, 사제"],[44,"injustice","불평등, 부당함"],[44,"patrol","순찰, 정찰(대)"],[44,"gravel","자갈"],[44,"insistence","주장, 강조, 고집"],[44,"pervasive","만연하는, 스며드는"],[44,"layoff","일시 해고"],[44,"pinpoint","정확히 찾아내다"],[44,"compound","합성의, 복합의"],[44,"microscope","현미경"],[44,"olfactory","후각의"],[44,"wail","울부짖다, 한탄하다, 구슬픈 소리를 내다"],[44,"fortress","요새, 성채"],[44,"wander","(이리저리) 돌아다니다, 헤매다"],[44,"toddler","걸음마를 시작한 아이"],[44,"mow","(풀, 곡물 따위를) 깎다, 베다"],[44,"vowel","모음"],[45,"pit","움푹 들어가게 하다"],[45,"affluent","부유한, 풍족한"],[45,"conception","개념, 생각"],[45,"tempt","유혹[유도]하다"],[45,"portable","휴대용의, 이동이 쉬운"],[45,"gasp","숨이 막히다, 헐떡거리다"],[45,"predecessor","이전의 것, 전임자"],[45,"predominant","주된, 현저한, 두드러진"],[45,"formula","(일정한) 방식"],[45,"beware","조심[주의]하다"],[45,"neural","신경의"],[45,"elaborate","정교하게 만들다"],[45,"reassure","안심시키다"],[45,"proliferate","급증하다, 증식하다[시키다]"],[45,"congress","의회, 국회"],[45,"prolific","다작[다산]하는"],[45,"sift","체로 거르다"],[45,"mount","(~을 조직하여) 시작하다"],[45,"rack","괴롭히다, 시달리게 하다"],[45,"reimburse","배상[변상]하다"],[45,"landslide","산사태"],[45,"reclaim","되찾다, 재생하다"],[45,"moan","투덜거리다, 불평하다"],[45,"respectful","경의를 표하는, 공손한"],[45,"refute","반박하다"],[45,"enliven","활기[생동감] 있게 만들다"],[45,"provision","공급, 제공"],[45,"relentless","끊임없는"],[45,"recovery","회복, 복구"],[45,"pottery","도자기"],[45,"refrain","삼가다, 자제하다"],[45,"mourn","애도하다, 슬퍼하다"],[45,"load","(짐을) 싣다"],[45,"retrospect","회고, 회상"],[45,"owe","빚지고 있다, 신세를 지고 있다"],[45,"sanction","((pl.)) 제재"],[45,"cohesive","응집력 있는, 화합하는"],[45,"satiety","포만감"],[45,"scoop","(양손으로) 그러모으다"],[45,"dwindle","(점점) 줄어들다"],[45,"scrape","긁다, 긁어내다"],[45,"scribble","낙서"],[45,"pollen","꽃가루, 화분"],[45,"apprehension","이해"],[45,"prevalent","흔한, 널리 퍼진"],[45,"shabby","낡은, 허름한"],[45,"fierce","사나운, 맹렬한"],[45,"endorse","지지하다"],[45,"plead","간청[애원]하다"],[46,"internalize","내면화하다"],[46,"offset","상쇄[벌충]하다"],[46,"strenuous","몹시 힘든, 격렬한"],[46,"cling","고집하다"],[46,"ridicule","비웃다, 조롱하다"],[46,"immerse","몰두하다, 몰두하게 만들다"],[46,"swarm","떼를 짓다"],[46,"severance","계약 해지, 해고"],[46,"statistics","통계 (자료)"],[46,"stubborn","완고한, 고집스러운"],[46,"anarchy","무정부 상태, 난장판"],[46,"memoir","회고록"],[46,"unveil","(비밀을) 밝히다"],[46,"entrepreneur","사업[기업]가"],[46,"secretion","분비(물)"],[46,"temperate","(기후가) 온화한, 온난한"],[46,"subsidiary","자회사"],[46,"subsidize","보조금을 주다"],[46,"deviation","일탈, 탈선"],[46,"imprudent","경솔한"],[46,"audit","(회계를) 감사하다"],[46,"province","지방, 지역"],[46,"shuffle","섞다, 이리저리 바꾸다"],[46,"luminous","빛나는, 반짝이는"],[46,"slash","대폭 줄이다"],[46,"attain","달성하다, 이루다"],[46,"rod","막대, 지팡이, 낚싯대"],[46,"insulate","절연[단열/방음] 처리를 하다"],[46,"wither","말라 죽다, 시들게 하다"],[46,"commotion","소란, 소동"],[46,"disclose","드러내다, 폭로하다"],[46,"medication","약(물)"],[46,"hemisphere","(지구, 뇌 등의) 반구"],[46,"irrigate","관개하다, 물을 대다"],[46,"render","주다, 제공하다"],[46,"stride","성큼성큼 걷다"],[46,"spit","침"],[46,"surveillance","감시, 망보기"],[46,"tow","끌다, 견인하다"],[46,"efficacy","효험, 효능"],[46,"stopover","잠시 머묾, 단기 체류(지)"],[46,"despair","절망"],[46,"deceive","속이다, 기만하다"],[46,"harbor","숨겨주다, ~의 거처가 되다"],[46,"implicate","(나쁜 것에) 관련[연루]시키다"],[46,"presume","추정[가정]하다"],[46,"sermon","설교"],[47,"hazard","위험"],[47,"transcript","성적 증명서"],[47,"treaty","조약"],[47,"bruise","멍들다, 상하게 하다"],[47,"loop","고리, 올가미"],[47,"turmoil","혼란, 소란"],[47,"expel","퇴학시키다, 제명하다"],[47,"align","조정[조절]하다"],[47,"blend","섞다, 혼합하다"],[47,"vacant","비어 있는"],[47,"congruent","일치하는, 부합하는"],[47,"dwell","살다, 거주하다"],[47,"verdict","평결, 판결"],[47,"verge","직전"],[47,"dimension","차원, 관점"],[47,"vomit","토하다"],[47,"detach","분리하다, 떼어내다"],[47,"weep","눈물을 흘리다"],[47,"chant","연호하다"],[47,"worship","예배하다, 숭배하다"],[47,"drill","구멍을 뚫다"],[47,"irreparable","돌이킬 수 없는, 바로잡을 수 없는"],[47,"wade","헤치며 걷다"],[47,"hind","(동물의 다리, 발의) 뒤쪽의"],[47,"fulfill","이행하다, 완수하다"],[47,"typify","대표하다, ~의 특징을 나타내다"],[47,"solemn","엄숙한, 진지한"],[47,"grab","움켜잡다, 붙잡다"],[47,"aggravate","악화시키다"],[47,"agitate","(사람을) 선동하다, 동요시키다"],[47,"craft","정교하게[공들여] 만들다"],[47,"coercion","강제, 강압 (정치)"],[47,"massive","거대한"],[47,"array","배열[진열]하다"],[47,"clue","단서, 실마리"],[47,"assent","승인, 찬성"],[47,"wary","경계[조심]하는"],[47,"auction","경매로 팔다"],[47,"whip","채찍질하다"],[47,"solidarity","연대, 결속"],[47,"gourmet","미식가, 식도락가"],[47,"certitude","확신, 확실(성)"],[47,"troop","병력, 군대"],[47,"allude","암시하다, 넌지시 말하다"],[47,"unravel","풀다, 해결하다"],[47,"convince","확신[납득]시키다"],[47,"unrest","(사회, 정치적인) 불안"],[47,"propel","나아가게 하다, 추진하다"],[48,"unify","통합[통일]하다"],[48,"averse","~을 싫어하는, 반대하는, 꺼리는"],[48,"axis","축(선), 중심선"],[48,"arbitrary","독단적인"],[48,"differentiate","구별하다, 구분 짓다"],[48,"vitality","생명력, 활력"],[48,"commemorate","기념하다, 축하하다"],[48,"creek","개울, 샛강, 작은 만"],[48,"barter","물물교환하다, 교역하다"],[48,"counterfeit","위조[모조]의"],[48,"velocity","속도"],[48,"revenue","수익, 세입"],[48,"bulge","부풀다, 가득 차다"],[48,"avenue","(나아갈) 수단, 방안"],[48,"conspicuous","눈에 잘 띄는, 뚜렷한"],[48,"ballot","(무기명) 투표하다"],[48,"embed","끼워 넣다"],[48,"defendant","피고인(측)"],[48,"externalize","(생각, 감정을) 표면화[외면화]하다"],[48,"acquaintance","아는 사람, 지인"],[48,"compartment","객실"],[48,"sturdy","튼튼한, 견고한"],[48,"causality","인과 관계"],[48,"gratify","만족시키다, 기쁘게 하다"],[48,"converge","모여들다"],[48,"daunt","위압하다, 기를 죽이다"],[48,"refine","개선하다, 세련되게 하다"],[48,"competence","능력, 역량"],[48,"sway","흔들리다"],[48,"defection","탈퇴, 이탈"],[48,"oblivious","의식하지 못하는"],[48,"squint","눈을 가늘게 뜨고 보다"],[48,"covet","탐내다, 갈망하다"],[48,"strive","분투하다, 노력하다"],[48,"transitional","과도기의"],[48,"reckon","생각[판단]하다"],[48,"contrive","고안하다, 궁리하다"],[48,"devastate","황폐화시키다, 완전히 파괴하다"],[48,"multiply","증가하다, 증식[번식]시키다"],[48,"quote","인용하다"],[48,"modesty","단정함, 얌전함"],[48,"magnitude","규모, 크기"],[48,"joint","공동[합동]의"],[48,"fabric","구조, 뼈대"],[48,"acquisition","습득, 취득(물)"],[48,"precaution","예방책, 예방 조치"],[48,"lousy","형편없는, 엉망인"],[49,"deflect","방향을 바꾸다"],[49,"degenerate","퇴화[쇠퇴]하다"],[49,"aggregation","집단, 집합"],[49,"waive","(권리, 요구 등을) 포기하다"],[49,"scholarship","장학금"],[49,"demolish","파괴하다"],[49,"denote","나타내다, 의미하다"],[49,"embezzle","횡령하다, 착복하다"],[49,"reign","군림하다, 지배하다"],[49,"overflow","범람하다, 넘치다"],[49,"adolescent","청소년"],[49,"fuss","호들갑, 야단법석"],[49,"polish","다듬다, 손질하다"],[49,"discrete","별개의"],[49,"disdain","업신여기다, 무시하다"],[49,"accustom","익숙하게 하다"],[49,"exquisite","고상한, 세련된, 정교한"],[49,"disprove","틀렸음을 입증하다"],[49,"ditch","배수로, 도랑"],[49,"diverge","(의견이) 나뉘다, 달라지다"],[49,"slip","실수"],[49,"summarize","요약하다"],[49,"earnestly","진지하게, 진정으로"],[49,"bombard","쏟아붓다, 퍼붓다"],[49,"easygoing","느긋한, 태평한"],[49,"economize","절약하다, 아끼다"],[49,"undergo","겪다, 경험하다"],[49,"prescient","선견지명이 있는"],[49,"emigrate","이민을 가다"],[49,"encircle","둘러싸다"],[49,"wilderness","황야, 황무지"],[49,"enlist","도움을 구하여 얻다"],[49,"vertical","수직의, 세로의"],[49,"comparatively","비교적"],[49,"dejected","낙담한, 기운 없는"],[49,"judicial","사법[재판]의"],[49,"exterior","(건물의) 외부, 바깥면"],[49,"wrack","고문하다, 괴롭히다"],[49,"cavity","구멍"],[49,"applause","박수갈채, 칭찬"],[49,"vessel","그릇, 용기"],[49,"precision","정확(성), 정밀(성)"],[49,"glittering","반짝반짝 빛나는"],[49,"breakthrough","돌파구, 큰 발전"],[49,"exclaim","소리치다, 외치다"],[49,"swamp","늪, 습지"],[49,"infamous","악명 높은"],[49,"downsize","줄이다, 축소하다"],[49,"salient","가장 두드러진[중요한]"],[50,"empower","권한을 주다"],[50,"groom","몸단장을 하다"],[50,"extrinsic","외적인, 외부의"],[50,"multitude","다수, 대량"],[50,"feasible","실행 가능한, 가능성 있는"],[50,"forage","먹이를 찾다"],[50,"gymnastics","체조"],[50,"flock","모이다, 떼 지어가다"],[50,"expedition","탐험, 원정"],[50,"generic","일반적인, 총칭의"],[50,"restrain","억제[제지]하다"],[50,"feeble","부족한, 미약한"],[50,"retina","(눈의) 망막"],[50,"neutral","중립적인"],[50,"drain","(힘, 돈 등을) 소모시키다"],[50,"susceptible","민감한, 영향을 받기 쉬운"],[50,"offspring","자식, 자손"],[50,"gist","요지, 골자"],[50,"genesis","기원, 발생"],[50,"gleaming","빛나는, 환한"],[50,"alchemy","연금술"],[50,"roam","돌아다니다, 배회하다"],[50,"geometry","기하학"],[50,"flop","실패"],[50,"gland","선, 샘, 분비 기관"],[50,"decode","(암호를) 해독하다"],[50,"initiative","주도(권)"],[50,"feverish","열광적인"],[50,"ornamental","장식용의"],[50,"intangible","실체가 없는, 무형의"],[50,"sarcasm","빈정댐, 비꼼"],[50,"bay","(작은) 만"],[50,"persistence","인내력, 집요함, 지속성"],[50,"fiscal","재정상의, 회계의"],[50,"grind","갈다, 빻다"],[50,"eclipse","(일식, 월식의) 식"],[50,"individuality","개성, 특성"],[50,"hamper","방해하다, 제한하다"],[50,"sneaky","교활한, 경계해야 할"],[50,"scout","돌아다니다, 정찰하다"],[50,"eloquent","설득력 있는, 유창한"],[50,"permeate","스며들다, 침투하다"],[50,"grapple","붙잡다, 붙잡고 싸우다"],[50,"toll","(종을) 울리다, (시각을) 알리다"],[50,"correlation","상관[상호]관계, 연관성"],[50,"physiology","생리(학)"],[50,"celestial","하늘의, 천체의"],[50,"triumph","승리, 업적"]]; // [day, word, meaning][]
+
+/* ---------------- THEME ---------------- */
+const themeToggle = document.getElementById('themeToggle');
+function applyThemeIcon(){
+  const t = document.documentElement.getAttribute('data-theme');
+  const isDark = t === 'dark' || (!t && window.matchMedia('(prefers-color-scheme: dark)').matches);
+  themeToggle.textContent = isDark ? '☀️' : '🌙';
+}
+function initTheme(){
+  try{
+    const saved = localStorage.getItem('vocaday-theme');
+    if(saved === 'light' || saved === 'dark'){
+      document.documentElement.setAttribute('data-theme', saved);
+    }
+  }catch(e){}
+  applyThemeIcon();
+}
+themeToggle.addEventListener('click', ()=>{
+  const current = document.documentElement.getAttribute('data-theme');
+  const isDarkNow = current === 'dark' || (!current && window.matchMedia('(prefers-color-scheme: dark)').matches);
+  const next = isDarkNow ? 'light' : 'dark';
+  document.documentElement.setAttribute('data-theme', next);
+  try{ localStorage.setItem('vocaday-theme', next); }catch(e){}
+  applyThemeIcon();
+});
+initTheme();
+
+/* ---------------- NAV ---------------- */
+const tabButtons = document.querySelectorAll('nav.tabs button');
+const views = {
+  home: document.getElementById('view-home'),
+  quiz: document.getElementById('view-quiz'),
+  'quiz-play': document.getElementById('view-quiz-play'),
+  'quiz-result': document.getElementById('view-quiz-result'),
+  dict: document.getElementById('view-dict'),
+  wrongbook: document.getElementById('view-wrongbook'),
+  favorites: document.getElementById('view-favorites'),
+};
+function showView(name){
+  if(views['quiz-play'].classList.contains('active') && name!=='quiz-play' && autoAdvanceTimer){
+    clearTimeout(autoAdvanceTimer); autoAdvanceTimer = null;
+  }
+  Object.values(views).forEach(v=>v.classList.remove('active'));
+  views[name].classList.add('active');
+  tabButtons.forEach(b=>b.classList.toggle('active', b.dataset.view===name || (name.startsWith('quiz') && b.dataset.view==='quiz')));
+  if(name==='wrongbook') renderWrongbook();
+  if(name==='favorites') renderFavorites();
+  window.scrollTo({top:0, behavior:'instant'});
+}
+tabButtons.forEach(b=> b.addEventListener('click', ()=> showView(b.dataset.view)) );
+document.querySelectorAll('[data-goto]').forEach(b=>{
+  b.addEventListener('click', ()=> showView(b.dataset.goto));
+});
+
+/* ---------------- HOME STATS ---------------- */
+document.getElementById('homeTotalWords').textContent = VOCAB.length.toLocaleString();
+(function buildHomeTabs(){
+  const wrap = document.getElementById('homeDayTabs');
+  for(let i=1;i<=50;i++){
+    const el = document.createElement('i');
+    wrap.appendChild(el);
+  }
+})();
+
+/* ---------------- HELPERS ---------------- */
+function wordsInRange(n,m){
+  return VOCAB.filter(([d])=> d>=n && d<=m);
+}
+function dayLabel(d){ return 'DAY ' + String(d).padStart(2,'0'); }
+function shuffle(arr){
+  const a = arr.slice();
+  for(let i=a.length-1;i>0;i--){
+    const j = Math.floor(Math.random()*(i+1));
+    [a[i],a[j]] = [a[j],a[i]];
+  }
+  return a;
+}
+
+/* ---------------- QUIZ SETUP ---------------- */
+const rangeN = document.getElementById('rangeN');
+const rangeM = document.getElementById('rangeM');
+const rangeTicks = document.getElementById('rangeTicks');
+const rangeHint = document.getElementById('rangeHint');
+const rangeError = document.getElementById('rangeError');
+const startQuizBtn = document.getElementById('startQuizBtn');
+
+(function buildTicks(){
+  for(let i=1;i<=50;i++){
+    const el = document.createElement('i');
+    el.dataset.day = i;
+    rangeTicks.appendChild(el);
+  }
+})();
+
+// 숫자 입력칸에 포커스가 가면 기존 값을 전체 선택해서,
+// 바로 새 숫자를 입력했을 때 기존 값 뒤에 이어붙는 대신 덮어쓰도록 한다.
+function selectAllOnFocus(el){
+  const doSelect = ()=> requestAnimationFrame(()=> el.select());
+  el.addEventListener('focus', doSelect);
+  el.addEventListener('click', doSelect);
+}
+
+let quizDirection = 'word2mean';
+let quizCount = 10;
+let quizType = 'mc';
+
+function clamp(v,min,max){ return Math.min(max, Math.max(min, v)); }
+
+function refreshRangeUI(){
+  let n = clamp(parseInt(rangeN.value)||1, 1, 50);
+  let m = clamp(parseInt(rangeM.value)||1, 1, 50);
+  rangeN.value = n; rangeM.value = m;
+
+  const valid = n <= m;
+  rangeError.classList.toggle('show', !valid);
+
+  [...rangeTicks.children].forEach((el)=>{
+    const d = parseInt(el.dataset.day);
+    el.classList.toggle('on', valid && d>=n && d<=m);
+  });
+
+  if(valid){
+    const pool = wordsInRange(n,m);
+    rangeHint.textContent = `${dayLabel(n)} ~ ${dayLabel(m)} 범위 · ${pool.length.toLocaleString()}개 단어`;
+    startQuizBtn.disabled = pool.length < 5;
+  } else {
+    rangeHint.textContent = '';
+    startQuizBtn.disabled = true;
+  }
+  refreshCountRow();
+}
+function refreshCountRow(){
+  const n = parseInt(rangeN.value), m = parseInt(rangeM.value);
+  if(n>m) return;
+  const poolLen = wordsInRange(n,m).length;
+  document.querySelectorAll('#countRow button').forEach(btn=>{
+    const val = btn.dataset.count;
+    if(val !== 'all'){
+      btn.disabled = quizDirection !== 'real' && poolLen < parseInt(val);
+      btn.style.opacity = btn.disabled ? .4 : 1;
+    }
+  });
+}
+rangeN.addEventListener('input', refreshRangeUI);
+rangeM.addEventListener('input', refreshRangeUI);
+selectAllOnFocus(rangeN);
+selectAllOnFocus(rangeM);
+
+document.querySelectorAll('.presets .chip').forEach(chip=>{
+  chip.addEventListener('click', ()=>{
+    const [n,m] = chip.dataset.preset.split('-').map(Number);
+    rangeN.value = n; rangeM.value = m;
+    refreshRangeUI();
+  });
+});
+
+document.getElementById('directionSeg').addEventListener('click', (e)=>{
+  const btn = e.target.closest('button');
+  if(!btn || btn.classList.contains('control-disabled')) return;
+  document.querySelectorAll('#directionSeg button').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  quizDirection = btn.dataset.dir;
+  refreshCountRow();
+});
+
+document.getElementById('quizTypeSeg').addEventListener('click', (e)=>{
+  const btn = e.target.closest('button');
+  if(!btn) return;
+  document.querySelectorAll('#quizTypeSeg button').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  quizType = btn.dataset.type;
+  const realBtn = document.querySelector('#directionSeg button[data-dir="real"]');
+  if(quizType === 'mc'){
+    realBtn.classList.remove('control-disabled');
+  }else{
+    realBtn.classList.add('control-disabled');
+    if(quizDirection === 'real'){
+      const fallback=document.querySelector('#directionSeg button[data-dir="word2mean"]');
+      document.querySelectorAll('#directionSeg button').forEach(b=>b.classList.remove('active'));
+      fallback.classList.add('active');
+      quizDirection='word2mean';
+    }
+  }
+  document.getElementById('quizTypeNote').textContent = quizType==='mc'
+    ? '객관식: 5지선다 · 숫자 키 1~5로 선택할 수 있습니다.'
+    : quizType==='short'
+      ? '주관식: 정답을 직접 입력하세요. 영어는 대소문자를 구분하지 않습니다.'
+      : '혼합: 객관식과 주관식이 문제마다 섞여 출제됩니다.';
+});
+
+/* ---------------- PRACTICE MODE (주관식 연습모드) ---------------- */
+let practiceModeEnabled = false;
+let practiceAddToWrongbook = true;
+
+document.getElementById('practiceModeToggle').addEventListener('click', ()=>{
+  practiceModeEnabled = !practiceModeEnabled;
+  const toggle = document.getElementById('practiceModeToggle');
+  toggle.classList.toggle('on', practiceModeEnabled);
+  toggle.setAttribute('aria-checked', practiceModeEnabled ? 'true' : 'false');
+  document.getElementById('practiceWrongbookRow').classList.toggle('hidden', !practiceModeEnabled);
+  document.getElementById('countSection').classList.toggle('hidden', practiceModeEnabled);
+  startQuizBtn.textContent = practiceModeEnabled ? '연습모드 시작' : '퀴즈 시작하기';
+
+  const mcBtn = document.querySelector('#quizTypeSeg button[data-type="mc"]');
+  const mixedBtn = document.querySelector('#quizTypeSeg button[data-type="mixed"]');
+  const shortBtn = document.querySelector('#quizTypeSeg button[data-type="short"]');
+  const realBtn = document.querySelector('#directionSeg button[data-dir="real"]');
+
+  if(practiceModeEnabled){
+    mcBtn.classList.add('control-disabled');
+    mixedBtn.classList.add('control-disabled');
+    document.querySelectorAll('#quizTypeSeg button').forEach(b=>b.classList.remove('active'));
+    shortBtn.classList.add('active');
+    quizType = 'short';
+    document.getElementById('quizTypeNote').textContent = '연습모드는 주관식으로만 출제돼요.';
+    realBtn.classList.add('control-disabled');
+    if(quizDirection === 'real'){
+      const fallback=document.querySelector('#directionSeg button[data-dir="word2mean"]');
+      document.querySelectorAll('#directionSeg button').forEach(b=>b.classList.remove('active'));
+      fallback.classList.add('active');
+      quizDirection='word2mean';
+    }
+  }else{
+    mcBtn.classList.remove('control-disabled');
+    mixedBtn.classList.remove('control-disabled');
+    document.getElementById('quizTypeNote').textContent = quizType==='mc'
+      ? '객관식: 5지선다 · 숫자 키 1~5로 선택할 수 있습니다.'
+      : quizType==='short'
+        ? '주관식: 정답을 직접 입력하세요. 영어는 대소문자를 구분하지 않습니다.'
+        : '혼합: 객관식과 주관식이 문제마다 섞여 출제됩니다.';
+    if(quizType === 'mc') realBtn.classList.remove('control-disabled');
+  }
+});
+
+document.getElementById('practiceWrongbookToggle').addEventListener('click', ()=>{
+  practiceAddToWrongbook = !practiceAddToWrongbook;
+  const toggle = document.getElementById('practiceWrongbookToggle');
+  toggle.classList.toggle('on', practiceAddToWrongbook);
+  toggle.setAttribute('aria-checked', practiceAddToWrongbook ? 'true' : 'false');
+});
+
+
+function escapeHTML(str){
+  return String(str).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+document.getElementById('countRow').addEventListener('click', (e)=>{
+  const btn = e.target.closest('button');
+  if(!btn || btn.disabled) return;
+  document.querySelectorAll('#countRow button').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  quizCount = btn.dataset.count;
+});
+
+refreshRangeUI();
+
+/* ---------------- WRONGBOOK ---------------- */
+const WRONGBOOK_KEY = 'vocaday-wrongbook-v1';
+let wrongbookFilter = 'all';
+let wrongbookDirection = 'mixed';
+let wrongbookType = 'mc';
+let wrongbookCount = '10';
+
+function loadWrongbook(){
+  try{
+    const raw = localStorage.getItem(WRONGBOOK_KEY);
+    const parsed = raw ? JSON.parse(raw) : {};
+    return (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) ? parsed : {};
+  }catch(e){ return {}; }
+}
+function saveWrongbook(data){
+  try{ localStorage.setItem(WRONGBOOK_KEY, JSON.stringify(data)); }catch(e){}
+}
+function recordWrongAnswer(entry){
+  if(!entry || !entry[1]) return;
+  const [day, word, meaning] = entry;
+  const data = loadWrongbook();
+  const now = Date.now();
+  const current = data[word] || {day, word, meaning, wrongCount:0, firstWrong:now, lastWrong:now};
+  current.day = day; current.meaning = meaning;
+  current.wrongCount = Number(current.wrongCount||0) + 1;
+  current.lastWrong = now;
+  if(!current.firstWrong) current.firstWrong = now;
+  data[word] = current;
+  saveWrongbook(data);
+}
+function removeWrongbookWord(word){
+  const data = loadWrongbook();
+  delete data[word];
+  saveWrongbook(data);
+  renderWrongbook();
+}
+function clearWrongbook(){
+  try{ localStorage.removeItem(WRONGBOOK_KEY); }catch(e){}
+  renderWrongbook();
+}
+function wrongbookEntries(){ return Object.values(loadWrongbook()); }
+function formatWrongbookDate(ts){
+  if(!ts) return '기록 없음';
+  return new Date(ts).toLocaleString('ko-KR',{month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'});
+}
+function renderWrongbookFilters(){
+  const wrap = document.getElementById('wrongbookFilters');
+  if(!wrap) return;
+  wrap.innerHTML = '';
+  const filters = [{key:'all', label:'전체'}];
+  for(let d=1; d<=50; d++) filters.push({key:'day-'+d, label:dayLabel(d)});
+  filters.push({key:'most', label:'가장 많이 틀린 단어'});
+  filters.push({key:'recent', label:'최근 오답'});
+  filters.forEach(f=>{
+    const btn=document.createElement('button');
+    btn.textContent=f.label;
+    btn.className = wrongbookFilter===f.key ? 'active' : '';
+    btn.addEventListener('click',()=>{ wrongbookFilter=f.key; renderWrongbook(); });
+    wrap.appendChild(btn);
+  });
+}
+function getFilteredWrongbook(){
+  let items = wrongbookEntries();
+  if(wrongbookFilter === 'most'){
+    items.sort((a,b)=>(b.wrongCount-a.wrongCount) || (b.lastWrong-a.lastWrong));
+  }else if(wrongbookFilter === 'recent'){
+    items.sort((a,b)=>b.lastWrong-a.lastWrong);
+  }else{
+    if(wrongbookFilter.startsWith('day-')){
+      const d = Number(wrongbookFilter.slice(4));
+      items = items.filter(x=>Number(x.day)===d);
+    }
+    items.sort((a,b)=>b.lastWrong-a.lastWrong);
+  }
+  return items;
+}
+function renderWrongbook(){
+  const list=document.getElementById('wrongbookList');
+  if(!list) return;
+  const all=wrongbookEntries();
+  const items=getFilteredWrongbook();
+  const total=all.length;
+  const topCount=all.length ? Math.max(...all.map(x=>Number(x.wrongCount||0))) : 0;
+  const latest=all.slice().sort((a,b)=>b.lastWrong-a.lastWrong)[0];
+  document.getElementById('wrongbookBadge').textContent=`${total}개`;
+  document.getElementById('wbTotal').textContent=total.toLocaleString();
+  document.getElementById('wbTopCount').textContent=topCount.toLocaleString();
+  document.getElementById('wbLatestDay').textContent=latest ? dayLabel(latest.day).replace('DAY ','') : '—';
+  const startBtn=document.getElementById('startWrongbookBtn');
+  if(startBtn) startBtn.disabled = items.length===0;
+  renderWrongbookFilters();
+  if(items.length===0){
+    list.innerHTML=`<div class="wb-empty">${total===0 ? '아직 저장된 오답이 없어요. 퀴즈에서 틀린 단어가 여기에 자동으로 쌓입니다.' : '현재 선택한 필터에 해당하는 오답이 없어요.'}</div>`;
+    return;
+  }
+  const frag=document.createDocumentFragment();
+  items.forEach(item=>{
+    const row=document.createElement('div');
+    row.className='wrongbook-row';
+    row.innerHTML=`<div class="wb-main"><div class="wb-word-line"><span class="wb-word">${escapeHTML(item.word)}</span><span class="wb-day">${dayLabel(item.day)}</span></div><div class="wb-meaning">${escapeHTML(item.meaning)}</div><div class="wb-meta">오답 ${Number(item.wrongCount||0)}회 · 최근 ${formatWrongbookDate(item.lastWrong)}</div></div><div class="wb-actions"><button class="delete" type="button">삭제</button></div>`;
+    row.querySelector('.delete').addEventListener('click',()=>removeWrongbookWord(item.word));
+    frag.appendChild(row);
+  });
+  list.innerHTML=''; list.appendChild(frag);
+}
+
+document.getElementById('wbDirectionRow').addEventListener('click',(e)=>{
+  const btn=e.target.closest('button'); if(!btn) return;
+  document.querySelectorAll('#wbDirectionRow button').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active'); wrongbookDirection=btn.dataset.dir;
+});
+document.getElementById('wbCountRow').addEventListener('click',(e)=>{
+  const btn=e.target.closest('button'); if(!btn) return;
+  document.querySelectorAll('#wbCountRow button').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active'); wrongbookCount=btn.dataset.count;
+});
+document.getElementById('clearWrongbookBtn').addEventListener('click',()=>{
+  if(wrongbookEntries().length===0) return;
+  if(confirm('저장된 오답 단어를 모두 삭제할까요?')) clearWrongbook();
+});
+
+/* ---------------- FAVORITES ---------------- */
+const FAVORITES_KEY = 'vocaday-favorites-v1';
+let favoritesFilter = 'all';
+let favoritesDirection = 'mixed';
+let favoritesType = 'mc';
+let favoritesCount = '10';
+
+function loadFavorites(){
+  try{
+    const raw = localStorage.getItem(FAVORITES_KEY);
+    const parsed = raw ? JSON.parse(raw) : {};
+    return (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) ? parsed : {};
+  }catch(e){ return {}; }
+}
+function saveFavorites(data){
+  try{ localStorage.setItem(FAVORITES_KEY, JSON.stringify(data)); }catch(e){}
+}
+function isFavorite(word){
+  const data = loadFavorites();
+  return !!data[word];
+}
+function toggleFavorite(entry){
+  const [day, word, meaning] = entry;
+  if(!word) return false;
+  const data = loadFavorites();
+  if(data[word]){
+    delete data[word];
+    saveFavorites(data);
+    return false;
+  }
+  data[word] = {day, word, meaning, addedAt: Date.now()};
+  saveFavorites(data);
+  return true;
+}
+function removeFavoriteWord(word){
+  const data = loadFavorites();
+  delete data[word];
+  saveFavorites(data);
+  renderFavorites();
+  refreshFavoriteStars();
+}
+function clearFavorites(){
+  try{ localStorage.removeItem(FAVORITES_KEY); }catch(e){}
+  renderFavorites();
+  refreshFavoriteStars();
+}
+function favoriteEntries(){ return Object.values(loadFavorites()); }
+function formatFavoriteDate(ts){
+  if(!ts) return '기록 없음';
+  return new Date(ts).toLocaleString('ko-KR',{month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'});
+}
+function refreshFavoriteStars(){
+  document.querySelectorAll('.fav-star').forEach(el=>{
+    const word = el.dataset.word;
+    el.classList.toggle('on', isFavorite(word));
+    el.textContent = isFavorite(word) ? '★' : '☆';
+  });
+}
+function renderFavoritesFilters(){
+  const wrap = document.getElementById('favoritesFilters');
+  if(!wrap) return;
+  wrap.innerHTML = '';
+  const filters = [{key:'all', label:'전체'}];
+  for(let d=1; d<=50; d++) filters.push({key:'day-'+d, label:dayLabel(d)});
+  filters.push({key:'recent', label:'최근 추가'});
+  filters.forEach(f=>{
+    const btn=document.createElement('button');
+    btn.textContent=f.label;
+    btn.className = favoritesFilter===f.key ? 'active' : '';
+    btn.addEventListener('click',()=>{ favoritesFilter=f.key; renderFavorites(); });
+    wrap.appendChild(btn);
+  });
+}
+function getFilteredFavorites(){
+  let items = favoriteEntries();
+  if(favoritesFilter === 'recent'){
+    items.sort((a,b)=>b.addedAt-a.addedAt);
+  }else{
+    if(favoritesFilter.startsWith('day-')){
+      const d = Number(favoritesFilter.slice(4));
+      items = items.filter(x=>Number(x.day)===d);
+    }
+    items.sort((a,b)=>b.addedAt-a.addedAt);
+  }
+  return items;
+}
+function renderFavorites(){
+  const list=document.getElementById('favoritesList');
+  if(!list) return;
+  const all=favoriteEntries();
+  const items=getFilteredFavorites();
+  const total=all.length;
+  const latest=all.slice().sort((a,b)=>b.addedAt-a.addedAt)[0];
+  document.getElementById('favoritesBadge').textContent=`${total}개`;
+  document.getElementById('favTotal').textContent=total.toLocaleString();
+  document.getElementById('favLatestDay').textContent=latest ? dayLabel(latest.day).replace('DAY ','') : '—';
+  const startBtn=document.getElementById('startFavoritesBtn');
+  if(startBtn) startBtn.disabled = items.length===0;
+  renderFavoritesFilters();
+  if(items.length===0){
+    list.innerHTML=`<div class="wb-empty">${total===0 ? '아직 즐겨찾기한 단어가 없어요. 단어 사전에서 ☆를 눌러 저장해보세요.' : '현재 선택한 필터에 해당하는 즐겨찾기가 없어요.'}</div>`;
+    return;
+  }
+  const frag=document.createDocumentFragment();
+  items.forEach(item=>{
+    const row=document.createElement('div');
+    row.className='wrongbook-row';
+    row.innerHTML=`<div class="wb-main"><div class="wb-word-line"><span class="wb-word">${escapeHTML(item.word)}</span><span class="wb-day">${dayLabel(item.day)}</span></div><div class="wb-meaning">${escapeHTML(item.meaning)}</div><div class="wb-meta">추가 ${formatFavoriteDate(item.addedAt)}</div></div><div class="wb-actions"><button class="delete" type="button">삭제</button></div>`;
+    row.querySelector('.delete').addEventListener('click',()=>removeFavoriteWord(item.word));
+    frag.appendChild(row);
+  });
+  list.innerHTML=''; list.appendChild(frag);
+}
+
+document.getElementById('favDirectionRow').addEventListener('click',(e)=>{
+  const btn=e.target.closest('button'); if(!btn) return;
+  document.querySelectorAll('#favDirectionRow button').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active'); favoritesDirection=btn.dataset.dir;
+});
+document.getElementById('favTypeRow').addEventListener('click',(e)=>{
+  const btn=e.target.closest('button'); if(!btn) return;
+  document.querySelectorAll('#favTypeRow button').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active'); favoritesType=btn.dataset.type;
+});
+document.getElementById('favCountRow').addEventListener('click',(e)=>{
+  const btn=e.target.closest('button'); if(!btn) return;
+  document.querySelectorAll('#favCountRow button').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active'); favoritesCount=btn.dataset.count;
+});
+document.getElementById('clearFavoritesBtn').addEventListener('click',()=>{
+  if(favoriteEntries().length===0) return;
+  if(confirm('즐겨찾기한 단어를 모두 삭제할까요?')) clearFavorites();
+});
+
+/* ---------------- QUIZ ENGINE ---------------- */
+let quizState = null;
+let autoAdvanceTimer = null;
+
+const AUTO_ADVANCE_KEY = 'vocaday-autoadvance';
+let autoAdvanceEnabled = true;
+try{
+  const savedAA = localStorage.getItem(AUTO_ADVANCE_KEY);
+  if(savedAA !== null) autoAdvanceEnabled = savedAA === '1';
+}catch(e){}
+
+function updateAutoAdvanceToggleUI(){
+  const toggle = document.getElementById('autoAdvanceToggle');
+  if(!toggle) return;
+  toggle.classList.toggle('on', autoAdvanceEnabled);
+  toggle.setAttribute('aria-checked', autoAdvanceEnabled ? 'true' : 'false');
+  updateQuizKeyHint();
+}
+
+function updateQuizKeyHint(){
+  const hint = document.getElementById('quizKeyHint');
+  if(!hint) return;
+  const activeQ = quizState?.questions?.[quizState.index];
+  const isShort = activeQ ? activeQ.mode === 'short' : false;
+  const autoPart = autoAdvanceEnabled ? '정답 확인 후 1초 뒤 자동 진행' : '자동 진행 꺼짐 · 다음 문제 버튼으로 진행';
+  if(quizState?.source === 'practice'){
+    hint.textContent = `정답 입력 후 Enter 또는 정답 확인 · ${autoPart} · 틀린 단어는 이번 범위를 다 풀고 나면 다시 나와요`;
+    return;
+  }
+  hint.textContent = isShort
+    ? `정답 입력 후 Enter 또는 정답 확인 · ${autoPart}`
+    : `숫자 키 1~5로 선택 · Enter/Space로 다음 문제 · ${autoPart}`;
+}
+
+document.getElementById('autoAdvanceToggle').addEventListener('click', ()=>{
+  autoAdvanceEnabled = !autoAdvanceEnabled;
+  try{ localStorage.setItem(AUTO_ADVANCE_KEY, autoAdvanceEnabled ? '1' : '0'); }catch(e){}
+  updateAutoAdvanceToggleUI();
+  if(!autoAdvanceEnabled && autoAdvanceTimer){
+    clearTimeout(autoAdvanceTimer); autoAdvanceTimer = null;
+  }
+});
+updateAutoAdvanceToggleUI();
+
+document.addEventListener('keydown', (e)=>{
+  if(!views['quiz-play'].classList.contains('active')) return;
+  const activeQ = quizState?.questions?.[quizState.index];
+  if(!activeQ) return;
+
+  const target = e.target;
+  const isTypingTarget = target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable);
+
+  // 주관식 입력 중에는 숫자/Space 단축키를 가로채지 않음. Enter는 해당 입력칸의 제출 기능이 처리함.
+  if(activeQ.mode === 'short' && isTypingTarget){
+    return;
+  }
+
+  // 객관식: 숫자 1~5로 보기 선택
+  const num = parseInt(e.key, 10);
+  if(activeQ.mode !== 'short' && num >= 1 && num <= 5){
+    e.preventDefault();
+    const optWrap = document.getElementById('quizOptions');
+    const btn = optWrap.children[num-1];
+    if(btn && !optWrap.dataset.answered) btn.click();
+    return;
+  }
+
+  // 문제를 이미 풀었으면 Enter 또는 Space로 다음 문제
+  if((e.key === 'Enter' || e.code === 'Space' || e.key === ' ') && !document.getElementById('nextBtn').disabled){
+    e.preventDefault();
+    goToNextQuestion();
+  }
+});
+
+function buildWordMeanQuestion(entry, pool, direction){
+  const [day, word, meaning] = entry;
+  let distractorSource = pool.filter(e=> e[1] !== word);
+  if(distractorSource.length < 4) distractorSource = VOCAB.filter(e=> e[1] !== word);
+
+  const seenMeanings = new Set([meaning]);
+  const seenWords = new Set([word]);
+  const distractors = [];
+  for(const cand of shuffle(distractorSource)){
+    const key = direction === 'word2mean' ? cand[2] : cand[1];
+    const seenSet = direction === 'word2mean' ? seenMeanings : seenWords;
+    if(seenSet.has(key)) continue;
+    seenSet.add(key);
+    distractors.push(cand);
+    if(distractors.length===4) break;
+  }
+  const optionEntries = shuffle([entry, ...distractors]);
+  return {
+    type: direction,
+    dayTag: dayLabel(day),
+    promptClass: direction==='word2mean' ? 'eng' : '',
+    promptHTML: escapeHTML(direction==='word2mean' ? word : meaning),
+    reviewWord: word,
+    options: optionEntries.map(o=>({
+      text: escapeHTML(direction==='word2mean' ? o[2] : o[1]),
+      correct: o[1]===word,
+    })),
+  };
+}
+
+function buildRealQuestion(pool){
+  const picks = shuffle(pool).slice(0,5);
+  const wrongPos = Math.floor(Math.random()*5);
+  const pairs = picks.map(([day,word,meaning])=>({day, word, meaning, wrong:false}));
+
+  const targetEntry = [pairs[wrongPos].day, pairs[wrongPos].word, pairs[wrongPos].meaning];
+  const targetWord = pairs[wrongPos].word;
+  let altSource = pool.filter(e=> e[1] !== targetWord && e[2] !== pairs[wrongPos].meaning);
+  if(altSource.length===0) altSource = VOCAB.filter(e=> e[1] !== targetWord && e[2] !== pairs[wrongPos].meaning);
+  pairs[wrongPos].meaning = shuffle(altSource)[0][2];
+  pairs[wrongPos].wrong = true;
+
+  const days = pairs.map(p=>p.day);
+  const dayMin = Math.min(...days), dayMax = Math.max(...days);
+
+  const options = shuffle(pairs).map(p=>({
+    text: `<span class="pair-word">${escapeHTML(p.word)}</span><span class="pair-sep">-</span>${escapeHTML(p.meaning)}`,
+    correct: p.wrong,
+  }));
+
+  return {
+    type:'real',
+    dayTag: dayMin===dayMax ? dayLabel(dayMin) : `${dayLabel(dayMin)} ~ ${dayLabel(dayMax)}`,
+    promptClass: 'instruction',
+    promptHTML: '다음 중 단어와 뜻의 연결이 바르지 <u>않은</u> 것을 고르시오.',
+    reviewWord: targetWord,
+    reviewEntry: targetEntry,
+    options,
+  };
+}
+
+function buildQuestions(n, m, count, direction, type='mc'){
+  const pool = wordsInRange(n,m);
+  const effectiveType = type==='mixed' ? null : type;
+
+  if(direction === 'real'){
+    // 실전형은 기존 5지선다 형식을 유지하되, 문제 유형이 객관식일 때만 선택 가능합니다.
+    const qty = count === 'all' ? 20 : parseInt(count);
+    const out = [];
+    for(let i=0;i<qty;i++){
+      const q=buildRealQuestion(pool);
+      q.mode='mc';
+      out.push(q);
+    }
+    return out;
+  }
+
+  const shuffledPool = shuffle(pool);
+  const qty = count === 'all' ? shuffledPool.length : Math.min(parseInt(count), shuffledPool.length);
+  const chosen = shuffledPool.slice(0, qty);
+  return chosen.map(entry=>{
+    const q=buildWordMeanQuestion(entry, pool, direction);
+    q.mode = effectiveType || (Math.random()<0.5 ? 'mc' : 'short');
+    q.direction=direction;
+    q.reviewEntry=[Number(entry[0]), entry[1], entry[2]];
+    return q;
+  });
+}
+
+function buildWrongbookQuestions(count, direction, type='mc'){
+  const wb = getFilteredWrongbook();
+  const qty = count === 'all' ? wb.length : Math.min(parseInt(count), wb.length);
+  const chosen = shuffle(wb).slice(0, qty);
+  return chosen.map(item=>{
+    const entry=[Number(item.day), item.word, item.meaning];
+    const dir = direction==='mixed' ? (Math.random()<0.5 ? 'word2mean' : 'mean2word') : direction;
+    const q=buildWordMeanQuestion(entry, VOCAB, dir);
+    q.mode = type==='mixed' ? (Math.random()<0.5 ? 'mc' : 'short') : type;
+    q.direction=dir;
+    q.isWrongbook=true;
+    q.reviewEntry=entry;
+    return q;
+  });
+}
+
+function buildFavoritesQuestions(count, direction, type='mc'){
+  const fav = getFilteredFavorites();
+  const qty = count === 'all' ? fav.length : Math.min(parseInt(count), fav.length);
+  const chosen = shuffle(fav).slice(0, qty);
+  return chosen.map(item=>{
+    const entry=[Number(item.day), item.word, item.meaning];
+    const dir = direction==='mixed' ? (Math.random()<0.5 ? 'word2mean' : 'mean2word') : direction;
+    const q=buildWordMeanQuestion(entry, VOCAB, dir);
+    q.mode = type==='mixed' ? (Math.random()<0.5 ? 'mc' : 'short') : type;
+    q.direction=dir;
+    q.isFavorites=true;
+    q.reviewEntry=entry;
+    return q;
+  });
+}
+
+function buildPracticeQuestionFromEntry(entry, direction){
+  const dir = direction==='mixed' ? (Math.random()<0.5 ? 'word2mean' : 'mean2word') : direction;
+  const q = buildWordMeanQuestion(entry, VOCAB, dir);
+  q.mode = 'short';
+  q.direction = dir;
+  q.reviewEntry = entry;
+  q.isPractice = true;
+  return q;
+}
+
+document.getElementById('startQuizBtn').addEventListener('click', ()=>{
+  const n = parseInt(rangeN.value), m = parseInt(rangeM.value);
+  if(n>m) return;
+  if(practiceModeEnabled){
+    const pool = wordsInRange(n,m);
+    if(!pool.length) return;
+    const entries = shuffle(pool).map(([d,w,mean])=>[Number(d), w, mean]);
+    const questions = entries.map(entry=>buildPracticeQuestionFromEntry(entry, quizDirection));
+    quizState = {
+      questions, index:0, score:0, direction:quizDirection, type:'short',
+      wrongLog: [], source:'practice', pendingRetry: [], practiceRound: 1,
+      practiceTotalWords: entries.length, practiceMastered: 0,
+      addToWrongbook: practiceAddToWrongbook,
+    };
+    showView('quiz-play');
+    renderQuestion();
+    return;
+  }
+  const questions = buildQuestions(n,m,quizCount,quizDirection,quizType);
+  quizState = {
+    questions, index:0, score:0, direction:quizDirection, type:quizType,
+    wrongLog: [], source:'quiz', repeatCount:null,
+  };
+  showView('quiz-play');
+  renderQuestion();
+});
+
+document.getElementById('startWrongbookBtn').addEventListener('click',()=>{
+  const questions=buildWrongbookQuestions(wrongbookCount, wrongbookDirection, wrongbookType);
+  if(!questions.length) return;
+  quizState={questions,index:0,score:0,direction:wrongbookDirection,type:wrongbookType,wrongLog:[],source:'wrongbook'};
+  showView('quiz-play');
+  renderQuestion();
+});
+
+document.getElementById('startFavoritesBtn').addEventListener('click',()=>{
+  const questions=buildFavoritesQuestions(favoritesCount, favoritesDirection, favoritesType);
+  if(!questions.length) return;
+  quizState={questions,index:0,score:0,direction:favoritesDirection,type:favoritesType,wrongLog:[],source:'favorites'};
+  showView('quiz-play');
+  renderQuestion();
+});
+
+function normalizeAnswer(value){
+  return String(value||'')
+    .toLowerCase()
+    .replace(/[\u00a0\u200b]/g,' ')
+    .replace(/[“”‘’'`]/g,'')
+    .replace(/\s+/g,' ')
+    .trim();
+}
+
+function shortAnswerAccepted(q, answer){
+  const normalized = normalizeAnswer(answer);
+  if(!normalized) return false;
+  if(q.direction === 'mean2word') return normalized === normalizeAnswer(q.reviewWord);
+  // 뜻 입력: 원본 meaning 전체 또는 쉼표로 구분된 주요 뜻 중 하나를 정답으로 인정
+  const meaning = String(q.reviewEntry?.[2] || '');
+  const variants = [meaning, ...meaning.split(/[,，]/).map(v=>v.trim()).filter(Boolean)];
+  return variants.some(v=>normalized === normalizeAnswer(v));
+}
+
+function updateQuizHeader(){
+  const progressLabel = document.getElementById('quizProgressLabel');
+  const scoreLabel = document.getElementById('quizScoreLabel');
+  const bar = document.getElementById('quizProgressBar');
+  if(quizState.source === 'practice'){
+    const remaining = quizState.questions.length - quizState.index;
+    progressLabel.textContent = `${quizState.practiceRound}라운드 · 남은 문제 ${remaining}개`;
+    scoreLabel.textContent = `외운 단어 ${quizState.practiceMastered}/${quizState.practiceTotalWords}`;
+    bar.style.width = `${quizState.practiceTotalWords ? Math.min(100, quizState.practiceMastered/quizState.practiceTotalWords*100) : 0}%`;
+  }else{
+    progressLabel.textContent = `문항 ${quizState.index+1} / ${quizState.questions.length}`;
+    scoreLabel.textContent = `${quizState.score}점`;
+    bar.style.width = `${(quizState.index)/quizState.questions.length*100}%`;
+  }
+}
+
+function markAnsweredAndLog(q, isCorrect, chosenText){
+  if(isCorrect){
+    quizState.score++;
+    if(quizState.source === 'practice') quizState.practiceMastered++;
+  }else{
+    let correctText='';
+    if(q.direction === 'word2mean') correctText=q.reviewEntry ? q.reviewEntry[2] : q.options.find(o=>o.correct)?.text || '';
+    else if(q.direction === 'mean2word') correctText=q.reviewWord;
+    else correctText=q.options.find(o=>o.correct)?.text || '';
+    quizState.wrongLog.push({
+      reviewWord:q.reviewWord, dayTag:q.dayTag, reviewEntry:q.reviewEntry || null,
+      yourPick: chosenText || '입력 없음', correctPick: correctText,
+    });
+    if(quizState.source === 'practice'){
+      if(q.reviewEntry) quizState.pendingRetry.push(q.reviewEntry);
+      if(quizState.addToWrongbook && q.reviewEntry) recordWrongAnswer(q.reviewEntry);
+    }else if(q.reviewEntry){
+      recordWrongAnswer(q.reviewEntry);
+    }
+  }
+  updateQuizHeader();
+  document.getElementById('nextBtn').disabled = false;
+  if(autoAdvanceEnabled){
+    autoAdvanceTimer = setTimeout(()=> goToNextQuestion(), 1000);
+  }
+}
+
+function renderQuestion(){
+  if(autoAdvanceTimer){ clearTimeout(autoAdvanceTimer); autoAdvanceTimer = null; }
+  const q = quizState.questions[quizState.index];
+  updateQuizHeader();
+  document.getElementById('quizDayTag').textContent = q.dayTag;
+
+  const promptEl = document.getElementById('quizPrompt');
+  promptEl.innerHTML = q.promptHTML;
+  promptEl.classList.remove('eng','instruction');
+  if(q.promptClass) promptEl.classList.add(q.promptClass);
+
+  const optWrap = document.getElementById('quizOptions');
+  const shortBox = document.getElementById('shortAnswerBox');
+  const shortInput = document.getElementById('shortAnswerInput');
+  const shortSubmit = document.getElementById('shortAnswerSubmit');
+  const feedback = document.getElementById('answerFeedback');
+  optWrap.innerHTML = '';
+  optWrap.dataset.answered = '';
+  feedback.textContent=''; feedback.className='answer-feedback';
+  shortInput.value=''; shortInput.className=''; shortInput.disabled=false; shortSubmit.disabled=false;
+
+  const isShort = q.mode === 'short';
+  shortBox.classList.toggle('hidden', !isShort);
+  optWrap.classList.toggle('hidden', isShort);
+  updateQuizKeyHint();
+
+  if(isShort){
+    shortSubmit.onclick = ()=> submitShortAnswer(q);
+    shortInput.onkeydown = (e)=>{
+      if(e.key==='Enter'){ e.preventDefault(); submitShortAnswer(q); }
+    };
+    setTimeout(()=>shortInput.focus(),0);
+  }else{
+    q.options.forEach((opt, i)=>{
+      const btn = document.createElement('button');
+      btn.className = 'option';
+      btn.type='button';
+      btn.innerHTML = `<span class="num">${i+1}</span><span>${opt.text}</span>`;
+      btn.addEventListener('click', ()=> selectOption(btn, opt, q));
+      optWrap.appendChild(btn);
+    });
+  }
+  document.getElementById('nextBtn').disabled = true;
+}
+
+function selectOption(btn, chosenOpt, q){
+  const optWrap = document.getElementById('quizOptions');
+  if(optWrap.dataset.answered) return;
+  optWrap.dataset.answered = '1';
+
+  const buttons = [...optWrap.children];
+  buttons.forEach((el, i)=>{
+    const opt = q.options[i];
+    el.disabled = true;
+    if(opt.correct) el.classList.add('correct');
+    else if(el===btn) el.classList.add('wrong');
+    else el.classList.add('dim');
+  });
+
+  markAnsweredAndLog(q, chosenOpt.correct, chosenOpt.text);
+}
+
+function submitShortAnswer(q){
+  const optWrap=document.getElementById('quizOptions');
+  if(optWrap.dataset.answered) return;
+  const input=document.getElementById('shortAnswerInput');
+  const submit=document.getElementById('shortAnswerSubmit');
+  const feedback=document.getElementById('answerFeedback');
+  const answer=input.value.trim();
+  if(!answer){ input.focus(); return; }
+  optWrap.dataset.answered='1';
+  const ok=shortAnswerAccepted(q,answer);
+  input.disabled=true; submit.disabled=true;
+  input.classList.add(ok?'correct':'wrong');
+  feedback.className=`answer-feedback ${ok?'correct':'wrong'}`;
+  if(ok){
+    feedback.textContent='정답입니다.';
+  }else{
+    const correct=q.direction==='mean2word' ? q.reviewWord : q.reviewEntry?.[2] || '';
+    feedback.textContent=`정답: ${correct}`;
+  }
+  markAnsweredAndLog(q, ok, answer);
+}
+
+function goToNextQuestion(){
+  if(autoAdvanceTimer){ clearTimeout(autoAdvanceTimer); autoAdvanceTimer = null; }
+  document.getElementById('quizOptions').dataset.answered = '';
+  quizState.index++;
+  if(quizState.index >= quizState.questions.length){
+    if(quizState.source === 'practice' && quizState.pendingRetry.length){
+      const retryEntries = shuffle(quizState.pendingRetry);
+      quizState.pendingRetry = [];
+      quizState.practiceRound = (quizState.practiceRound||1) + 1;
+      retryEntries.forEach(entry=>{
+        quizState.questions.push(buildPracticeQuestionFromEntry(entry, quizState.direction));
+      });
+      renderQuestion();
+      return;
+    }
+    finishQuiz();
+  } else {
+    renderQuestion();
+  }
+}
+
+document.getElementById('nextBtn').addEventListener('click', goToNextQuestion);
+
+function finishQuiz(){
+  document.getElementById('quizProgressBar').style.width = '100%';
+  const isPractice = quizState.source === 'practice';
+  const total = isPractice ? quizState.practiceTotalWords : quizState.questions.length;
+  const score = isPractice ? quizState.practiceTotalWords : quizState.score;
+  document.getElementById('resultScore').textContent = score;
+  document.getElementById('resultTotal').textContent = `/ ${total}`;
+  document.getElementById('resultLabel').textContent = isPractice
+    ? `${quizState.practiceRound}라운드 만에 전부 외웠어요`
+    : `정답률 ${total? Math.round(score/total*100):0}%`;
+
+  const reviewList = document.getElementById('reviewList');
+  const reviewSub = document.getElementById('reviewSub');
+  document.getElementById('quizResultTitle').textContent = quizState.source === 'wrongbook' ? '오답 테스트 결과' : (quizState.source === 'favorites' ? '즐겨찾기 테스트 결과' : (isPractice ? '주관식 연습모드 결과' : '퀴즈 결과'));
+  reviewList.innerHTML = '';
+
+  if(isPractice){
+    if(quizState.wrongLog.length === 0){
+      reviewSub.textContent = `${total}개 단어를 한 번에 전부 맞혔어요. 완벽해요!`;
+      reviewList.style.display = 'none';
+    }else{
+      const counts = {};
+      quizState.wrongLog.forEach(item=>{
+        const entry = item.reviewEntry;
+        if(!entry) return;
+        const key = entry[1];
+        if(!counts[key]) counts[key] = {entry, count:0};
+        counts[key].count++;
+      });
+      const arr = Object.values(counts).sort((a,b)=> b.count-a.count);
+      reviewSub.textContent = `${total}개 단어를 전부 외웠어요. 그 과정에서 ${arr.length}개 단어에서 실수가 있었어요.`;
+      reviewList.style.display = 'block';
+      arr.forEach(({entry, count})=>{
+        const [day, word, meaning] = entry;
+        const row = document.createElement('div');
+        row.className = 'review-item';
+        const starHTML = `<button type="button" class="fav-star" data-word="${escapeHTML(word)}">${isFavorite(word)?'★':'☆'}</button>`;
+        row.innerHTML = `
+          <div class="rword serif">${escapeHTML(word)}${starHTML}</div>
+          <div class="rmeta">
+            <div>${dayLabel(day)} · 뜻: <span class="correctpick">${escapeHTML(meaning)}</span></div>
+            <div>틀린 횟수: <span class="yourpick">${count}회</span></div>
+          </div>`;
+        row.querySelector('.fav-star').addEventListener('click', (e)=>{
+          const on = toggleFavorite(entry);
+          e.currentTarget.classList.toggle('on', on);
+          e.currentTarget.textContent = on ? '★' : '☆';
+        });
+        reviewList.appendChild(row);
+      });
+    }
+    showView('quiz-result');
+    return;
+  }
+
+  if(quizState.wrongLog.length === 0){
+    reviewSub.textContent = '틀린 문제가 없어요. 완벽해요!';
+    reviewList.style.display = 'none';
+  } else {
+    reviewSub.textContent = `${quizState.wrongLog.length}개 문제를 다시 확인해보세요.`;
+    reviewList.style.display = 'block';
+    quizState.wrongLog.forEach(item=>{
+      const row = document.createElement('div');
+      row.className = 'review-item';
+      const entry = item.reviewEntry;
+      const starHTML = entry ? `<button type="button" class="fav-star" data-word="${escapeHTML(entry[1])}">${isFavorite(entry[1])?'★':'☆'}</button>` : '';
+      row.innerHTML = `
+        <div class="rword serif">${escapeHTML(item.reviewWord)}${starHTML}</div>
+        <div class="rmeta">
+          <div>${item.dayTag} · 정답: <span class="correctpick">${item.correctPick}</span></div>
+          <div>내 선택: <span class="yourpick">${item.yourPick}</span></div>
+        </div>`;
+      if(entry){
+        row.querySelector('.fav-star').addEventListener('click', (e)=>{
+          const on = toggleFavorite(entry);
+          e.currentTarget.classList.toggle('on', on);
+          e.currentTarget.textContent = on ? '★' : '☆';
+        });
+      }
+      reviewList.appendChild(row);
+    });
+  }
+  showView('quiz-result');
+}
+
+document.getElementById('retryBtn').addEventListener('click', ()=>{
+  if(quizState && quizState.source === 'wrongbook') {
+    const questions = buildWrongbookQuestions(wrongbookCount, wrongbookDirection, wrongbookType);
+    if(!questions.length){ showView('wrongbook'); return; }
+    quizState = { questions, index:0, score:0, direction:wrongbookDirection, type:wrongbookType, wrongLog:[], source:'wrongbook' };
+  } else if(quizState && quizState.source === 'favorites') {
+    const questions = buildFavoritesQuestions(favoritesCount, favoritesDirection, favoritesType);
+    if(!questions.length){ showView('favorites'); return; }
+    quizState = { questions, index:0, score:0, direction:favoritesDirection, type:favoritesType, wrongLog:[], source:'favorites' };
+  } else if(quizState && quizState.source === 'practice') {
+    const n = parseInt(rangeN.value), m = parseInt(rangeM.value);
+    const pool = wordsInRange(n,m);
+    if(!pool.length){ showView('quiz'); return; }
+    const entries = shuffle(pool).map(([d,w,mean])=>[Number(d), w, mean]);
+    const questions = entries.map(entry=>buildPracticeQuestionFromEntry(entry, quizState.direction));
+    quizState = {
+      questions, index:0, score:0, direction:quizState.direction, type:'short',
+      wrongLog: [], source:'practice', pendingRetry: [], practiceRound: 1,
+      practiceTotalWords: entries.length, practiceMastered: 0,
+      addToWrongbook: quizState.addToWrongbook,
+    };
+  } else {
+    const n = parseInt(rangeN.value), m = parseInt(rangeM.value);
+    const questions = buildQuestions(n,m,quizCount,quizDirection,quizType);
+    quizState = { questions, index:0, score:0, direction:quizDirection, type:quizType, wrongLog:[], source:'quiz' };
+  }
+  showView('quiz-play');
+  renderQuestion();
+});
+document.getElementById('reselectBtn').addEventListener('click', ()=> showView(quizState && quizState.source==='wrongbook' ? 'wrongbook' : (quizState && quizState.source==='favorites' ? 'favorites' : 'quiz')));
+
+
+/* ---------------- DICTIONARY ---------------- */
+const dictSearch = document.getElementById('dictSearch');
+const dictN = document.getElementById('dictN');
+const dictM = document.getElementById('dictM');
+const dictList = document.getElementById('dictList');
+const dictCount = document.getElementById('dictCount');
+
+function renderDict(){
+  let n = clamp(parseInt(dictN.value)||1,1,50);
+  let m = clamp(parseInt(dictM.value)||50,1,50);
+  dictN.value = n; dictM.value = m;
+  if(n>m) [n,m] = [m,n];
+
+  const q = dictSearch.value.trim().toLowerCase();
+  let results = VOCAB.filter(([d])=> d>=n && d<=m);
+  if(q){
+    results = results.filter(([d,w,mean])=>
+      w.toLowerCase().includes(q) || mean.toLowerCase().includes(q)
+    );
+  }
+  dictCount.textContent = `${VOCAB.length.toLocaleString()}개 중 ${results.length.toLocaleString()}개 표시`;
+
+  dictList.innerHTML = '';
+  if(results.length === 0){
+    dictList.innerHTML = '<div class="empty-note">검색 결과가 없어요.</div>';
+    return;
+  }
+  const frag = document.createDocumentFragment();
+  results.slice(0, 500).forEach(([d,w,mean])=>{
+    const row = document.createElement('div');
+    row.className = 'dict-row';
+    row.innerHTML = `<span class="dtag">${dayLabel(d)}</span><span class="dword serif">${w}</span><span class="dmeaning">${mean}</span><button type="button" class="fav-star${isFavorite(w)?' on':''}" data-word="${escapeHTML(w)}">${isFavorite(w)?'★':'☆'}</button>`;
+    row.querySelector('.fav-star').addEventListener('click', (e)=>{
+      const on = toggleFavorite([d, w, mean]);
+      e.currentTarget.classList.toggle('on', on);
+      e.currentTarget.textContent = on ? '★' : '☆';
+    });
+    frag.appendChild(row);
+  });
+  dictList.appendChild(frag);
+  if(results.length > 500){
+    const note = document.createElement('div');
+    note.className = 'empty-note';
+    note.textContent = `검색어를 조금 더 구체적으로 입력하면 더 정확히 찾을 수 있어요. (${results.length-500}개 더 있음)`;
+    dictList.appendChild(note);
+  }
+}
+dictSearch.addEventListener('input', renderDict);
+dictN.addEventListener('input', renderDict);
+dictM.addEventListener('input', renderDict);
+selectAllOnFocus(dictN);
+selectAllOnFocus(dictM);
+document.getElementById('dictResetRange').addEventListener('click', ()=>{
+  dictN.value = 1; dictM.value = 50; renderDict();
+});
+renderDict();
+
+/* ================= WORD SEARCH ================= */
+const WS_BEST_KEY = 'vocaday-ws-best';
+const WS_WORD_COUNT = 15;
+const WS_HINT_COST = 25;
+const WS_IDLE_MS = 60000;
+const WS_MIN_LEN = 4, WS_MAX_LEN = 10;
+
+const WS_DIFF = {
+  easy:   { label:'하', n:13, mult:1.0,  target:300, fill:'en',
+            dirs:[[1,0],[0,1]] },
+  normal: { label:'중', n:14, mult:1.25, target:420, fill:'mix',
+            dirs:[[1,0],[0,1],[1,1],[1,-1]] },
+  hard:   { label:'상', n:15, mult:1.5,  target:540, fill:'word',
+            dirs:[[1,0],[0,1],[1,1],[1,-1],[-1,0],[0,-1],[-1,-1],[-1,1]] }
+};
+const WS_ALL8 = [[1,0],[0,1],[1,1],[1,-1],[-1,0],[0,-1],[-1,-1],[-1,1]];
+
+const WS_EN_FREQ = {E:12,T:9,A:8,O:8,I:7,N:7,S:6,R:6,H:6,D:4,L:4,U:3,C:3,M:2,F:2,Y:2,W:2,G:2,P:2,B:1,V:1,K:1,X:1,Q:1,J:1,Z:1};
+const WS_EN_POOL = Object.keys(WS_EN_FREQ).map(k=>k.repeat(WS_EN_FREQ[k])).join('');
+
+/* ---- seeded PRNG (mulberry32) ---- */
+function wsRng(seed){
+  let a = seed >>> 0;
+  return function(){
+    a = (a + 0x6D2B79F5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+/* ---- word selection for one DAY ---- */
+function wsCandidates(day){
+  const seen = new Set(), out = [];
+  for(const [d,w,m] of VOCAB){
+    if(d !== day) continue;
+    if(!/^[A-Za-z]+$/.test(w)) continue;
+    if(w.length < WS_MIN_LEN || w.length > WS_MAX_LEN) continue;
+    const up = w.toUpperCase();
+    if(seen.has(up)) continue;
+    seen.add(up);
+    out.push({ word:w, meaning:m, up });
+  }
+  return out;
+}
+function wsPickWords(day, rnd){
+  const all = wsCandidates(day);
+  // drop any word contained in another (forwards or backwards) - it would be
+  // findable inside its host and make the answer ambiguous
+  const kept = all.filter(c => !all.some(o => {
+    if(o === c) return false;
+    const rev = o.up.split('').reverse().join('');
+    return o.up.indexOf(c.up) >= 0 || rev.indexOf(c.up) >= 0;
+  }));
+  const pool = (kept.length >= WS_WORD_COUNT ? kept : all).slice();
+  for(let i=pool.length-1;i>0;i--){
+    const j = Math.floor(rnd()*(i+1));
+    const t = pool[i]; pool[i] = pool[j]; pool[j] = t;
+  }
+  return pool.slice(0, Math.min(WS_WORD_COUNT, pool.length));
+}
+
+/* ---- placement ---- */
+function wsPlace(words, N, dirs, rnd){
+  const grid = Array.from({length:N}, ()=> new Array(N).fill(''));
+  const isWord = Array.from({length:N}, ()=> new Array(N).fill(false));
+  const placements = [];
+  const order = words.slice().sort((a,b)=> b.up.length - a.up.length);
+
+  for(const w of order){
+    const L = w.up.length;
+    const cands = [];
+    for(const [dx,dy] of dirs){
+      for(let r=0;r<N;r++){
+        for(let c=0;c<N;c++){
+          const er = r + dy*(L-1), ec = c + dx*(L-1);
+          if(er<0 || er>=N || ec<0 || ec>=N) continue;
+          let ok = true, inter = 0;
+          for(let i=0;i<L;i++){
+            const ch = grid[r+dy*i][c+dx*i];
+            if(ch === '') continue;
+            if(ch === w.up[i]) inter++;
+            else { ok = false; break; }
+          }
+          if(ok && inter < L) cands.push({r,c,dx,dy,inter});
+        }
+      }
+    }
+    if(!cands.length) return null;
+
+    // favour crossings, but keep enough randomness that words spread out
+    let total = 0;
+    for(const cd of cands){ cd.wt = (cd.inter+1)*(cd.inter+1); total += cd.wt; }
+    let roll = rnd()*total, chosen = cands[cands.length-1];
+    for(const cd of cands){ roll -= cd.wt; if(roll <= 0){ chosen = cd; break; } }
+
+    const cells = [];
+    for(let i=0;i<L;i++){
+      const rr = chosen.r + chosen.dy*i, cc = chosen.c + chosen.dx*i;
+      grid[rr][cc] = w.up[i];
+      isWord[rr][cc] = true;
+      cells.push([rr,cc]);
+    }
+    placements.push({
+      word:w.word, meaning:w.meaning, up:w.up,
+      r:chosen.r, c:chosen.c, dx:chosen.dx, dy:chosen.dy,
+      cells, found:false, hinted:false
+    });
+  }
+  return { grid, isWord, placements };
+}
+
+/* ---- keys that legitimately belong to a placement ----
+   a placed word read back-to-front occupies the same cells, so it must never
+   be reported as an accident. matters for palindromes (DEED, NOON, ...),
+   which otherwise read as themselves in the opposite direction. */
+function wsIntendedKeys(placements){
+  const keys = new Set();
+  for(const p of placements){
+    const L = p.up.length;
+    keys.add(p.r+','+p.c+','+p.dx+','+p.dy+','+L);
+    keys.add((p.r+p.dy*(L-1))+','+(p.c+p.dx*(L-1))+','+(-p.dx)+','+(-p.dy)+','+L);
+  }
+  return keys;
+}
+
+/* ---- accidental-word scan ---- */
+function wsScanAccidental(grid, N, wordSet, maxLen, intended){
+  const hits = [];
+  for(let r=0;r<N;r++){
+    for(let c=0;c<N;c++){
+      for(const [dx,dy] of WS_ALL8){
+        let s = '';
+        for(let i=0;i<maxLen;i++){
+          const rr = r + dy*i, cc = c + dx*i;
+          if(rr<0 || rr>=N || cc<0 || cc>=N) break;
+          s += grid[rr][cc];
+          if(s.length >= WS_MIN_LEN && wordSet.has(s)){
+            const key = r+','+c+','+dx+','+dy+','+s.length;
+            if(!intended.has(key)) hits.push({r,c,dx,dy,len:s.length});
+          }
+        }
+      }
+    }
+  }
+  return hits;
+}
+
+/* ---- dummy fill + repair ---- */
+function wsFill(state, N, diff, words, rnd){
+  const grid = state.grid, isWord = state.isWord;
+  const wordLetters = words.map(w=>w.up).join('');
+  const pool = diff.fill === 'word' ? wordLetters + wordLetters
+             : diff.fill === 'mix'  ? wordLetters + WS_EN_POOL
+             : WS_EN_POOL;
+  const pickCh = ()=> pool.charAt(Math.floor(rnd()*pool.length));
+
+  for(let r=0;r<N;r++) for(let c=0;c<N;c++) if(!isWord[r][c]) grid[r][c] = pickCh();
+
+  const wordSet = new Set(words.map(w=>w.up));
+  const maxLen = Math.max.apply(null, words.map(w=>w.up.length));
+  const intended = wsIntendedKeys(state.placements);
+
+  for(let iter=0; iter<400; iter++){
+    const hits = wsScanAccidental(grid, N, wordSet, maxLen, intended);
+    if(!hits.length) return true;
+    let repaired = false;
+    for(const h of hits){
+      const free = [];
+      for(let i=0;i<h.len;i++){
+        const rr = h.r + h.dy*i, cc = h.c + h.dx*i;
+        if(!isWord[rr][cc]) free.push([rr,cc]);
+      }
+      // formed purely by real words: no filler to re-roll, so this layout
+      // can never be cleaned up - bail out and let the caller re-place
+      if(!free.length) return false;
+      const spot = free[Math.floor(rnd()*free.length)];
+      const before = grid[spot[0]][spot[1]];
+      let ch = before, tries = 0;
+      while(ch === before && tries < 12){ ch = pickCh(); tries++; }
+      grid[spot[0]][spot[1]] = ch;
+      repaired = true;
+    }
+    if(!repaired) return false;
+  }
+  return false;
+}
+
+/* ---- generator ---- */
+function wsGenerate(day, diffKey, seed){
+  const diff = WS_DIFF[diffKey];
+  const words = wsPickWords(day, wsRng(seed));
+  if(words.length < 5) return null;
+  const longest = Math.max.apply(null, words.map(w=>w.up.length));
+  let N = Math.max(diff.n, longest + 1);
+  for(let grow=0; grow<4; grow++, N++){
+    for(let attempt=0; attempt<40; attempt++){
+      const rnd = wsRng((seed + attempt*7919 + grow*104729) >>> 0);
+      const placed = wsPlace(words, N, diff.dirs, rnd);
+      if(!placed) continue;
+      if(!wsFill(placed, N, diff, words, rnd)) continue;
+      placed.placements.sort((a,b)=> a.up < b.up ? -1 : a.up > b.up ? 1 : 0);
+      return { day, diffKey, N, grid:placed.grid, placements:placed.placements };
+    }
+  }
+  return null;
+}
+
+/* ================= WORD SEARCH UI ================= */
+let wsSelectedDay = 1;
+let wsDiffKey = 'easy';
+let wsGame = null;
+let wsTimer = null;
+let wsIdleTimer = null;
+let wsSel = null;
+let wsLastRun = null;
+
+function wsFmt(s){
+  s = Math.max(0, Math.floor(s));
+  return String(Math.floor(s/60)).padStart(2,'0') + ':' + String(s%60).padStart(2,'0');
+}
+function wsLoadBest(){
+  try{ const raw = localStorage.getItem(WS_BEST_KEY); return raw ? JSON.parse(raw) : {}; }
+  catch(e){ return {}; }
+}
+function wsSaveBest(data){
+  try{ localStorage.setItem(WS_BEST_KEY, JSON.stringify(data)); }catch(e){}
+}
+
+/* ---- setup panel ---- */
+function wsRenderDayGrid(){
+  const wrap = document.getElementById('wsDayGrid');
+  if(!wrap) return;
+  const best = wsLoadBest();
+  wrap.innerHTML = '';
+  for(let d=1; d<=50; d++){
+    const rec = best[String(d)] && best[String(d)][wsDiffKey];
+    const usable = wsCandidates(d).length;
+    const el = document.createElement('button');
+    el.type = 'button';
+    el.className = 'ws-daycell' + (d===wsSelectedDay ? ' active' : '') + (rec ? ' has' : '');
+    el.dataset.day = String(d);
+    el.disabled = usable < 8;
+    el.innerHTML = '<span class="d">' + String(d).padStart(2,'0') + '</span>' +
+                   '<span class="p">' + (rec ? rec.score.toLocaleString() : '—') + '</span>';
+    wrap.appendChild(el);
+  }
+}
+function wsRenderBest(){
+  const title = document.getElementById('wsBestTitle');
+  const row = document.getElementById('wsBestRow');
+  if(!title || !row) return;
+  title.textContent = dayLabel(wsSelectedDay) + ' 최고 기록';
+  const best = wsLoadBest()[String(wsSelectedDay)] || {};
+  row.innerHTML = ['easy','normal','hard'].map(function(k){
+    const rec = best[k];
+    return '<div><span class="lv">난이도 ' + WS_DIFF[k].label + '</span>' +
+           '<span class="sc">' + (rec ? rec.score.toLocaleString() : '—') + '</span>' +
+           '<span class="tm">' + (rec ? wsFmt(rec.time) + ' · ' + rec.found + '개' : '기록 없음') + '</span></div>';
+  }).join('');
+}
+function wsRefreshSetup(){ wsRenderDayGrid(); wsRenderBest(); }
+
+/* ---- board ---- */
+function wsRenderBoard(){
+  const g = wsGame;
+  const board = document.getElementById('wsBoard');
+  const svg = document.getElementById('wsOverlay');
+  board.style.setProperty('--ws-n', String(g.N));
+  board.style.gridTemplateColumns = 'repeat(' + g.N + ', 1fr)';
+  board.innerHTML = '';
+  svg.innerHTML = '';
+  board.appendChild(svg);
+  g.cellEls = [];
+  for(let r=0;r<g.N;r++){
+    const row = [];
+    for(let c=0;c<g.N;c++){
+      const el = document.createElement('div');
+      el.className = 'ws-cell';
+      el.textContent = g.grid[r][c];
+      el.dataset.r = String(r);
+      el.dataset.c = String(c);
+      board.appendChild(el);
+      row.push(el);
+    }
+    g.cellEls.push(row);
+  }
+}
+function wsRenderList(){
+  const g = wsGame;
+  const list = document.getElementById('wsList');
+  const label = document.getElementById('wsListLabel');
+  if(label) label.textContent = '찾을 단어 ' + g.placements.length + '개';
+  list.innerHTML = g.placements.map(function(p){
+    const cls = 'ws-li' + (p.found ? ' done' : (p.hinted ? ' hinted' : ''));
+    return '<div class="' + cls + '"><span class="w">' + escapeHTML(p.word) + '</span>' +
+           '<span class="m">' + escapeHTML(p.meaning) + '</span></div>';
+  }).join('');
+}
+function wsUpdateHud(){
+  const g = wsGame; if(!g) return;
+  document.getElementById('wsHudDay').textContent = String(g.day).padStart(2,'0');
+  const f = g.placements.filter(function(p){ return p.found; }).length;
+  document.getElementById('wsHudFound').textContent = f + ' / ' + g.placements.length;
+}
+function wsDrawLine(p){
+  const u = 100 / wsGame.N;
+  const a = p.cells[0], b = p.cells[p.cells.length-1];
+  const svg = document.getElementById('wsOverlay');
+  const line = document.createElementNS('http://www.w3.org/2000/svg','line');
+  line.setAttribute('x1', ((a[1]+0.5)*u).toFixed(2));
+  line.setAttribute('y1', ((a[0]+0.5)*u).toFixed(2));
+  line.setAttribute('x2', ((b[1]+0.5)*u).toFixed(2));
+  line.setAttribute('y2', ((b[0]+0.5)*u).toFixed(2));
+  line.setAttribute('stroke', 'currentColor');
+  line.setAttribute('stroke-width', (u*0.68).toFixed(2));
+  line.setAttribute('stroke-linecap', 'round');
+  line.setAttribute('opacity', '0.25');
+  svg.appendChild(line);
+}
+
+/* ---- selection ---- */
+function wsPath(a, b){
+  const dr = b.r - a.r, dc = b.c - a.c;
+  const adr = Math.abs(dr), adc = Math.abs(dc);
+  if(!(dr === 0 || dc === 0 || adr === adc)) return null;
+  const len = Math.max(adr, adc);
+  const sr = Math.sign(dr), sc = Math.sign(dc);
+  const out = [];
+  for(let i=0;i<=len;i++) out.push([a.r + sr*i, a.c + sc*i]);
+  return out;
+}
+function wsCellAt(x, y){
+  const el = document.elementFromPoint(x, y);
+  if(!el || !el.classList || !el.classList.contains('ws-cell')) return null;
+  return { r: Number(el.dataset.r), c: Number(el.dataset.c) };
+}
+function wsPaintSel(){
+  const g = wsGame; if(!g) return;
+  for(let r=0;r<g.N;r++) for(let c=0;c<g.N;c++) g.cellEls[r][c].classList.remove('sel');
+  if(wsSel) wsSel.path.forEach(function(p){ g.cellEls[p[0]][p[1]].classList.add('sel'); });
+}
+function wsClearSel(){ wsSel = null; wsPaintSel(); }
+function wsCommitSel(){
+  if(!wsSel || !wsGame) return;
+  const path = wsSel.path;
+  wsClearSel();
+  if(path.length < 2) return;
+  const key = path.map(function(p){ return p[0]+','+p[1]; }).join('|');
+  const rkey = path.slice().reverse().map(function(p){ return p[0]+','+p[1]; }).join('|');
+  for(const p of wsGame.placements){
+    if(p.found) continue;
+    const pk = p.cells.map(function(x){ return x[0]+','+x[1]; }).join('|');
+    if(pk === key || pk === rkey){ wsMarkFound(p); return; }
+  }
+  path.forEach(function(pt){
+    const el = wsGame.cellEls[pt[0]][pt[1]];
+    el.classList.add('wrong');
+    setTimeout(function(){ el.classList.remove('wrong'); }, 260);
+  });
+}
+function wsMarkFound(p){
+  p.found = true;
+  p.cells.forEach(function(x){ wsGame.cellEls[x[0]][x[1]].classList.add('found'); });
+  wsDrawLine(p);
+  if(wsGame.hintWord === p) wsClearHint();
+  wsRenderList();
+  wsUpdateHud();
+  wsResetIdle();
+  if(wsGame.placements.every(function(x){ return x.found; })) wsFinish(true);
+}
+
+/* ---- timer & hints ---- */
+function wsTick(){
+  if(!wsGame || wsGame.done) return;
+  wsGame.elapsed = Math.floor((Date.now() - wsGame.startAt) / 1000);
+  const el = document.getElementById('wsHudTime');
+  if(el) el.textContent = wsFmt(wsGame.elapsed);
+}
+function wsResetIdle(){
+  if(wsIdleTimer){ clearTimeout(wsIdleTimer); wsIdleTimer = null; }
+  if(!wsGame || wsGame.done) return;
+  wsIdleTimer = setTimeout(wsShowHint, WS_IDLE_MS);
+}
+function wsClearHint(){
+  if(wsGame && wsGame.hintCell){ wsGame.hintCell.classList.remove('hint'); wsGame.hintCell = null; }
+  if(wsGame) wsGame.hintWord = null;
+  const bar = document.getElementById('wsHintBar');
+  if(bar){ bar.hidden = true; bar.innerHTML = ''; }
+}
+function wsShowHint(){
+  if(!wsGame || wsGame.done) return;
+  const left = wsGame.placements.filter(function(p){ return !p.found; });
+  if(!left.length) return;
+  const fresh = left.filter(function(p){ return !p.hinted; });
+  const pool = fresh.length ? fresh : left;
+  const p = pool[Math.floor(Math.random()*pool.length)];
+
+  wsClearHint();
+  p.hinted = true;
+  wsGame.hintWord = p;
+  wsGame.hints++;
+  const cell = wsGame.cellEls[p.cells[0][0]][p.cells[0][1]];
+  cell.classList.add('hint');
+  wsGame.hintCell = cell;
+
+  const bar = document.getElementById('wsHintBar');
+  bar.hidden = false;
+  bar.innerHTML = '<div>1분 동안 멈춰 있어서 힌트를 켰어요. <b>' + escapeHTML(p.up) +
+                  '</b>의 첫 글자 <b>' + p.up.charAt(0) + '</b>가 격자에서 반짝입니다. ' +
+                  '<span class="sp">(−' + WS_HINT_COST + '점)</span></div>' +
+                  '<button type="button" id="wsHintClose">닫기</button>';
+  document.getElementById('wsHintClose').onclick = function(){ wsClearHint(); wsResetIdle(); };
+  wsRenderList();
+  wsResetIdle();
+}
+
+/* ---- scoring & finish ---- */
+function wsScore(){
+  const g = wsGame, d = WS_DIFF[g.diffKey];
+  const found = g.placements.filter(function(p){ return p.found; }).length;
+  const cleared = found === g.placements.length;
+  const base = found * 100;
+  const timeBonus = cleared ? Math.max(0, d.target - g.elapsed) * 3 : 0;
+  const penalty = g.hints * WS_HINT_COST;
+  const raw = Math.max(0, base + timeBonus - penalty);
+  return { found, cleared, base, timeBonus, penalty, mult:d.mult, total: Math.round(raw * d.mult) };
+}
+function wsStopTimers(){
+  if(wsTimer){ clearInterval(wsTimer); wsTimer = null; }
+  if(wsIdleTimer){ clearTimeout(wsIdleTimer); wsIdleTimer = null; }
+}
+function wsFinish(cleared){
+  if(!wsGame || wsGame.done) return;
+  wsGame.elapsed = Math.floor((Date.now() - wsGame.startAt) / 1000);
+  wsGame.done = true;
+  wsStopTimers();
+  wsClearHint();
+
+  const s = wsScore();
+  const best = wsLoadBest();
+  const dk = String(wsGame.day);
+  if(!best[dk]) best[dk] = {};
+  const prev = best[dk][wsGame.diffKey] || null;
+  const isNew = !prev || s.total > prev.score;
+  if(isNew){
+    best[dk][wsGame.diffKey] = { score:s.total, time:wsGame.elapsed, found:s.found, at:Date.now() };
+    wsSaveBest(best);
+  }
+  wsShowResult(s, cleared, isNew, prev);
+}
+function wsShowResult(s, cleared, isNew, prev){
+  const g = wsGame, d = WS_DIFF[g.diffKey];
+  wsLastRun = { day:g.day, diffKey:g.diffKey };
+
+  document.getElementById('wsResultTitle').textContent = cleared ? '15개 전부 찾았어요' : '워드서치 결과';
+  document.getElementById('wsResultScore').textContent = s.total.toLocaleString();
+  document.getElementById('wsResultSub').textContent =
+    dayLabel(g.day) + ' · 난이도 ' + d.label + ' · ' + wsFmt(g.elapsed) + ' · ' + s.found + '/' + g.placements.length + '개';
+  document.getElementById('wsNewBestWrap').innerHTML = isNew
+    ? '<span class="ws-newbest">최고 기록 경신' + (prev ? ' · 이전 ' + prev.score.toLocaleString() + '점' : '') + '</span>'
+    : (prev ? '<div class="sub">이 DAY 최고 기록 ' + prev.score.toLocaleString() + '점</div>' : '');
+
+  const rows = [
+    ['찾은 단어 ' + s.found + '개', '+' + s.base.toLocaleString(), 'plus'],
+    ['시간 보너스' + (cleared ? '' : ' (전부 찾아야 적용)'), s.timeBonus ? '+' + s.timeBonus.toLocaleString() : '0', s.timeBonus ? 'plus' : ''],
+    ['힌트 ' + g.hints + '회', s.penalty ? '−' + s.penalty.toLocaleString() : '0', s.penalty ? 'minus' : ''],
+    ['난이도 배수 (' + d.label + ')', '×' + d.mult, '']
+  ];
+  document.getElementById('wsBreakdown').innerHTML =
+    rows.map(function(r){
+      return '<div class="ws-break"><span>' + r[0] + '</span><b class="' + r[2] + '">' + r[1] + '</b></div>';
+    }).join('') +
+    '<div class="ws-break total"><span>최종 점수</span><b>' + s.total.toLocaleString() + '</b></div>';
+
+  const missed = g.placements.filter(function(p){ return !p.found; });
+  document.getElementById('wsMissedList').innerHTML = missed.length
+    ? missed.map(function(p){
+        return '<div class="ws-li"><span class="w">' + escapeHTML(p.word) + '</span>' +
+               '<span class="m">' + escapeHTML(p.meaning) + '</span></div>';
+      }).join('')
+    : '<div class="ws-li"><span class="m">없습니다. 모두 찾았어요.</span></div>';
+
+  showView('quiz-ws-result');
+}
+
+/* ---- start ---- */
+function wsStart(){
+  const seed = ((Date.now() & 0x7fffffff) ^ (wsSelectedDay * 2654435761)) >>> 0;
+  const g = wsGenerate(wsSelectedDay, wsDiffKey, seed);
+  if(!g){
+    alert('이 DAY로는 격자를 만들지 못했어요. 다른 DAY나 난이도를 골라주세요.');
+    return;
+  }
+  g.hints = 0; g.elapsed = 0; g.done = false;
+  g.hintCell = null; g.hintWord = null;
+  g.startAt = Date.now();
+  wsGame = g;
+
+  showView('quiz-ws-play');
+  wsRenderBoard();
+  wsRenderList();
+  wsUpdateHud();
+  document.getElementById('wsHudTime').textContent = '00:00';
+  wsClearHint();
+  wsStopTimers();
+  wsTimer = setInterval(wsTick, 250);
+  wsResetIdle();
+}
+
+/* ---- wiring ---- */
+views['quiz-ws-play'] = document.getElementById('view-quiz-ws-play');
+views['quiz-ws-result'] = document.getElementById('view-quiz-ws-result');
+
+(function patchShowView(){
+  const orig = showView;
+  showView = function(name){
+    // leaving an unfinished board abandons it
+    if(name !== 'quiz-ws-play' && wsGame && !wsGame.done){
+      wsStopTimers();
+      wsClearHint();
+      wsGame = null;
+      wsSel = null;
+    }
+    orig(name);
+    if(name === 'quiz') wsRefreshSetup();
+  };
+})();
+
+document.getElementById('quizModeSeg').addEventListener('click', function(e){
+  const btn = e.target.closest('button');
+  if(!btn) return;
+  document.querySelectorAll('#quizModeSeg button').forEach(function(b){ b.classList.remove('active'); });
+  btn.classList.add('active');
+  const ws = btn.dataset.mode === 'wordsearch';
+  document.getElementById('quizClassicPanel').hidden = ws;
+  document.getElementById('quizWordsearchPanel').hidden = !ws;
+  if(ws) wsRefreshSetup();
+});
+
+document.getElementById('wsDiffSeg').addEventListener('click', function(e){
+  const btn = e.target.closest('button');
+  if(!btn) return;
+  document.querySelectorAll('#wsDiffSeg button').forEach(function(b){ b.classList.remove('active'); });
+  btn.classList.add('active');
+  wsDiffKey = btn.dataset.diff;
+  wsRefreshSetup();
+});
+
+document.getElementById('wsDayGrid').addEventListener('click', function(e){
+  const btn = e.target.closest('.ws-daycell');
+  if(!btn || btn.disabled) return;
+  wsSelectedDay = Number(btn.dataset.day);
+  wsRefreshSetup();
+});
+
+document.getElementById('wsStartBtn').addEventListener('click', wsStart);
+
+document.getElementById('wsClearBestBtn').addEventListener('click', function(){
+  const best = wsLoadBest();
+  if(!best[String(wsSelectedDay)]){ return; }
+  if(!confirm(dayLabel(wsSelectedDay) + ' 의 워드서치 기록을 모두 지울까요?')) return;
+  delete best[String(wsSelectedDay)];
+  wsSaveBest(best);
+  wsRefreshSetup();
+});
+
+document.getElementById('wsGiveUpBtn').addEventListener('click', function(){ wsFinish(false); });
+document.getElementById('wsBackBtn').addEventListener('click', function(){ showView('quiz'); });
+document.getElementById('wsRetryBtn').addEventListener('click', function(){
+  if(wsLastRun){
+    wsSelectedDay = wsLastRun.day;
+    wsDiffKey = wsLastRun.diffKey;
+    document.querySelectorAll('#wsDiffSeg button').forEach(function(b){
+      b.classList.toggle('active', b.dataset.diff === wsDiffKey);
+    });
+  }
+  wsStart();
+});
+
+(function bindBoard(){
+  const board = document.getElementById('wsBoard');
+  board.addEventListener('pointerdown', function(e){
+    if(!wsGame || wsGame.done) return;
+    const cell = wsCellAt(e.clientX, e.clientY);
+    if(!cell) return;
+    e.preventDefault();
+    try{ board.setPointerCapture(e.pointerId); }catch(err){}
+    wsSel = { start:cell, path:[[cell.r, cell.c]] };
+    wsPaintSel();
+    wsResetIdle();
+  });
+  board.addEventListener('pointermove', function(e){
+    if(!wsSel || !wsGame) return;
+    const cell = wsCellAt(e.clientX, e.clientY);
+    if(!cell) return;
+    const p = wsPath(wsSel.start, cell);
+    if(!p) return;
+    wsSel.path = p;
+    wsPaintSel();
+  });
+  board.addEventListener('pointerup', function(){ wsCommitSel(); });
+  board.addEventListener('pointercancel', function(){ wsClearSel(); });
+})();
+
+wsRefreshSetup();
+
+</script>
+</body>
+</html>
