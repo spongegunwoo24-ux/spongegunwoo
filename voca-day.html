@@ -752,6 +752,25 @@
     color:var(--accent-warm); border-radius:7px; padding:3px 8px; font-size:11px; font-weight:700;
   }
 
+  /* list beside the board once there is room for it, the way a printed
+     word search sets them; stacked board-first below that. */
+  #view-quiz-ws-play{container-type:inline-size; container-name:wsplay;}
+  .ws-play-grid{display:grid; gap:12px;}
+  .ws-boardwrap{order:-1;}
+  @container wsplay (min-width:680px){
+    .ws-play-grid{grid-template-columns:minmax(180px,260px) 1fr; align-items:start;}
+    .ws-boardwrap{order:0; max-width:520px;}
+    .ws-listcard .ws-list{grid-template-columns:1fr;}
+  }
+  /* the shell is sized for reading; the board wants more room than that.
+     below this the side rail would squeeze the grid smaller than it is when
+     stacked, so the stacked layout stays. */
+  @media (min-width:760px){
+    /* 260 rail + 12 gap + 520 board + 2x18 shell padding - sized so the board
+       fills its column exactly, with no dead strip beside it */
+    .app:has(#view-quiz-ws-play.active){max-width:828px;}
+  }
+
   .ws-boardwrap{
     position:relative; container-type:inline-size;
     background:var(--surface); border:1px solid var(--border);
@@ -1121,15 +1140,17 @@
 
     <div class="ws-hintbar" id="wsHintBar" hidden></div>
 
-    <div class="ws-boardwrap">
-      <div class="ws-board" id="wsBoard">
-        <svg class="ws-overlay" id="wsOverlay" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true"></svg>
+    <div class="ws-play-grid">
+      <div class="card ws-listcard">
+        <span class="field-label" id="wsListLabel">찾을 단어</span>
+        <div class="ws-list" id="wsList"></div>
       </div>
-    </div>
 
-    <div class="card">
-      <span class="field-label" id="wsListLabel">찾을 단어</span>
-      <div class="ws-list" id="wsList"></div>
+      <div class="ws-boardwrap">
+        <div class="ws-board" id="wsBoard">
+          <svg class="ws-overlay" id="wsOverlay" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true"></svg>
+        </div>
+      </div>
     </div>
 
     <button class="btn-secondary" id="wsGiveUpBtn">그만두고 결과 보기</button>
