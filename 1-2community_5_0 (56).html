@@ -1664,25 +1664,6 @@
 .pw-stat-value.pw-warn { color: var(--danger); }
 .pw-stat-value.pw-ok { color: #16a34a; }
 
-/* --- 팀 선택 / 스코어보드 --- */
-.pw-teams { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px; }
-.pw-team-card {
-    border: 2px solid var(--border-color); border-radius: 14px; padding: 12px 14px;
-    background: var(--card-bg); cursor: pointer; transition: transform .12s ease, border-color .12s ease;
-    position: relative; overflow: hidden;
-}
-.pw-team-card:hover { transform: translateY(-2px); }
-.pw-team-card.mine { border-color: var(--pw-team-color, var(--primary)); }
-.pw-team-card.locked { cursor: default; opacity: .55; }
-.pw-team-card.locked:hover { transform: none; }
-.pw-team-head { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
-.pw-team-dot { width: 14px; height: 14px; border-radius: 4px; flex: 0 0 auto; }
-.pw-team-name { font-size: 14px; font-weight: 800; color: var(--text-main); }
-.pw-team-badge { margin-left: auto; font-size: 10px; font-weight: 800; padding: 2px 7px; border-radius: 999px; background: var(--primary); color: #fff; }
-.pw-team-meta { font-size: 11px; font-weight: 600; color: var(--text-muted); display: flex; justify-content: space-between; gap: 8px; }
-.pw-team-bar { height: 8px; border-radius: 999px; background: var(--surface-tertiary); overflow: hidden; margin: 7px 0 6px; }
-.pw-team-bar > span { display: block; height: 100%; border-radius: 999px; transition: width .35s ease; }
-
 /* --- 캔버스 무대 --- */
 .pw-stage {
     position: relative; width: 100%; height: min(60vh, 540px); min-height: 280px;
@@ -1692,7 +1673,7 @@
 .pw-stage.panning { cursor: grabbing; }
 .pw-stage canvas { display: block; width: 100%; height: 100%; }
 .pw-stage-hud {
-    position: absolute; left: 10px; top: 10px; display: flex; gap: 6px; align-items: center;
+    position: absolute; left: 10px; top: 10px;
     background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 10px;
     padding: 5px 9px; font-size: 11px; font-weight: 800; color: var(--text-secondary);
     pointer-events: none; box-shadow: 0 2px 8px rgba(15,23,42,.08);
@@ -1705,7 +1686,6 @@
     box-shadow: 0 2px 8px rgba(15,23,42,.08);
 }
 .pw-tool-btn:hover { background: var(--hover-bg); }
-.pw-tool-btn.active { background: var(--primary); color: #fff; border-color: var(--primary); }
 
 /* --- 팔레트 --- */
 .pw-palette { display: flex; flex-wrap: wrap; gap: 6px; }
@@ -1716,15 +1696,14 @@
 .pw-swatch:hover { transform: scale(1.12); }
 .pw-swatch.active { border-color: var(--primary); box-shadow: 0 0 0 2px var(--primary-soft); transform: scale(1.12); }
 
-.pw-place-row { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
 .pw-place-btn {
-    flex: 1 1 200px; padding: 13px 18px; border-radius: 12px; border: none;
-    background: var(--primary); color: #fff; font-size: 14px; font-weight: 800; cursor: pointer;
+    width: 100%; padding: 14px 18px; border-radius: 12px; border: none;
+    background: var(--primary); color: #fff; font-size: 15px; font-weight: 800; cursor: pointer;
 }
 .pw-place-btn:disabled { background: var(--surface-tertiary); color: var(--text-muted); cursor: not-allowed; }
 .pw-hint { font-size: 12px; font-weight: 600; color: var(--text-muted); line-height: 1.6; }
 
-/* --- 활동 피드 --- */
+/* --- 활동 피드 / 랭킹 --- */
 .pw-feed { display: flex; flex-direction: column; gap: 6px; max-height: 260px; overflow-y: auto; }
 .pw-feed-item {
     display: flex; align-items: center; gap: 8px; font-size: 12px; font-weight: 600;
@@ -1735,7 +1714,6 @@
 .pw-feed-time { margin-left: auto; font-size: 11px; color: var(--text-muted); white-space: nowrap; }
 .pw-empty { font-size: 12px; font-weight: 600; color: var(--text-muted); text-align: center; padding: 22px 10px; }
 
-/* --- 랭킹 --- */
 .pw-rank-row {
     display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 10px;
     font-size: 13px; font-weight: 700; color: var(--text-main);
@@ -1746,8 +1724,6 @@
 
 /* --- 관리자 패널 --- */
 .pw-admin-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 10px; }
-.pw-admin-team-row { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; }
-.pw-admin-team-row input[type="color"] { width: 40px; height: 38px; padding: 2px; border: 1px solid var(--border-color); border-radius: 8px; background: var(--input-bg); cursor: pointer; }
 .pw-toast {
     position: fixed; left: 50%; bottom: 90px; transform: translateX(-50%);
     background: var(--brand-navy); color: #fff; padding: 11px 18px; border-radius: 12px;
@@ -2642,13 +2618,13 @@
 
             <!-- =====================================================================
                  픽셀 전쟁 (r/place 미니): 200 × 200 공용 캔버스를 반 전체가 같이 칠한다.
-                 - 1인당 쿨타임이 있어서 매크로/연타가 의미 없고, "어디를 칠할지" 팀 전략이 생긴다.
-                 - 데이터는 RTDB의 pixelwar/ 아래에만 저장하며 기존 데이터 구조는 건드리지 않는다.
+                 팀도 진영도 없다. 한 번 칠하면 쿨타임이 돌고, 그 사이에 남이 내 칸을 덮을 수 있다.
+                 편은 규칙이 만들어 주는 게 아니라 애들끼리 알아서 만든다.
                  ===================================================================== -->
             <div id="tab-pixelwar" class="tab-content">
                 <div class="header">
                     <h1>픽셀 전쟁 🎨</h1>
-                    <p>200 × 200 공용 캔버스 · 한 사람이 한 번에 한 칸 · 우리 팀 영역을 넓혀라</p>
+                    <p>200 × 200 공용 캔버스 · 한 사람이 한 번에 한 칸 · 남이 칠한 칸도 덮을 수 있다</p>
                 </div>
 
                 <div id="pixelwar-locked-content" style="display: none;">
@@ -2661,7 +2637,6 @@
                 <div id="pixelwar-secure-content" style="display: none;">
                   <div class="pw-wrap">
 
-                    <!-- 상태 요약 -->
                     <div class="pw-statusbar">
                         <div class="pw-stat">
                             <div class="pw-stat-label">게임 상태</div>
@@ -2670,10 +2645,6 @@
                         <div class="pw-stat">
                             <div class="pw-stat-label">남은 시간</div>
                             <div class="pw-stat-value" id="pw-remaining-text">-</div>
-                        </div>
-                        <div class="pw-stat">
-                            <div class="pw-stat-label">내 팀</div>
-                            <div class="pw-stat-value" id="pw-myteam-text">미정</div>
                         </div>
                         <div class="pw-stat">
                             <div class="pw-stat-label">내가 칠한 칸</div>
@@ -2685,16 +2656,6 @@
                         </div>
                     </div>
 
-                    <!-- 팀 선택 & 영역 스코어보드 -->
-                    <div class="card" style="margin-bottom: 0;">
-                        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; gap:10px; flex-wrap:wrap;">
-                            <div class="card-title" style="margin-bottom:0;">🚩 팀 영역</div>
-                            <span class="pw-hint" id="pw-team-hint">팀 카드를 누르면 그 팀으로 참가합니다.</span>
-                        </div>
-                        <div class="pw-teams" id="pw-teams-container"></div>
-                    </div>
-
-                    <!-- 캔버스 -->
                     <div class="card" style="margin-bottom: 0;">
                         <div class="pw-stage" id="pw-stage">
                             <canvas id="pw-canvas"></canvas>
@@ -2703,7 +2664,6 @@
                                 <button class="pw-tool-btn" id="pw-zoom-in" title="확대">＋</button>
                                 <button class="pw-tool-btn" id="pw-zoom-out" title="축소">－</button>
                                 <button class="pw-tool-btn" id="pw-zoom-fit" title="전체 보기">⤢</button>
-                                <button class="pw-tool-btn" id="pw-toggle-overlay" title="팀 영역 보기 전환">🚩</button>
                             </div>
                         </div>
                         <p class="pw-hint" style="margin-top:10px;">
@@ -2711,23 +2671,20 @@
                         </p>
                     </div>
 
-                    <!-- 팔레트 + 칠하기 -->
                     <div class="card" style="margin-bottom: 0;">
-                        <div class="card-title">🎨 색 고르기</div>
+                        <div class="card-title">🎨 색 고르고 칠하기</div>
                         <div class="pw-palette" id="pw-palette"></div>
-                        <div class="pw-place-row" style="margin-top:14px;">
+                        <div style="margin-top:14px;">
                             <button class="pw-place-btn" id="pw-place-btn" disabled>칸을 먼저 선택하세요</button>
                         </div>
                         <p class="pw-hint" id="pw-cooldown-hint" style="margin-top:10px;"></p>
                     </div>
 
                     <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap:16px;">
-                        <!-- 활동 피드 -->
                         <div class="card" style="margin-bottom:0;">
                             <div class="card-title">⚡ 최근 활동</div>
                             <div class="pw-feed" id="pw-feed"><div class="pw-empty">아직 칠해진 칸이 없어요.</div></div>
                         </div>
-                        <!-- 개인 랭킹 -->
                         <div class="card" style="margin-bottom:0;">
                             <div class="card-title">🏅 많이 칠한 사람</div>
                             <div id="pw-rank"><div class="pw-empty">아직 참가자가 없어요.</div></div>
@@ -2739,52 +2696,27 @@
                         <div class="card-title">⚙️ 픽셀 전쟁 관리</div>
 
                         <div class="pw-admin-grid" style="margin-bottom:14px;">
-                            <button class="auth-btn" id="pw-admin-start" style="margin-top:0;">▶ 시작</button>
-                            <button class="btn-sub" id="pw-admin-pause">⏸ 일시정지</button>
-                            <button class="btn-sub" id="pw-admin-end">⏹ 종료</button>
-                        </div>
-
-                        <div class="pw-admin-grid" style="margin-bottom:14px;">
                             <div>
                                 <label style="font-size:12px; font-weight:600; color:var(--text-muted); display:block; margin-bottom:4px;">쿨타임 (초)</label>
-                                <input type="number" id="pw-admin-cooldown" class="auth-input" min="0" max="3600" value="30">
+                                <input type="number" id="pw-admin-cooldown" class="auth-input" min="0" max="3600" value="15">
                             </div>
                             <div>
                                 <label style="font-size:12px; font-weight:600; color:var(--text-muted); display:block; margin-bottom:4px;">진행 시간 (분, 0이면 무제한)</label>
                                 <input type="number" id="pw-admin-duration" class="auth-input" min="0" max="20160" value="0">
                             </div>
-                            <div>
-                                <label style="font-size:12px; font-weight:600; color:var(--text-muted); display:block; margin-bottom:4px;">팀 개수</label>
-                                <select id="pw-admin-teamcount" class="auth-select">
-                                    <option value="2">2팀</option>
-                                    <option value="3" selected>3팀</option>
-                                    <option value="4">4팀</option>
-                                    <option value="5">5팀</option>
-                                    <option value="6">6팀</option>
-                                </select>
-                            </div>
                         </div>
 
-                        <div style="margin-bottom:14px;">
-                            <label style="font-size:12px; font-weight:600; color:var(--text-muted); display:block; margin-bottom:6px;">팀 이름 / 색</label>
-                            <div id="pw-admin-teams"></div>
+                        <div class="pw-admin-grid" style="margin-bottom:14px;">
+                            <button class="auth-btn" id="pw-admin-start" style="margin-top:0;">▶ 시작</button>
+                            <button class="btn-sub" id="pw-admin-pause">⏸ 일시정지</button>
+                            <button class="btn-sub" id="pw-admin-end">⏹ 종료</button>
                         </div>
-
-                        <div style="display:flex; flex-wrap:wrap; gap:14px; margin-bottom:14px;">
-                            <label style="display:flex; align-items:center; gap:7px; font-size:13px; font-weight:700; color:var(--text-secondary); cursor:pointer;">
-                                <input type="checkbox" id="pw-admin-balance" checked> 팀 인원 자동 균형
-                            </label>
-                            <label style="display:flex; align-items:center; gap:7px; font-size:13px; font-weight:700; color:var(--text-secondary); cursor:pointer;">
-                                <input type="checkbox" id="pw-admin-lockteams"> 팀 변경 잠금
-                            </label>
-                        </div>
-
-                        <button class="auth-btn" id="pw-admin-save" style="margin-top:0;">💾 설정 저장</button>
+                        <button class="btn-sub" id="pw-admin-save" style="width:100%;">💾 쿨타임만 바꾸기 (진행 중에도 가능)</button>
 
                         <div style="height:1px; background:var(--border-color); margin:18px 0;"></div>
                         <div class="pw-admin-grid">
                             <button class="auth-btn" id="pw-admin-reset-canvas" style="background:#ef4444; margin-top:0;">🧹 캔버스 초기화</button>
-                            <button class="auth-btn" id="pw-admin-reset-all" style="background:#ef4444; margin-top:0;">💣 전체 초기화 (참가자 포함)</button>
+                            <button class="auth-btn" id="pw-admin-reset-all" style="background:#ef4444; margin-top:0;">💣 전체 초기화 (기록 포함)</button>
                         </div>
                     </div>
 
@@ -14136,42 +14068,36 @@
     // =========================================================================
     // 픽셀 전쟁 (r/place 미니) - 200 × 200 공용 캔버스
     //
-    // 설계 메모
-    //  - 기존 거대 모듈을 건드리지 않으려고 별도 모듈로 분리했다. Firebase 앱 인스턴스는
-    //    getApp()으로 기존 것을 그대로 재사용하므로 로그인/인증은 100% 기존 흐름 그대로다.
-    //  - 픽셀 4만 칸을 노드 4만 개로 저장하면 RTDB가 감당이 안 되므로,
-    //    "한 줄(y) = 문자열 하나"로 저장한다. 한 칸당 2글자(색 1 + 팀 1)라서 한 줄은 400글자.
-    //    → 전체 최대 80KB. 한 칸을 칠하면 그 줄(400바이트)만 오가고, onChildChanged 덕분에
-    //      바뀐 줄만 각 클라이언트로 전달된다.
-    //  - 쿨타임은 기기 시계가 아니라 RTDB 서버 시간(.info/serverTimeOffset 보정)으로 판정하고,
-    //    실제 차감은 runTransaction으로 하기 때문에 탭을 여러 개 띄워도 우회되지 않는다.
+    //  - 팀도 진영도 없다. 반 전체가 같은 판을 칠하고, 남이 내 칸을 덮을 수 있다.
+    //  - 기존 거대 모듈은 건드리지 않으려고 별도 모듈로 뺐다. Firebase 앱은 getApp()으로
+    //    그대로 재사용하므로 로그인/인증 흐름은 100% 기존 그대로다.
+    //  - 4만 칸을 노드 4만 개로 두면 RTDB가 감당이 안 되므로 "한 줄(y) = 문자열 하나"로 저장한다.
+    //    한 칸당 색 1글자라서 한 줄은 200글자, 전체 최대 40KB.
+    //    한 칸을 칠하면 그 줄만 오가고, onChildChanged 덕분에 바뀐 줄만 각 클라이언트로 간다.
+    //  - 쿨타임은 기기 시계가 아니라 서버 시간(.info/serverTimeOffset 보정)으로 판정하고
+    //    차감 자체를 runTransaction으로 해서 탭을 여러 개 띄워도 우회되지 않는다.
     //
     // 저장 구조 (전부 RTDB의 pixelwar/ 아래에만 쓴다)
-    //   pixelwar/config          { status, cooldownSec, endsAt, round, balance, teamsLocked }
-    //   pixelwar/teams/{t0..t5}  { name, color }
-    //   pixelwar/canvas/{y}      "색팀색팀…" (400글자)
-    //   pixelwar/players/{uid}   { name, num, team, placed, lastAt }
-    //   pixelwar/feed            최근 활동 25개 (고정 길이 - 무한히 쌓이지 않음)
+    //   pixelwar/config        { status, cooldownSec, endsAt, round }
+    //   pixelwar/canvas/{y}    "색색색…" (200글자, '.' 은 빈 칸)
+    //   pixelwar/players/{uid} { name, num, placed, lastAt }
+    //   pixelwar/feed          최근 활동 25개 (길이 고정이라 계속 쌓여도 용량이 안 는다)
     // =========================================================================
     import { getApp, initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
     import {
         getDatabase, ref, onValue, onChildAdded, onChildChanged, onChildRemoved,
-        set, update, remove, runTransaction
+        update, remove, runTransaction
     } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
     import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 
     (function () {
         'use strict';
 
-        // ----- 상수 -----
-        const SIZE = 200;                       // 200 × 200
-        const TOTAL = SIZE * SIZE;              // 40,000칸
-        const ROW_LEN = SIZE * 2;               // 한 칸당 2글자
+        const SIZE = 200;
+        const TOTAL = SIZE * SIZE;
         const EMPTY_CHAR = '.';
-        const EMPTY_ROW = EMPTY_CHAR.repeat(ROW_LEN);
-        const COLOR_CHARS = '0123456789abcdef'; // 팔레트 16색
-        const TEAM_CHARS = '012345';            // 최대 6팀
-        const MAX_TEAMS = 6;
+        const EMPTY_ROW = EMPTY_CHAR.repeat(SIZE);
+        const COLOR_CHARS = '0123456789abcdef';
         const FEED_MAX = 25;
         const MAX_SCALE = 40;
 
@@ -14183,18 +14109,8 @@
             '#811e9f', '#b44ac0', '#ff99aa', '#9c6926'
         ];
         const PALETTE_NAMES = [
-            '흰색', '밝은 회색', '회색', '검정',
-            '주황', '진노랑', '노랑', '초록',
-            '연두', '남색', '파랑', '하늘',
-            '보라', '연보라', '분홍', '갈색'
-        ];
-        const DEFAULT_TEAMS = [
-            { name: '레드', color: '#ef4444' },
-            { name: '블루', color: '#3b82f6' },
-            { name: '그린', color: '#22c55e' },
-            { name: '옐로', color: '#eab308' },
-            { name: '퍼플', color: '#a855f7' },
-            { name: '오렌지', color: '#f97316' }
+            '흰색', '밝은 회색', '회색', '검정', '주황', '진노랑', '노랑', '초록',
+            '연두', '남색', '파랑', '하늘', '보라', '연보라', '분홍', '갈색'
         ];
         const TEACHER_EMAILS = ["nassir@hanilgo.cnehs.kr", "20261240@hanilgo.cnehs.kr"];
 
@@ -14209,7 +14125,6 @@
         try {
             app = getApp();
         } catch (e) {
-            // 어떤 이유로든 기본 앱이 아직 없으면 동일한 설정으로 초기화한다 (같은 설정이면 중복 생성되지 않는다)
             app = initializeApp({
                 apiKey: "AIzaSyDQaFGU_N0NyDr6yZChZJKPplJgQL6bfJA",
                 authDomain: "over-2a177.firebaseapp.com",
@@ -14223,7 +14138,7 @@
         const pdb = getDatabase(app);
         const pauth = getAuth(app);
 
-        // 서버 시간 보정값: 기기 시계를 바꿔도 쿨타임을 속일 수 없게 한다
+        // 기기 시계를 바꿔도 쿨타임을 속일 수 없도록 서버 시간으로 보정한다
         let serverOffset = 0;
         onValue(ref(pdb, '.info/serverTimeOffset'), (s) => {
             const v = s.val();
@@ -14232,25 +14147,21 @@
         const serverNow = () => Date.now() + serverOffset;
 
         // ----- 상태 -----
-        let cfg = { status: 'idle', cooldownSec: 30, endsAt: 0, round: 1, balance: true, teamsLocked: false };
-        let teams = {};        // { t0: {name,color}, ... }
-        let players = {};      // uid -> { name, num, team, placed, lastAt }
+        let cfg = { status: 'idle', cooldownSec: 15, endsAt: 0, round: 1 };
+        let players = {};
         let feed = [];
         let myUid = null, myName = '', myNum = null;
         let isPwAdmin = false, isAllowed = false;
         let listenersStarted = false;
 
         const rows = new Array(SIZE).fill(null);
-        const rowStats = new Array(SIZE).fill(null);
-        const teamCounts = new Array(MAX_TEAMS).fill(0);
+        const rowFilled = new Array(SIZE).fill(0);
         let filledCount = 0;
 
         let selX = -1, selY = -1;
-        let colorIdx = 3;      // 기본 검정
-        let overlayMode = false;
+        let colorIdx = 3;
         let placing = false;
 
-        // ----- DOM -----
         const $ = (id) => document.getElementById(id);
         const tab = $('tab-pixelwar');
         if (!tab) return;
@@ -14258,7 +14169,7 @@
         const cv = $('pw-canvas');
         const ctx = cv.getContext('2d');
 
-        // 오프스크린 200×200 원본. 화면에는 이걸 확대해서 그린다(픽셀 보간 끔).
+        // 오프스크린 200×200 원본. 화면에는 이걸 확대해서 그린다(보간 끔).
         const off = document.createElement('canvas');
         off.width = SIZE; off.height = SIZE;
         const offCtx = off.getContext('2d');
@@ -14268,14 +14179,13 @@
         // 빈 칸 색은 사이트 테마를 따라간다 (다크 모드에서 흰 판이 눈부신 걸 방지)
         let emptyRGB = [255, 255, 255];
         function refreshEmptyColor() {
-            const dark = document.body.classList.contains('gmw-site-dark');
-            emptyRGB = dark ? [21, 28, 44] : [255, 255, 255];
+            emptyRGB = document.body.classList.contains('gmw-site-dark') ? [21, 28, 44] : [255, 255, 255];
         }
         refreshEmptyColor();
         new MutationObserver(() => {
             const before = emptyRGB.join();
             refreshEmptyColor();
-            if (before !== emptyRGB.join()) { repaintAll(); }
+            if (before !== emptyRGB.join()) repaintAll();
         }).observe(document.body, { attributes: true, attributeFilter: ['class'] });
 
         const toastEl = document.createElement('div');
@@ -14289,84 +14199,55 @@
             toastTimer = setTimeout(() => toastEl.classList.remove('show'), 2200);
         }
 
-        // =====================================================================
-        // 캔버스 데이터 반영
-        // =====================================================================
-        function paintCell(x, y, cc, tc) {
-            let rgb;
-            if (cc === EMPTY_CHAR) {
-                rgb = emptyRGB;
-            } else if (overlayMode) {
-                const ti = TEAM_CHARS.indexOf(tc);
-                const tk = ti >= 0 ? 't' + ti : null;
-                rgb = (tk && teams[tk]) ? hexToRgb(teams[tk].color) : [148, 163, 184];
-            } else {
-                const ci = COLOR_CHARS.indexOf(cc);
-                rgb = ci >= 0 ? PALETTE_RGB[ci] : emptyRGB;
-            }
+        // ===== 캔버스 데이터 =====
+        function paintCell(x, y, cc) {
+            const ci = cc === EMPTY_CHAR ? -1 : COLOR_CHARS.indexOf(cc);
+            const rgb = ci >= 0 ? PALETTE_RGB[ci] : emptyRGB;
             const o = (y * SIZE + x) * 4;
             img.data[o] = rgb[0]; img.data[o + 1] = rgb[1]; img.data[o + 2] = rgb[2]; img.data[o + 3] = 255;
         }
 
-        function paintRow(y) {
-            const s = rows[y] || EMPTY_ROW;
-            for (let x = 0; x < SIZE; x++) paintCell(x, y, s[x * 2], s[x * 2 + 1]);
-        }
-
         function repaintAll() {
-            for (let y = 0; y < SIZE; y++) paintRow(y);
+            for (let y = 0; y < SIZE; y++) {
+                const s = rows[y] || EMPTY_ROW;
+                for (let x = 0; x < SIZE; x++) paintCell(x, y, s[x]);
+            }
             offDirty = true;
             requestDraw();
         }
 
-        // 한 줄이 통째로 바뀌었을 때: 집계를 그 줄만 다시 계산하고 픽셀도 그 줄만 다시 칠한다
+        // 한 줄이 바뀌었을 때: 그 줄만 다시 칠하고 그 줄의 집계만 다시 센다
         function applyRow(y, raw) {
-            const s = (typeof raw === 'string' && raw.length === ROW_LEN) ? raw : EMPTY_ROW;
+            const s = (typeof raw === 'string' && raw.length === SIZE) ? raw : EMPTY_ROW;
             rows[y] = s;
-
-            const prev = rowStats[y];
-            if (prev) {
-                for (let t = 0; t < MAX_TEAMS; t++) teamCounts[t] -= prev.teams[t];
-                filledCount -= prev.filled;
-            }
-            const stat = { teams: new Array(MAX_TEAMS).fill(0), filled: 0 };
+            filledCount -= rowFilled[y];
+            let n = 0;
             for (let x = 0; x < SIZE; x++) {
-                const cc = s[x * 2], tc = s[x * 2 + 1];
-                if (cc !== EMPTY_CHAR) {
-                    stat.filled++;
-                    const ti = TEAM_CHARS.indexOf(tc);
-                    if (ti >= 0) stat.teams[ti]++;
-                }
-                paintCell(x, y, cc, tc);
+                if (s[x] !== EMPTY_CHAR) n++;
+                paintCell(x, y, s[x]);
             }
-            rowStats[y] = stat;
-            for (let t = 0; t < MAX_TEAMS; t++) teamCounts[t] += stat.teams[t];
-            filledCount += stat.filled;
-
+            rowFilled[y] = n;
+            filledCount += n;
             offDirty = true;
             requestDraw();
-            scheduleScoreRender();
+            scheduleStatusRender();
         }
 
         function clearCanvasLocal() {
-            for (let y = 0; y < SIZE; y++) { rows[y] = null; rowStats[y] = null; }
-            for (let t = 0; t < MAX_TEAMS; t++) teamCounts[t] = 0;
+            for (let y = 0; y < SIZE; y++) { rows[y] = null; rowFilled[y] = 0; }
             filledCount = 0;
             repaintAll();
-            scheduleScoreRender();
+            scheduleStatusRender();
         }
 
-        let scoreTimer = null;
-        function scheduleScoreRender() {
-            if (scoreTimer) return;
-            scoreTimer = setTimeout(() => { scoreTimer = null; renderTeams(); renderStatus(); }, 120);
+        let statusTimer = null;
+        function scheduleStatusRender() {
+            if (statusTimer) return;
+            statusTimer = setTimeout(() => { statusTimer = null; renderStatus(); }, 120);
         }
 
-        // =====================================================================
-        // 뷰포트 (확대/이동)
-        // =====================================================================
-        let scale = 2, panX = 0, panY = 0, fitted = false;
-        let rafPending = false;
+        // ===== 뷰포트 (확대/이동) =====
+        let scale = 2, panX = 0, panY = 0, fitted = false, rafPending = false;
 
         function stageSize() { return { w: stage.clientWidth || 1, h: stage.clientHeight || 1 }; }
         function fitScale() { const { w, h } = stageSize(); return Math.min(w / SIZE, h / SIZE) * 0.94; }
@@ -14386,10 +14267,9 @@
 
         function clampView() {
             const { w, h } = stageSize();
-            const cw = SIZE * scale, ch = SIZE * scale;
-            // 캔버스가 화면보다 작으면 가운데, 크면 화면 밖으로 완전히 못 나가게 잡는다
+            const cw = SIZE * scale;
             if (cw <= w) panX = (w - cw) / 2; else panX = Math.min(0, Math.max(w - cw, panX));
-            if (ch <= h) panY = (h - ch) / 2; else panY = Math.min(0, Math.max(h - ch, panY));
+            if (cw <= h) panY = (h - cw) / 2; else panY = Math.min(0, Math.max(h - cw, panY));
         }
 
         function zoomAt(px, py, factor) {
@@ -14421,39 +14301,34 @@
             if (offDirty) { offCtx.putImageData(img, 0, 0); offDirty = false; }
 
             ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-            const cs = getComputedStyle(document.body);
-            ctx.fillStyle = cs.getPropertyValue('--surface-tertiary').trim() || '#eef2fa';
+            ctx.fillStyle = getComputedStyle(document.body).getPropertyValue('--surface-tertiary').trim() || '#eef2fa';
             ctx.fillRect(0, 0, w, h);
 
             ctx.imageSmoothingEnabled = false;
             ctx.drawImage(off, panX, panY, SIZE * scale, SIZE * scale);
 
-            // 충분히 확대했을 때만 격자를 그린다
-            if (scale >= 8) {
+            if (scale >= 8) {   // 충분히 확대했을 때만 격자를 그린다
                 ctx.strokeStyle = 'rgba(128,128,128,0.25)';
                 ctx.lineWidth = 1;
                 ctx.beginPath();
-                const x0 = Math.max(0, Math.floor(-panX / scale));
-                const x1 = Math.min(SIZE, Math.ceil((w - panX) / scale));
-                const y0 = Math.max(0, Math.floor(-panY / scale));
-                const y1 = Math.min(SIZE, Math.ceil((h - panY) / scale));
+                const x0 = Math.max(0, Math.floor(-panX / scale)), x1 = Math.min(SIZE, Math.ceil((w - panX) / scale));
+                const y0 = Math.max(0, Math.floor(-panY / scale)), y1 = Math.min(SIZE, Math.ceil((h - panY) / scale));
                 for (let x = x0; x <= x1; x++) { const px = Math.round(panX + x * scale) + 0.5; ctx.moveTo(px, panY + y0 * scale); ctx.lineTo(px, panY + y1 * scale); }
                 for (let y = y0; y <= y1; y++) { const py = Math.round(panY + y * scale) + 0.5; ctx.moveTo(panX + x0 * scale, py); ctx.lineTo(panX + x1 * scale, py); }
                 ctx.stroke();
             }
 
-            // 캔버스 테두리
             ctx.strokeStyle = 'rgba(128,128,128,0.55)';
             ctx.lineWidth = 1;
             ctx.strokeRect(panX - 0.5, panY - 0.5, SIZE * scale + 1, SIZE * scale + 1);
 
-            // 선택된 칸 표시 (많이 축소했을 때도 보이도록 최소 크기를 보장)
+            // 선택된 칸 (많이 축소했을 때도 보이도록 최소 크기를 보장)
             if (selX >= 0 && selY >= 0) {
-                const bx = panX + selX * scale, by = panY + selY * scale;
-                const bw = Math.max(scale, 8), bh = Math.max(scale, 8);
-                const ox = bx - (bw - scale) / 2, oy = by - (bh - scale) / 2;
-                ctx.lineWidth = 3; ctx.strokeStyle = '#ffffff'; ctx.strokeRect(ox - 1.5, oy - 1.5, bw + 3, bh + 3);
-                ctx.lineWidth = 2; ctx.strokeStyle = '#111827'; ctx.strokeRect(ox - 1, oy - 1, bw + 2, bh + 2);
+                const bw = Math.max(scale, 8);
+                const ox = panX + selX * scale - (bw - scale) / 2;
+                const oy = panY + selY * scale - (bw - scale) / 2;
+                ctx.lineWidth = 3; ctx.strokeStyle = '#ffffff'; ctx.strokeRect(ox - 1.5, oy - 1.5, bw + 3, bw + 3);
+                ctx.lineWidth = 2; ctx.strokeStyle = '#111827'; ctx.strokeRect(ox - 1, oy - 1, bw + 2, bw + 2);
             }
         }
 
@@ -14470,7 +14345,7 @@
         }
 
         stage.addEventListener('pointerdown', (e) => {
-            // 확대/축소/팀보기 버튼 위에서 시작한 입력까지 캔버스가 가로채면 안 된다.
+            // 확대/축소 버튼 위에서 시작한 입력까지 캔버스가 가로채면 안 된다.
             // (setPointerCapture 를 걸어버리면 그 버튼의 click 이벤트 자체가 사라진다)
             if (e.target && e.target.closest && e.target.closest('.pw-stage-tools')) return;
             stage.setPointerCapture(e.pointerId);
@@ -14486,7 +14361,6 @@
         stage.addEventListener('pointermove', (e) => {
             if (!pointers.has(e.pointerId)) return;
             pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
-
             if (pointers.size >= 2) {
                 const [a, b] = [...pointers.values()];
                 const d = Math.hypot(a.x - b.x, a.y - b.y);
@@ -14499,7 +14373,7 @@
             }
             if (!lastPan) return;
             const dx = e.clientX - lastPan.x, dy = e.clientY - lastPan.y;
-            if (!dragMoved && Math.hypot(dx, dy) < 4) return;   // 살짝 흔들린 건 클릭으로 취급
+            if (!dragMoved && Math.hypot(dx, dy) < 4) return;   // 살짝 흔들린 건 클릭으로 본다
             dragMoved = true;
             stage.classList.add('panning');
             panX += dx; panY += dy;
@@ -14532,12 +14406,6 @@
         $('pw-zoom-in').onclick = () => { const { w, h } = stageSize(); zoomAt(w / 2, h / 2, 1.5); };
         $('pw-zoom-out').onclick = () => { const { w, h } = stageSize(); zoomAt(w / 2, h / 2, 1 / 1.5); };
         $('pw-zoom-fit').onclick = () => fitView();
-        $('pw-toggle-overlay').onclick = (e) => {
-            overlayMode = !overlayMode;
-            e.currentTarget.classList.toggle('active', overlayMode);
-            toast(overlayMode ? '팀 영역 보기' : '원래 색 보기');
-            repaintAll();
-        };
 
         // 방향키로 한 칸씩 이동, Enter로 칠하기 (정밀 작업용)
         document.addEventListener('keydown', (e) => {
@@ -14559,12 +14427,7 @@
             if (!fitted) fitView(); else { clampView(); requestDraw(); }
         }).observe(stage);
 
-        // =====================================================================
-        // 렌더링 (상태 / 팀 / 팔레트 / 피드 / 랭킹)
-        // =====================================================================
-        function teamKeys() {
-            return Object.keys(teams).filter(k => /^t[0-5]$/.test(k)).sort();
-        }
+        // ===== 렌더링 =====
         function me() { return myUid ? players[myUid] : null; }
         function gameEnded() { return cfg.status === 'ended' || (cfg.endsAt > 0 && serverNow() >= cfg.endsAt); }
         function cooldownLeftMs() {
@@ -14578,12 +14441,8 @@
             if (cfg.status === 'idle') return { ok: false, msg: '아직 시작 전이에요.' };
             if (cfg.status === 'paused') return { ok: false, msg: '일시정지 상태예요.' };
             if (gameEnded()) return { ok: false, msg: '게임이 끝났어요.' };
-            if (!teamKeys().length) return { ok: false, msg: '팀이 아직 준비되지 않았어요.' };
-            const p = me();
-            if (!p || !p.team) return { ok: false, msg: '먼저 팀을 고르세요.' };
             if (selX < 0) return { ok: false, msg: '칸을 먼저 선택하세요.' };
-            const left = cooldownLeftMs();
-            if (left > 0) return { ok: false, msg: '쿨타임 ' + Math.ceil(left / 1000) + '초' };
+            if (cooldownLeftMs() > 0) return { ok: false, msg: '쿨타임' };
             return { ok: true, msg: '' };
         }
 
@@ -14600,25 +14459,12 @@
         const STATUS_LABEL = { idle: '준비 중', running: '진행 중 🔥', paused: '일시정지', ended: '종료됨' };
 
         function renderStatus() {
-            const ended = gameEnded();
-            const st = ended ? 'ended' : cfg.status;
+            const st = gameEnded() ? 'ended' : cfg.status;
             const sEl = $('pw-status-text');
             sEl.textContent = STATUS_LABEL[st] || '준비 중';
             sEl.className = 'pw-stat-value' + (st === 'running' ? ' pw-ok' : (st === 'ended' ? ' pw-warn' : ''));
-
-            $('pw-remaining-text').textContent =
-                (st === 'ended') ? '종료' : (cfg.endsAt > 0 ? fmtDuration(cfg.endsAt - serverNow()) : '무제한');
-
+            $('pw-remaining-text').textContent = (st === 'ended') ? '종료' : (cfg.endsAt > 0 ? fmtDuration(cfg.endsAt - serverNow()) : '무제한');
             const p = me();
-            const tk = p && p.team;
-            const myTeamEl = $('pw-myteam-text');
-            if (tk && teams[tk]) {
-                myTeamEl.textContent = teams[tk].name;
-                myTeamEl.style.color = teams[tk].color;
-            } else {
-                myTeamEl.textContent = '미정';
-                myTeamEl.style.color = '';
-            }
             $('pw-myplaced-text').textContent = (p && p.placed) ? p.placed.toLocaleString() : '0';
             $('pw-filled-text').textContent = filledCount.toLocaleString() + ' / ' + TOTAL.toLocaleString();
         }
@@ -14635,64 +14481,10 @@
             btn.disabled = !c.ok || placing;
             if (placing) btn.textContent = '칠하는 중…';
             else if (c.ok) btn.textContent = '🖌 (' + selX + ', ' + selY + ') 칠하기';
-            else if (left > 0 && selX >= 0) btn.textContent = '⏳ ' + Math.ceil(left / 1000) + '초 뒤에 다시';
+            else if (left > 0) btn.textContent = '⏳ ' + Math.ceil(left / 1000) + '초 뒤에 다시';
             else btn.textContent = c.msg;
-
-            const cd = cfg.cooldownSec || 0;
             $('pw-cooldown-hint').textContent =
-                '쿨타임 ' + cd + '초 · 한 번에 한 칸만 칠할 수 있어요. 다른 사람이 칠한 칸도 덮어쓸 수 있습니다.';
-        }
-
-        function teamSizesExcludingMe() {
-            const sizes = {};
-            teamKeys().forEach(k => sizes[k] = 0);
-            Object.entries(players).forEach(([uid, p]) => {
-                if (uid === myUid) return;
-                if (p && p.team && sizes[p.team] !== undefined) sizes[p.team]++;
-            });
-            return sizes;
-        }
-
-        function renderTeams() {
-            const wrap = $('pw-teams-container');
-            const keys = teamKeys();
-            if (!keys.length) {
-                wrap.innerHTML = '<div class="pw-empty">아직 팀이 준비되지 않았어요. 관리자가 설정을 저장하면 시작할 수 있어요.</div>';
-                return;
-            }
-            const sizesAll = {};
-            keys.forEach(k => sizesAll[k] = 0);
-            Object.values(players).forEach(p => { if (p && p.team && sizesAll[p.team] !== undefined) sizesAll[p.team]++; });
-
-            const p = me();
-            const myTeam = p && p.team;
-            const totalOwned = keys.reduce((a, k) => a + (teamCounts[parseInt(k.slice(1))] || 0), 0);
-
-            wrap.innerHTML = '';
-            keys.forEach(k => {
-                const t = teams[k];
-                const idx = parseInt(k.slice(1));
-                const owned = teamCounts[idx] || 0;
-                const pct = totalOwned > 0 ? (owned / totalOwned * 100) : 0;
-                const el = document.createElement('div');
-                el.className = 'pw-team-card' + (myTeam === k ? ' mine' : '') + (cfg.teamsLocked && myTeam && myTeam !== k ? ' locked' : '');
-                el.style.setProperty('--pw-team-color', t.color);
-                el.innerHTML =
-                    '<div class="pw-team-head">' +
-                        '<span class="pw-team-dot" style="background:' + t.color + '"></span>' +
-                        '<span class="pw-team-name"></span>' +
-                        (myTeam === k ? '<span class="pw-team-badge">내 팀</span>' : '') +
-                    '</div>' +
-                    '<div class="pw-team-bar"><span style="width:' + pct.toFixed(1) + '%; background:' + t.color + '"></span></div>' +
-                    '<div class="pw-team-meta"><span>' + owned.toLocaleString() + '칸 · ' + pct.toFixed(1) + '%</span><span>' + sizesAll[k] + '명</span></div>';
-                el.querySelector('.pw-team-name').textContent = t.name;
-                el.onclick = () => joinTeam(k);
-                wrap.appendChild(el);
-            });
-
-            $('pw-team-hint').textContent = cfg.teamsLocked
-                ? '지금은 팀을 바꿀 수 없어요.'
-                : (cfg.balance !== false ? '인원이 가장 적은 팀만 고를 수 있어요 (자동 균형).' : '팀 카드를 누르면 그 팀으로 참가합니다.');
+                '쿨타임 ' + (cfg.cooldownSec || 0) + '초 · 한 번에 한 칸만 칠할 수 있어요. 남이 칠한 칸도 덮어쓸 수 있습니다.';
         }
 
         function renderPalette() {
@@ -14725,109 +14517,72 @@
             if (!feed.length) { wrap.innerHTML = '<div class="pw-empty">아직 칠해진 칸이 없어요.</div>'; return; }
             wrap.innerHTML = '';
             [...feed].reverse().forEach(ev => {
-                const t = teams[ev.t];
                 const row = document.createElement('div');
                 row.className = 'pw-feed-item';
-                row.innerHTML =
-                    '<span class="pw-feed-chip" style="background:' + (PALETTE[ev.c] || '#fff') + '"></span>' +
-                    '<span class="pw-feed-name"></span>' +
-                    '<span class="pw-feed-pos"></span>' +
-                    '<span class="pw-feed-time">' + relTime(ev.at) + '</span>';
-                row.querySelector('.pw-feed-name').textContent = ev.n + (t ? ' (' + t.name + ')' : '');
-                row.querySelector('.pw-feed-pos').textContent = '→ (' + ev.x + ', ' + ev.y + ')';
-                if (t) row.querySelector('.pw-feed-name').style.color = t.color;
+                row.innerHTML = '<span class="pw-feed-chip" style="background:' + (PALETTE[ev.c] || '#fff') + '"></span>' +
+                    '<span class="pw-feed-name"></span><span class="pw-feed-time">' + relTime(ev.at) + '</span>';
+                row.querySelector('.pw-feed-name').textContent = ev.n + ' → (' + ev.x + ', ' + ev.y + ')';
                 wrap.appendChild(row);
             });
         }
 
         function renderRank() {
             const wrap = $('pw-rank');
-            const list = Object.entries(players)
-                .map(([uid, p]) => ({ uid, ...p }))
+            const list = Object.entries(players).map(([uid, p]) => ({ uid, ...p }))
                 .filter(p => (p.placed || 0) > 0)
-                .sort((a, b) => (b.placed || 0) - (a.placed || 0))
-                .slice(0, 10);
+                .sort((a, b) => (b.placed || 0) - (a.placed || 0)).slice(0, 10);
             if (!list.length) { wrap.innerHTML = '<div class="pw-empty">아직 참가자가 없어요.</div>'; return; }
             wrap.innerHTML = '';
             list.forEach((p, i) => {
-                const t = p.team ? teams[p.team] : null;
                 const row = document.createElement('div');
                 row.className = 'pw-rank-row';
-                row.innerHTML = '<span class="pw-rank-no">' + (i + 1) + '</span><span class="pw-rank-name"></span><span class="pw-rank-count">' + (p.placed || 0).toLocaleString() + '칸</span>';
-                row.querySelector('.pw-rank-name').textContent = p.name + (t ? ' · ' + t.name : '') + (p.uid === myUid ? ' (나)' : '');
-                if (t) row.querySelector('.pw-rank-name').style.color = t.color;
+                row.innerHTML = '<span class="pw-rank-no">' + (i + 1) + '</span><span class="pw-rank-name"></span>' +
+                    '<span class="pw-rank-count">' + (p.placed || 0).toLocaleString() + '칸</span>';
+                row.querySelector('.pw-rank-name').textContent = p.name + (p.uid === myUid ? ' (나)' : '');
                 wrap.appendChild(row);
             });
         }
 
-        // 남은 시간 / 쿨타임은 1초 단위로 계속 갱신돼야 하므로 별도 타이머로 돈다
+        // 남은 시간 / 쿨타임은 계속 흘러가므로 별도 타이머로 갱신한다
         setInterval(() => {
             if (!tab.classList.contains('active')) return;
-            renderStatus();
-            renderPlaceButton();
+            renderStatus(); renderPlaceButton();
         }, 500);
 
-        // =====================================================================
-        // 동작 (팀 참가 / 칠하기)
-        // =====================================================================
-        async function joinTeam(key) {
-            if (!isAllowed || !myUid || !teams[key]) return;
-            const p = me();
-            if (p && p.team === key) { toast('이미 이 팀이에요.'); return; }
-            if (cfg.teamsLocked && p && p.team) { toast('지금은 팀을 바꿀 수 없어요.'); return; }
-            if (cfg.balance !== false) {
-                const sizes = teamSizesExcludingMe();
-                const min = Math.min(...Object.values(sizes));
-                if ((sizes[key] || 0) > min) { toast('인원 균형 때문에 인원이 가장 적은 팀만 고를 수 있어요.'); return; }
-            }
-            try {
-                await runTransaction(ref(pdb, 'pixelwar/players/' + myUid), (cur) => {
-                    const v = cur || {};
-                    v.name = myName; v.num = myNum; v.team = key;
-                    if (typeof v.placed !== 'number') v.placed = 0;
-                    if (typeof v.lastAt !== 'number') v.lastAt = 0;
-                    return v;
-                });
-                toast(teams[key].name + ' 팀으로 참가했어요!');
-            } catch (e) {
-                toast('참가에 실패했어요: ' + (e && e.message ? e.message : e));
-            }
-        }
-
+        // ===== 칠하기 =====
         async function doPlace() {
             if (placing) return;
             const c = canPlace();
-            if (!c.ok) { toast(c.msg); return; }
-
-            const p = me();
-            const teamIdx = parseInt(p.team.slice(1));
-            if (!(teamIdx >= 0 && teamIdx < MAX_TEAMS)) { toast('팀 정보가 이상해요.'); return; }
+            if (!c.ok) { toast(c.msg === '쿨타임' ? '아직 쿨타임이에요.' : c.msg); return; }
 
             const x = selX, y = selY, ci = colorIdx;
-            const prevLastAt = p.lastAt || 0;
+            const prev = me();
+            const prevLastAt = (prev && prev.lastAt) || 0;
             const now = serverNow();
             const cdMs = (cfg.cooldownSec || 0) * 1000;
 
             placing = true; renderPlaceButton();
             try {
-                // 1) 쿨타임을 먼저 "소모"한다. 트랜잭션이라 탭 여러 개로도 동시에 두 번 통과할 수 없다.
+                // 1) 쿨타임을 먼저 "소모"한다. 트랜잭션이라 탭을 여러 개 띄워도 동시에 두 번 통과할 수 없다.
+                //    참가 기록이 없으면 이 시점에 자동으로 만들어진다 (따로 참가 버튼이 없다).
                 const res = await runTransaction(ref(pdb, 'pixelwar/players/' + myUid), (cur) => {
-                    if (!cur || !cur.team) return;                       // 참가 안 한 상태 -> 중단
-                    if (cur.lastAt && (now - cur.lastAt) < cdMs) return; // 아직 쿨타임 -> 중단
-                    cur.lastAt = now;
-                    cur.placed = (cur.placed || 0) + 1;
-                    return cur;
+                    const v = cur || { placed: 0, lastAt: 0 };
+                    if (v.lastAt && (now - v.lastAt) < cdMs) return;  // 아직 쿨타임 -> 중단
+                    v.name = myName; v.num = myNum;
+                    v.lastAt = now;
+                    v.placed = (v.placed || 0) + 1;
+                    return v;
                 });
                 if (!res.committed) { toast('아직 쿨타임이에요.'); return; }
 
                 // 2) 실제 픽셀 기록. 같은 줄을 동시에 칠해도 트랜잭션이라 서로 덮어쓰지 않는다.
                 try {
                     await runTransaction(ref(pdb, 'pixelwar/canvas/' + y), (cur) => {
-                        const s = (typeof cur === 'string' && cur.length === ROW_LEN) ? cur : EMPTY_ROW;
-                        return s.slice(0, x * 2) + COLOR_CHARS[ci] + TEAM_CHARS[teamIdx] + s.slice(x * 2 + 2);
+                        const s = (typeof cur === 'string' && cur.length === SIZE) ? cur : EMPTY_ROW;
+                        return s.slice(0, x) + COLOR_CHARS[ci] + s.slice(x + 1);
                     });
                 } catch (err) {
-                    // 픽셀 기록이 실패하면 방금 소모한 쿨타임을 되돌려준다 (억울하게 30초 날리지 않도록)
+                    // 기록이 실패하면 방금 쓴 쿨타임을 되돌려준다 (억울하게 날리지 않도록)
                     await runTransaction(ref(pdb, 'pixelwar/players/' + myUid), (cur) => {
                         if (!cur) return cur;
                         cur.lastAt = prevLastAt;
@@ -14837,10 +14592,10 @@
                     throw err;
                 }
 
-                // 3) 활동 피드는 길이 고정 배열이라 계속 쌓여도 용량이 늘지 않는다
+                // 3) 활동 피드는 길이 고정 배열이라 오래 돌려도 용량이 늘지 않는다
                 runTransaction(ref(pdb, 'pixelwar/feed'), (cur) => {
                     const arr = Array.isArray(cur) ? cur.slice() : (cur && typeof cur === 'object' ? Object.values(cur) : []);
-                    arr.push({ n: myName, t: p.team, x, y, c: ci, at: now });
+                    arr.push({ n: myName, x, y, c: ci, at: now });
                     while (arr.length > FEED_MAX) arr.shift();
                     return arr;
                 }).catch(() => {});
@@ -14853,101 +14608,46 @@
         }
         $('pw-place-btn').onclick = doPlace;
 
-        // =====================================================================
-        // 관리자 패널
-        // =====================================================================
-        function renderAdminTeamInputs() {
-            const count = parseInt($('pw-admin-teamcount').value, 10) || 3;
-            const wrap = $('pw-admin-teams');
-            wrap.innerHTML = '';
-            for (let i = 0; i < count; i++) {
-                const k = 't' + i;
-                const cur = teams[k] || DEFAULT_TEAMS[i];
-                const row = document.createElement('div');
-                row.className = 'pw-admin-team-row';
-                row.innerHTML =
-                    '<input type="color" value="' + cur.color + '" data-pw-team-color="' + k + '">' +
-                    '<input type="text" class="auth-input" style="flex:1; margin:0;" data-pw-team-name="' + k + '" maxlength="12">';
-                wrap.appendChild(row);
-                row.querySelector('[data-pw-team-name]').value = cur.name;
-            }
-        }
-
-        function syncAdminInputs() {
-            $('pw-admin-cooldown').value = cfg.cooldownSec != null ? cfg.cooldownSec : 30;
-            $('pw-admin-balance').checked = cfg.balance !== false;
-            $('pw-admin-lockteams').checked = !!cfg.teamsLocked;
-            const n = teamKeys().length;
-            if (n >= 2) $('pw-admin-teamcount').value = String(Math.min(n, MAX_TEAMS));
-            renderAdminTeamInputs();
-        }
-
-        function readAdminTeams() {
-            const count = parseInt($('pw-admin-teamcount').value, 10) || 3;
-            const out = {};
-            for (let i = 0; i < count; i++) {
-                const k = 't' + i;
-                const nameEl = document.querySelector('[data-pw-team-name="' + k + '"]');
-                const colorEl = document.querySelector('[data-pw-team-color="' + k + '"]');
-                out[k] = {
-                    name: (nameEl && nameEl.value.trim()) || DEFAULT_TEAMS[i].name,
-                    color: (colorEl && colorEl.value) || DEFAULT_TEAMS[i].color
-                };
-            }
-            return out;
-        }
-
+        // ===== 관리자 =====
         function wireAdmin() {
-            $('pw-admin-teamcount').onchange = renderAdminTeamInputs;
-
-            $('pw-admin-save').onclick = async () => {
-                const newTeams = readAdminTeams();
-                const cd = Math.max(0, Math.min(3600, parseInt($('pw-admin-cooldown').value, 10) || 0));
-                try {
-                    await set(ref(pdb, 'pixelwar/teams'), newTeams);
-                    await update(ref(pdb, 'pixelwar/config'), {
-                        cooldownSec: cd,
-                        balance: $('pw-admin-balance').checked,
-                        teamsLocked: $('pw-admin-lockteams').checked
-                    });
-                    toast('설정을 저장했어요.');
-                } catch (e) { toast('저장 실패: ' + (e && e.message ? e.message : e)); }
-            };
-
             $('pw-admin-start').onclick = async () => {
-                if (!teamKeys().length) { toast('먼저 설정을 저장해서 팀을 만들어 주세요.'); return; }
+                const cd = Math.max(0, Math.min(3600, parseInt($('pw-admin-cooldown').value, 10) || 0));
                 const mins = Math.max(0, parseInt($('pw-admin-duration').value, 10) || 0);
                 const now = serverNow();
                 try {
                     await update(ref(pdb, 'pixelwar/config'), {
-                        status: 'running',
-                        startedAt: now,
+                        status: 'running', cooldownSec: cd, startedAt: now,
                         endsAt: mins > 0 ? now + mins * 60000 : 0
                     });
                     toast('픽셀 전쟁 시작!');
                 } catch (e) { toast('시작 실패: ' + (e && e.message ? e.message : e)); }
             };
-            $('pw-admin-pause').onclick = () => update(ref(pdb, 'pixelwar/config'), { status: 'paused' }).then(() => toast('일시정지했어요.')).catch(e => toast('실패: ' + e.message));
+            $('pw-admin-pause').onclick = () => update(ref(pdb, 'pixelwar/config'), { status: 'paused' })
+                .then(() => toast('일시정지했어요.')).catch(e => toast('실패: ' + e.message));
             $('pw-admin-end').onclick = () => {
                 if (!confirm('게임을 종료할까요? 더 이상 칠할 수 없게 됩니다.')) return;
-                update(ref(pdb, 'pixelwar/config'), { status: 'ended', endsAt: serverNow() }).then(() => toast('게임을 종료했어요.')).catch(e => toast('실패: ' + e.message));
+                update(ref(pdb, 'pixelwar/config'), { status: 'ended', endsAt: serverNow() })
+                    .then(() => toast('게임을 종료했어요.')).catch(e => toast('실패: ' + e.message));
             };
-
+            $('pw-admin-save').onclick = async () => {
+                const cd = Math.max(0, Math.min(3600, parseInt($('pw-admin-cooldown').value, 10) || 0));
+                try { await update(ref(pdb, 'pixelwar/config'), { cooldownSec: cd }); toast('쿨타임을 ' + cd + '초로 바꿨어요.'); }
+                catch (e) { toast('저장 실패: ' + (e && e.message ? e.message : e)); }
+            };
             $('pw-admin-reset-canvas').onclick = async () => {
-                if (!confirm('캔버스를 전부 지울까요? 그린 그림이 모두 사라지고 되돌릴 수 없습니다. (팀 배정은 유지)')) return;
+                if (!confirm('캔버스를 전부 지울까요? 그린 그림이 모두 사라지고 되돌릴 수 없습니다.')) return;
                 try {
                     await remove(ref(pdb, 'pixelwar/canvas'));
                     await remove(ref(pdb, 'pixelwar/feed'));
-                    const updates = {};
-                    Object.keys(players).forEach(uid => { updates[uid + '/placed'] = 0; updates[uid + '/lastAt'] = 0; });
-                    if (Object.keys(updates).length) await update(ref(pdb, 'pixelwar/players'), updates);
+                    const ups = {};
+                    Object.keys(players).forEach(u => { ups[u + '/placed'] = 0; ups[u + '/lastAt'] = 0; });
+                    if (Object.keys(ups).length) await update(ref(pdb, 'pixelwar/players'), ups);
                     await update(ref(pdb, 'pixelwar/config'), { round: (cfg.round || 1) + 1, status: 'idle', endsAt: 0 });
                     toast('캔버스를 초기화했어요.');
                 } catch (e) { toast('초기화 실패: ' + (e && e.message ? e.message : e)); }
             };
-
             $('pw-admin-reset-all').onclick = async () => {
-                if (!confirm('참가자 팀 배정까지 전부 초기화할까요? 되돌릴 수 없습니다.')) return;
+                if (!confirm('참가 기록까지 전부 초기화할까요? 되돌릴 수 없습니다.')) return;
                 try {
                     await remove(ref(pdb, 'pixelwar/canvas'));
                     await remove(ref(pdb, 'pixelwar/feed'));
@@ -14958,7 +14658,7 @@
             };
         }
 
-        // 시간 제한이 끝나면 관리자 화면이 상태를 'ended'로 확정해준다 (모두가 동시에 쓰지 않도록 관리자만)
+        // 시간 제한이 끝나면 관리자 화면이 상태를 'ended'로 확정해준다 (모두가 동시에 쓰지 않도록)
         setInterval(() => {
             if (!isPwAdmin) return;
             if (cfg.status === 'running' && cfg.endsAt > 0 && serverNow() >= cfg.endsAt) {
@@ -14966,9 +14666,7 @@
             }
         }, 5000);
 
-        // =====================================================================
-        // 실시간 구독
-        // =====================================================================
+        // ===== 실시간 구독 =====
         function startListeners() {
             if (listenersStarted) return;
             listenersStarted = true;
@@ -14978,28 +14676,19 @@
                 const v = snap.val() || {};
                 cfg = {
                     status: v.status || 'idle',
-                    cooldownSec: typeof v.cooldownSec === 'number' ? v.cooldownSec : 30,
+                    cooldownSec: typeof v.cooldownSec === 'number' ? v.cooldownSec : 15,
                     endsAt: typeof v.endsAt === 'number' ? v.endsAt : 0,
-                    round: typeof v.round === 'number' ? v.round : 1,
-                    balance: v.balance !== false,
-                    teamsLocked: !!v.teamsLocked
+                    round: typeof v.round === 'number' ? v.round : 1
                 };
-                if (lastRound !== null && lastRound !== cfg.round) clearCanvasLocal(); // 초기화된 판이면 로컬도 비운다
+                if (lastRound !== null && lastRound !== cfg.round) clearCanvasLocal();
                 lastRound = cfg.round;
-                renderStatus(); renderTeams(); renderPlaceButton();
-                if (isPwAdmin) syncAdminInputs();
-            });
-
-            onValue(ref(pdb, 'pixelwar/teams'), (snap) => {
-                teams = snap.val() || {};
-                if (overlayMode) repaintAll();
-                renderTeams(); renderStatus(); renderFeed(); renderRank();
-                if (isPwAdmin) syncAdminInputs();
+                if (isPwAdmin) $('pw-admin-cooldown').value = cfg.cooldownSec;
+                renderStatus(); renderPlaceButton();
             });
 
             onValue(ref(pdb, 'pixelwar/players'), (snap) => {
                 players = snap.val() || {};
-                renderTeams(); renderStatus(); renderRank(); renderPlaceButton();
+                renderStatus(); renderRank(); renderPlaceButton();
             });
 
             onValue(ref(pdb, 'pixelwar/feed'), (snap) => {
@@ -15008,16 +14697,14 @@
                 renderFeed();
             });
 
-            // 캔버스는 "바뀐 줄만" 받는다. onValue로 전체를 다시 받으면 4만 칸을 매번 다시 그리게 된다.
+            // 캔버스는 "바뀐 줄만" 받는다. onValue로 전체를 다시 받으면 매번 4만 칸을 다시 그리게 된다.
             const canvasRef = ref(pdb, 'pixelwar/canvas');
             onChildAdded(canvasRef, (s) => { const y = parseInt(s.key, 10); if (y >= 0 && y < SIZE) applyRow(y, s.val()); });
             onChildChanged(canvasRef, (s) => { const y = parseInt(s.key, 10); if (y >= 0 && y < SIZE) applyRow(y, s.val()); });
             onChildRemoved(canvasRef, (s) => { const y = parseInt(s.key, 10); if (y >= 0 && y < SIZE) applyRow(y, EMPTY_ROW); });
         }
 
-        // =====================================================================
-        // 진입 / 권한
-        // =====================================================================
+        // ===== 진입 / 권한 =====
         function applyAccess() {
             $('pixelwar-secure-content').style.display = isAllowed ? 'block' : 'none';
             $('pixelwar-locked-content').style.display = isAllowed ? 'none' : 'block';
@@ -15032,22 +14719,21 @@
             onValue(ref(pdb, 'users/' + user.uid), (snap) => {
                 const d = snap.val();
                 if (!d) return;
-                const is2Ban = d.role === 'class2_member';
                 const isTeacher = TEACHER_EMAILS.includes((user.email || '').trim().toLowerCase());
-                isAllowed = is2Ban && !isTeacher;                 // 게임 탭과 동일한 기준: 1-2반 정회원만
+                isAllowed = (d.role === 'class2_member') && !isTeacher;   // 게임 탭과 동일 기준
                 isPwAdmin = (d.grade === '1' && d.ban === '2' && (parseInt(d.number, 10) === 30 || parseInt(d.number, 10) === 20));
                 myNum = parseInt(d.number, 10) || null;
                 myName = d.nickname ? d.nickname : (myNum ? myNum + '번' : '익명');
                 applyAccess();
                 if (isAllowed) {
                     renderPalette();
-                    if (isPwAdmin) { wireAdmin(); syncAdminInputs(); }
+                    if (isPwAdmin) wireAdmin();
                     startListeners();
                 }
             });
         });
 
-        // 탭 전환 훅: 숨겨져 있는 동안은 stage 크기가 0이라 처음 보일 때 맞춰 그려야 한다
+        // 탭이 숨겨져 있는 동안은 stage 크기가 0이라, 처음 보일 때 맞춰 그려야 한다
         const _prevSwitchTab = window.switchTab;
         window.switchTab = function (tabId) {
             if (tabId === 'pixelwar' && !isAllowed) tabId = 'home';
@@ -15055,7 +14741,7 @@
             if (tabId === 'pixelwar') {
                 requestAnimationFrame(() => {
                     if (!fitted) fitView(); else { clampView(); requestDraw(); }
-                    renderStatus(); renderTeams(); renderPalette(); renderSelection(); renderFeed(); renderRank();
+                    renderStatus(); renderPalette(); renderSelection(); renderFeed(); renderRank();
                 });
             }
         };
