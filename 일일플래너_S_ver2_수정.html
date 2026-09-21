@@ -216,7 +216,8 @@
         <div class="flex justify-between items-center mb-2 flex-none">
           <h2 class="text-sm font-bold text-slate-200"><span class="mr-1.5">▦</span>TIMETABLE</h2>
           <div class="flex items-center gap-1">
-            <select id="manual-subject-select" class="bg-slate-700 border border-slate-600 rounded px-1 py-0.5 text-[9px] text-slate-200 outline-none hidden max-w-[60px]"></select>
+            <select id="manual-subject-select" onchange="onManualSubjectChange()" class="bg-slate-700 border border-slate-600 rounded px-1 py-0.5 text-[9px] text-slate-200 outline-none hidden max-w-[60px]"></select>
+            <button id="manual-task-btn" onclick="changeManualTask()" class="hidden px-1.5 py-1 bg-indigo-600/20 text-indigo-300 border border-indigo-500/40 rounded text-[9px] font-bold transition hover:bg-indigo-600/40 max-w-[90px] truncate" title="클릭하면 다른 할일로 바꿉니다"></button>
             <button id="btn-edit-grid" onclick="toggleGridEditMode()" class="px-1.5 py-1 bg-slate-700 hover:bg-slate-600 text-slate-300 rounded text-[9px] font-bold transition shadow"><span>🔒</span> 편집</button>
           </div>
         </div>
@@ -752,7 +753,7 @@
         isGridEditMode = true; document.getElementById('manual-subject-select').classList.remove('hidden'); const btn = document.getElementById('btn-edit-grid'); btn.innerHTML = '<span>✓</span> 완료'; btn.className = 'px-1.5 py-1 bg-amber-600 hover:bg-amber-500 text-white rounded text-[9px] font-bold transition shadow'; renderTimetable();
       } else resetEditMode();
     }
-    function resetEditMode() { isGridEditMode = false; document.getElementById('manual-subject-select').classList.add('hidden'); const btn = document.getElementById('btn-edit-grid'); btn.innerHTML = '<span>🔒</span> 편집'; btn.className = 'px-1.5 py-1 bg-slate-700 hover:bg-slate-600 text-slate-300 rounded text-[9px] font-bold transition shadow border border-slate-600'; renderTimetable(); }
+    function resetEditMode() { isGridEditMode = false; setManualTask(null); document.getElementById('manual-subject-select').classList.add('hidden'); const btn = document.getElementById('btn-edit-grid'); btn.innerHTML = '<span>🔒</span> 편집'; btn.className = 'px-1.5 py-1 bg-slate-700 hover:bg-slate-600 text-slate-300 rounded text-[9px] font-bold transition shadow border border-slate-600'; renderTimetable(); }
 
     function handleManualOverride(timeKey) {
       if (currentDateStr !== todayStr && !isTimeMachineUnlocked) { uiAlert('과거 기록은 타임머신 모드에서만 수정할 수 있습니다.'); return; }
@@ -767,7 +768,14 @@
       // 수동 편집 시 한 번 클릭으로 즉시 10분(100%) 채우고, 다시 클릭하면 초기화 (0% -> 100% -> 0%)
       if (currentSec === 0) {
          const candidates = (state.records[currentDateStr].tasks || []).filter(t => t.subjectId === subId);
-         if (candidates.length > 1) { openTaskPicker(candidates, task => fillCell(timeKey, subId, task.id)); return; }
+         // 한 번 고른 할일은 편집을 끝낼 때까지 계속 쓴다. 매번 묻지 않는다.
+         const remembered = candidates.find(t => t.id === manualTaskId);
+         if (remembered) { fillCell(timeKey, subId, remembered.id); return; }
+         if (candidates.length > 1) {
+           openTaskPicker(candidates, task => { setManualTask(task.id); fillCell(timeKey, subId, task.id); });
+           return;
+         }
+         setManualTask(candidates.length === 1 ? candidates[0].id : null);
          fillCell(timeKey, subId, candidates.length === 1 ? candidates[0].id : null);
       } else {
          const orphans = orphanTaskIds(gridData[timeKey]);
@@ -804,6 +812,27 @@
       cell.segments = [];
       cell.passed = false;
       saveData(); updateDashboard(); renderTasks(); renderTimetable();
+    }
+
+    // 편집 모드에서 지금 찍고 있는 할일. 편집을 끝낼 때까지 유지된다.
+    let manualTaskId = null;
+
+    function setManualTask(taskId) {
+      manualTaskId = taskId;
+      const btn = document.getElementById('manual-task-btn');
+      if (!btn) return;
+      const task = (state.records[currentDateStr].tasks || []).find(t => t.id === taskId);
+      if (isGridEditMode && task) { btn.innerText = task.title; btn.classList.remove('hidden'); }
+      else btn.classList.add('hidden');
+    }
+
+    function onManualSubjectChange() { setManualTask(null); }
+
+    function changeManualTask() {
+      const subId = document.getElementById('manual-subject-select').value || state.subjects[0].id;
+      const candidates = (state.records[currentDateStr].tasks || []).filter(t => t.subjectId === subId);
+      if (candidates.length < 2) return;
+      openTaskPicker(candidates, task => setManualTask(task.id));
     }
 
     // 지워진 할일이라도 이름은 남겨뒀으니 그걸 찾아 쓴다
