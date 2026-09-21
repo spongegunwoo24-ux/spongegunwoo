@@ -353,6 +353,22 @@
     </div>
   </div>
 
+  <div id="modal-orphan" class="fixed inset-0 modal-backdrop hidden flex items-center justify-center z-50 p-4">
+    <div class="bg-slate-800 border border-slate-600 rounded-2xl shadow-2xl w-full max-w-sm p-5">
+      <div class="flex justify-between items-center mb-1"><h3 class="text-base font-bold text-slate-100">지워진 할일의 기록이에요</h3><button onclick="closeModal('modal-orphan')" class="text-slate-400 hover:text-white"><span class="text-lg">✕</span></button></div>
+      <p class="text-slate-400 text-xs mb-1">이 칸은 <span id="orphan-name" class="text-indigo-300 font-bold">-</span> 의 기록입니다. 어느 할일로 옮길까요?</p>
+      <p id="orphan-count" class="text-slate-500 text-[10px] mb-3"></p>
+      <label id="orphan-all-wrap" class="hidden flex items-center gap-2 text-[11px] text-indigo-300 font-semibold cursor-pointer bg-indigo-500/10 px-3 py-2 rounded border border-indigo-500/20 mb-3">
+        <input type="checkbox" id="orphan-all" class="w-4 h-4"><span>같은 할일이 찍힌 다른 칸도 함께 옮기기</span>
+      </label>
+      <div id="orphan-list" class="space-y-2 max-h-[32vh] overflow-y-auto pr-1 mb-3"></div>
+      <div class="flex gap-2">
+        <button id="orphan-keep-btn" class="flex-1 py-2.5 bg-slate-700 hover:bg-slate-600 rounded-xl font-bold text-[11px] text-slate-300 transition">그냥 두기</button>
+        <button id="orphan-clear-btn" class="flex-1 py-2.5 bg-red-600/20 hover:bg-red-600/40 text-red-400 border border-red-500/30 rounded-xl font-bold text-[11px] transition">이 칸 지우기</button>
+      </div>
+    </div>
+  </div>
+
   <div id="modal-generic" class="fixed inset-0 modal-backdrop hidden flex items-center justify-center z-50 p-4">
     <div class="bg-slate-800 border border-slate-600 rounded-2xl shadow-2xl w-full max-w-sm p-5 text-center">
       <div class="w-14 h-14 bg-indigo-500/20 text-indigo-400 rounded-full flex items-center justify-center text-2xl mx-auto mb-3"><span id="generic-icon">ℹ️</span></div>
@@ -631,7 +647,7 @@
         for (const tid in cellData.taskParts) {
           const task = tasks.find(t => t.id === tid);
           const mins = Math.round(cellData.taskParts[tid] / 60);
-          lines.push(`${task ? task.title : '삭제된 할일'} · ${mins}분`);
+          lines.push(`${task ? task.title : taskNameOf(tid) + ' (삭제됨)'} · ${mins}분`);
         }
       } else {
         for (const sid in (cellData.parts || {})) {
@@ -754,6 +770,8 @@
          if (candidates.length > 1) { openTaskPicker(candidates, task => fillCell(timeKey, subId, task.id)); return; }
          fillCell(timeKey, subId, candidates.length === 1 ? candidates[0].id : null);
       } else {
+         const orphans = orphanTaskIds(gridData[timeKey]);
+         if (orphans.length) { openOrphanModal(timeKey, orphans[0]); return; }
          clearCell(timeKey);
       }
     }
@@ -786,6 +804,84 @@
       cell.segments = [];
       cell.passed = false;
       saveData(); updateDashboard(); renderTasks(); renderTimetable();
+    }
+
+    // 지워진 할일이라도 이름은 남겨뒀으니 그걸 찾아 쓴다
+    function taskNameOf(taskId) {
+      const rec = state.records[currentDateStr];
+      const alive = (rec.tasks || []).find(t => t.id === taskId);
+      if (alive) return alive.title;
+      return (rec.deletedTasks || {})[taskId] || '이름 모를 할일';
+    }
+
+    function orphanTaskIds(cell) {
+      const tasks = state.records[currentDateStr].tasks || [];
+      return Object.keys(cell.taskParts || {}).filter(id => !tasks.some(t => t.id === id));
+    }
+
+    function cellsWithTask(taskId) {
+      const grid = state.records[currentDateStr].grid || {};
+      return Object.keys(grid).filter(k => grid[k].taskParts && grid[k].taskParts[taskId]);
+    }
+
+    function rebuildParts(cell) {
+      if (!cell.segments || !cell.segments.length) return;
+      cell.parts = {};
+      cell.segments.forEach(s => { cell.parts[s.subId] = (cell.parts[s.subId] || 0) + s.seconds; });
+    }
+
+    // 사라진 할일에 묶인 기록을 살아있는 할일로 옮겨준다
+    function remapTask(oldId, newId, timeKeys) {
+      const rec = state.records[currentDateStr];
+      const newTask = (rec.tasks || []).find(t => t.id === newId);
+      if (!newTask) return;
+      let moved = 0;
+      timeKeys.forEach(k => {
+        const cell = rec.grid[k];
+        if (!cell || !cell.taskParts || !cell.taskParts[oldId]) return;
+        const sec = cell.taskParts[oldId];
+        delete cell.taskParts[oldId];
+        cell.taskParts[newId] = (cell.taskParts[newId] || 0) + sec;
+        (cell.segments || []).forEach(s => { if (s.taskId === oldId) { s.taskId = newId; s.subId = newTask.subjectId; } });
+        rebuildParts(cell);
+        moved += sec;
+      });
+      newTask.elapsedSec = (newTask.elapsedSec || 0) + moved;
+      if (!cellsWithTask(oldId).length && rec.deletedTasks) delete rec.deletedTasks[oldId];
+      saveData(); updateDashboard(); renderTasks(); renderTimetable();
+      uiAlert(`${formatTime(moved)} 를 "${newTask.title}" (으)로 옮겼습니다.`, { icon: '🔗', title: '연결 완료' });
+    }
+
+    function openOrphanModal(timeKey, orphanId) {
+      const rec = state.records[currentDateStr];
+      const others = cellsWithTask(orphanId).length;
+      document.getElementById('orphan-name').innerText = taskNameOf(orphanId);
+      document.getElementById('orphan-count').innerText = others > 1 ? `이 할일이 기록된 칸이 ${others}개 있습니다.` : '이 칸에만 기록되어 있습니다.';
+      const allWrap = document.getElementById('orphan-all-wrap');
+      const allBox = document.getElementById('orphan-all');
+      if (others > 1) { allWrap.classList.remove('hidden'); allBox.checked = true; } else { allWrap.classList.add('hidden'); allBox.checked = false; }
+
+      const list = document.getElementById('orphan-list');
+      list.innerHTML = '';
+      const alive = rec.tasks || [];
+      if (!alive.length) {
+        list.innerHTML = '<div class="text-[11px] text-slate-500 py-2">지금 남아있는 할일이 없어 옮길 곳이 없습니다.</div>';
+      }
+      alive.forEach(task => {
+        const btn = document.createElement('button');
+        btn.className = 'w-full text-left px-3 py-2.5 bg-slate-900/60 hover:bg-slate-700 border border-slate-700 rounded-xl text-xs font-bold text-slate-200 transition flex items-center justify-between gap-2';
+        btn.innerHTML = `<span class="truncate">${task.title}</span><span class="text-[10px] font-mono text-indigo-300 flex-none">${formatTime(task.elapsedSec || 0)}</span>`;
+        btn.onclick = () => {
+          const keys = allBox.checked ? cellsWithTask(orphanId) : [timeKey];
+          closeModal('modal-orphan');
+          remapTask(orphanId, task.id, keys);
+        };
+        list.appendChild(btn);
+      });
+
+      document.getElementById('orphan-keep-btn').onclick = () => closeModal('modal-orphan');
+      document.getElementById('orphan-clear-btn').onclick = () => { closeModal('modal-orphan'); clearCell(timeKey); };
+      document.getElementById('modal-orphan').classList.remove('hidden');
     }
 
     function openTaskPicker(tasks, onPick) {
@@ -871,8 +967,12 @@
     function deleteTask(id, fromSetup=false) {
       uiConfirm('과제를 삭제하시겠습니까?', () => {
         if(timerState.taskId === id) stopTimer();
-        state.records[currentDateStr].tasks = state.records[currentDateStr].tasks.filter(t => t.id !== id); saveData(); 
-        if(fromSetup) renderSetupTaskList(); else { renderTasks(); updateDashboard(); }
+        const rec = state.records[currentDateStr];
+        // 표에 남을 기록이 이름 없는 유령이 되지 않도록 제목을 따로 보관해둔다
+        const gone = rec.tasks.find(t => t.id === id);
+        if (gone) { if (!rec.deletedTasks) rec.deletedTasks = {}; rec.deletedTasks[id] = gone.title; }
+        state.records[currentDateStr].tasks = state.records[currentDateStr].tasks.filter(t => t.id !== id); saveData();
+        if(fromSetup) renderSetupTaskList(); else { renderTasks(); updateDashboard(); renderTimetable(); }
       }, {icon:'🗑️', title:'삭제 확인', confirmText:'삭제'});
     }
     function toggleTaskComplete(id, isChecked) {
