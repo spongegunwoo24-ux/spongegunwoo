@@ -49,6 +49,11 @@ h1 span{color:var(--accent)}
 .car.exitgo{transition:transform .7s cubic-bezier(.5,0,.8,.4),opacity .7s;transform:translateX(260%);opacity:0}
 .ghost{position:absolute;padding:3px;z-index:1;pointer-events:none}
 .ghost div{width:100%;height:100%;border:3px dashed var(--accent);border-radius:10px;background:#ffcc3322}
+.car.useless .b{opacity:.32;filter:grayscale(.85)}
+.car.useless::after{content:"불필요";position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);font-size:11px;font-weight:800;
+  background:#000c;color:#fff;padding:2px 6px;border-radius:6px;pointer-events:none;white-space:nowrap}
+.badge{display:inline-block;background:#16351f;color:var(--good);border:1px solid #2a6b3c;border-radius:999px;padding:3px 9px;font-size:12px;font-weight:700;margin:2px 0}
+.badge.warn{background:#3a2a12;color:var(--meh);border-color:#6b4f22}
 .edit #grid{cursor:crosshair}
 .edit .car .b{cursor:pointer}
 .hover{position:absolute;padding:3px;pointer-events:none;z-index:1}
@@ -165,13 +170,14 @@ tr:last-child td{border-bottom:0}
           <button class="tool" data-t="c3v">트럭 ↕</button>
           <button class="tool" data-t="clear">🗑 전부 지우기</button>
         </div>
-        <div class="mini">빈 칸을 누르면 그 칸을 기준으로 차를 놓고, 놓인 차를 누르면 지웁니다. 빨간 차는 출구가 있는 3번째 줄에만 놓을 수 있어요.</div>
+        <div class="mini">빈 칸을 누르면 그 칸을 기준으로 차를 놓고, 놓인 차를 누르면 지웁니다. 빨간 차는 출구가 있는 3번째 줄에만 놓을 수 있어요.
+          <br>🧹 <b>차 다이어트 자동 적용</b>: 빼도 최단 수가 그대로인 차는 흐리게 표시되고, 플레이·공유할 때 난이도(최단 수)는 지키면서 필요 없는 차를 자동으로 빼 드려요.</div>
         <div class="verdict" id="verdict">빨간 차부터 놓아 주세요.</div>
         <div class="btns" style="grid-template-columns:1fr 1fr">
           <button class="btn primary" id="ePlay" disabled>▶ 이 퍼즐 플레이</button>
           <button class="btn" id="eHard" disabled>🔥 가장 어렵게 바꾸기</button>
-          <button class="btn" id="eLoad">현재 퍼즐 불러오기</button>
           <button class="btn" id="eShare" disabled>🔗 링크 공유</button>
+          <button class="btn" id="eLoad">지금 플레이 중인 퍼즐 불러오기</button>
         </div>
       </div>
 
@@ -191,6 +197,7 @@ tr:last-child td{border-bottom:0}
       <tr><td>준비·정리</td><td class="off">매번 차 10~16대를 손으로 배치, 분실 위험</td><td class="on">0초. 잃어버릴 부품도 없음</td></tr>
       <tr><td>친구와 경쟁</td><td class="off">같은 카드를 한 자리에서 번갈아 풀어야 함</td><td class="on">📅 오늘의 퍼즐은 전 세계가 같은 문제. 결과를 이모지로 공유</td></tr>
       <tr><td>문제 만들기</td><td class="off">직접 만든 배치가 풀리는지, 몇 수짜리인지 알 수 없음</td><td class="on">🛠 놓는 즉시 풀이 가능 여부와 최단 수를 검증, "가장 어렵게" 자동 변형</td></tr>
+      <tr><td>군더더기 차</td><td class="off">빼도 아무 상관없는 차가 섞여 있어도 알 수 없음</td><td class="on">🧹 모든 퍼즐을 컴퓨터가 검증: 남은 차는 한 대라도 빼면 더 쉬워지는 "꼭 필요한 차"뿐</td></tr>
       <tr><td>기록</td><td class="off">없음</td><td class="on">이동 수, 시간, 최단해 달성, 연속 출석이 자동 저장</td></tr>
     </table>
   </section>
@@ -224,8 +231,13 @@ const DIFFS={
 const PALETTE=['#4cc9f0','#f7b801','#7bd389','#b388eb','#ff8fab','#f4845f','#5fa8d3','#c3e88d','#ffd166','#06d6a0','#ef8354','#a0c4ff'];
 const TRUCKS=['#8338ec','#3a86ff','#fb5607','#2a9d8f','#e9c46a','#ff006e'];
 
-/* ---------- 엔진: 상태 = 각 차의 위치(가로차=열, 세로차=행) ---------- */
+/* ---------- 엔진 ----------
+   상태 = 각 차의 위치(가로차=열, 세로차=행). 위치를 6진수 숫자 하나(key)로 압축해서
+   문자열 대신 정수로 탐색한다. 차 i를 q로 옮긴 다음 상태 = key + (q-p)*6^i */
 const cellIdx=(a,q)=>a.h?a.fix*N+q:q*N+a.fix;
+const POW=[];for(let i=0,v=1;i<22;i++,v*=6)POW.push(v);
+const key=p=>{let k=0;for(let i=p.length-1;i>=0;i--)k=k*6+p[i];return k};
+function unkey(k,n){const p=new Array(n);for(let i=0;i<n;i++){const v=k%6;p[i]=v;k=(k-v)/6}return p}
 function occ(cars,pos){
   const g=new Int8Array(36).fill(-1);
   for(let i=0;i<cars.length;i++)for(let k=0;k<cars[i].len;k++)g[cellIdx(cars[i],pos[i]+k)]=i;
@@ -240,29 +252,106 @@ function moveList(cars,pos){
   }
   return out;
 }
-// 시작 배치에서 도달 가능한 모든 배치를 탐색하고, 각 배치에서 탈출까지의 최단 이동 수를 계산
-function analyze(cars,start,cap){
-  const seen=new Set([start.join('')]),list=[start];
-  for(let i=0;i<list.length;i++){
-    const s=list[i];
-    for(const [ci,q] of moveList(cars,s)){
-      const n=s.slice();n[ci]=q;const k=n.join('');
-      if(!seen.has(k)){if(list.length>=cap)return null;seen.add(k);list.push(n);}
-    }
+// 상태 k의 다음 상태 키들을 out에 채우고 개수를 반환 (배열 생성 없이)
+function expand(cars,k,pos,g,out){
+  const n=cars.length;let t=k,c=0;
+  for(let i=0;i<n;i++){const v=t%6;pos[i]=v;t=(t-v)/6}
+  g.fill(-1);
+  for(let i=0;i<n;i++){const a=cars[i];for(let j=0;j<a.len;j++)g[cellIdx(a,pos[i]+j)]=i}
+  for(let i=0;i<n;i++){
+    const a=cars[i],p=pos[i],w=POW[i];
+    for(let q=p-1;q>=0&&g[cellIdx(a,q)]===-1;q--)out[c++]=k+(q-p)*w;
+    for(let q=p+1;q+a.len<=N&&g[cellIdx(a,q+a.len-1)]===-1;q++)out[c++]=k+(q-p)*w;
   }
-  const dist=new Map(),qu=[],dq=[];
-  for(const s of list)if(s[0]===GOAL){dist.set(s.join(''),0);qu.push(s);dq.push(0);}
+  return c;
+}
+// 시작 배치에서 도달 가능한 모든 배치(클러스터)를 찾고, 각 배치의 탈출까지 최단 이동 수를 계산
+function analyze(cars,start,cap){
+  const s0=key(start),seen=new Set([s0]),list=[s0],pos=new Array(cars.length),g=new Int8Array(36),out=new Array(160);
+  for(let i=0;i<list.length;i++){
+    const c=expand(cars,list[i],pos,g,out);
+    for(let j=0;j<c;j++){const k=out[j];if(!seen.has(k)){if(list.length>=cap)return null;seen.add(k);list.push(k)}}
+  }
+  const dist=new Map(),qu=[];
+  for(const k of list)if(k%6===GOAL){dist.set(k,0);qu.push(k)}
   for(let i=0;i<qu.length;i++){
-    const s=qu[i],d=dq[i]+1;
-    for(const [ci,q] of moveList(cars,s)){
-      const n=s.slice();n[ci]=q;const k=n.join('');
-      if(!dist.has(k)){dist.set(k,d);qu.push(n);dq.push(d);}
-    }
+    const k=qu[i],d=dist.get(k)+1,c=expand(cars,k,pos,g,out);
+    for(let j=0;j<c;j++){const n=out[j];if(!dist.has(n)){dist.set(n,d);qu.push(n)}}
   }
   return {dist,size:list.length};
 }
+// 정방향 BFS로 최단 이동 수만 계산. limit 수를 넘으면 Infinity (목표에 닿는 즉시 종료하므로 빠름)
+function solveLen(cars,pos,limit){
+  const s0=key(pos);if(s0%6===GOAL)return 0;
+  const seen=new Set([s0]),p=new Array(cars.length),g=new Int8Array(36),out=new Array(160);
+  let fr=[s0];
+  for(let d=1;d<=limit&&fr.length;d++){
+    const nx=[];
+    for(const k of fr){const c=expand(cars,k,p,g,out);
+      for(let j=0;j<c;j++){const n=out[j];if(seen.has(n))continue;if(n%6===GOAL)return d;seen.add(n);nx.push(n)}}
+    if(seen.size>3e6)return Infinity;
+    fr=nx;
+  }
+  return Infinity;
+}
+function hardestOf(an){let k=-1,d=-1;for(const [kk,dd] of an.dist)if(dd>d||(dd===d&&kk<k)){d=dd;k=kk}return {k,d}}
+const without=(cars,pos,i)=>({cars:cars.filter((_,j)=>j!==i),pos:pos.filter((_,j)=>j!==i)});
 
-/* ---------- 퍼즐 생성 ---------- */
+/* ---------- 차 다이어트: 난이도는 지키고 필요 없는 차만 줄이기 ----------
+   사실 1) 차를 빼면 빈칸만 늘어나므로 최단 수는 절대 늘지 않는다.
+   사실 2) 그래서 빼고 끝내면 어려운 퍼즐은 거의 못 줄인다. 대신 뺀 뒤 "남은 차들로 만들 수 있는
+           가장 어려운 배치"를 다시 고르면 난이도를 지키면서 차를 줄일 수 있다.
+   1단계 diet       : 차 하나 빼기 → 같은 차 구성의 최고 난이도 배치로 재배치 → floor 이상이면 채택, 반복
+   2단계 stripUseless: 빼도 최단 수가 그대로인 차(=정말 쓸모없는 차)를 제거 (Fogleman의 최소 퍼즐 기준)
+   결과: 남은 차는 전부 빼는 순간 최단 수가 줄어드는 "꼭 필요한 차"만 남는다. */
+function diet(cars,pos,floor,cap,deadline,rng){
+  let opt=solveLen(cars,pos,99);
+  outer:for(;;){
+    const idx=[];for(let i=1;i<cars.length;i++)idx.push(i);
+    for(let i=idx.length-1;i>0;i--){const j=Math.floor(rng()*(i+1));[idx[i],idx[j]]=[idx[j],idx[i]]}
+    for(const i of idx){
+      if(performance.now()>deadline)break outer;
+      const w=without(cars,pos,i),an=analyze(w.cars,w.pos,cap);
+      if(!an||!an.dist.size)continue;
+      const h=hardestOf(an);
+      if(h.d>=floor){cars=w.cars;pos=unkey(h.k,w.cars.length);opt=h.d;continue outer}
+    }
+    break;
+  }
+  return {cars,pos,opt};
+}
+function stripUseless(cars,pos,opt){
+  for(let changed=true;changed;){
+    changed=false;
+    for(let i=cars.length-1;i>=1;i--){
+      const w=without(cars,pos,i);
+      if(solveLen(w.cars,w.pos,opt)===opt){cars=w.cars;pos=w.pos;changed=true}
+    }
+  }
+  return {cars,pos};
+}
+// 각 차가 꼭 필요한지(빼면 최단 수가 줄어드는지) 판정. 0번(빨간 차)은 항상 true
+function necessity(cars,pos,opt){
+  return cars.map((_,i)=>i===0||solveLen(without(cars,pos,i).cars,without(cars,pos,i).pos,opt)<opt);
+}
+
+// 항상 적용되는 자동 다이어트. 같은 퍼즐이면 어느 기기에서든 같은 결과가 나오도록
+// 시간 대신 횟수로 제한하고, 퍼즐 자체에서 뽑은 시드로 순서를 정한다.
+function autoDiet(cars,pos){
+  const opt=solveLen(cars,pos,99);
+  if(cars.length<2||opt===Infinity||opt===0)return {cars,pos,opt,n0:cars.length};
+  const rng=mulberry32(strHash(encode(cars,pos)));let best={cars,pos,opt};
+  for(let t=0;t<3;t++){
+    const r=diet(cars,pos,opt,150000,Infinity,rng);
+    if(r.cars.length<best.cars.length||(r.cars.length===best.cars.length&&r.opt>best.opt))best=r;
+    if(r.cars.length===cars.length)break;
+  }
+  const o=solveLen(best.cars,best.pos,99),st=stripUseless(best.cars,best.pos,o);
+  return {cars:st.cars,pos:st.pos,opt:o,n0:cars.length};
+}
+const dietMsg=r=>r.cars.length<r.n0?`🧹 자동 다이어트: 차 ${r.n0}대 → ${r.cars.length}대 (최단 ${r.opt}수 유지)`:'';
+
+/* ---------- 퍼즐 생성 (은행에 없을 때 쓰는 실시간 생성기) ---------- */
 function mulberry32(a){return()=>{a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
 function strHash(s){let h=2166136261;for(const ch of s){h^=ch.charCodeAt(0);h=Math.imul(h,16777619)}return h>>>0}
 function randBoard(rng,n){
@@ -282,8 +371,7 @@ function randBoard(rng,n){
 // 언덕 오르기: 차를 넣고 빼면서 "가장 어려운 배치의 최단 수"가 줄지 않는 변형만 채택
 function evalBoard(cars,pos){
   const an=analyze(cars,pos,40000);if(!an||!an.dist.size)return null;
-  let mk=null,mx=-1;for(const [k,d] of an.dist)if(d>mx){mx=d;mk=k}
-  return {an,mx,mk};
+  const h=hardestOf(an);return {an,mx:h.d,mk:h.k};
 }
 function mutate(rng,cars,pos){
   cars=cars.slice();pos=pos.slice();
@@ -298,7 +386,7 @@ function mutate(rng,cars,pos){
   }
   return {cars,pos};
 }
-function generate(diff,rng,maxIters,timeLimit){
+function generateRaw(diff,rng,maxIters,timeLimit){
   const D=DIFFS[diff],t0=performance.now();let best=null,cur=null,stall=0;
   for(let it=0;it<maxIters;it++){
     if(best&&performance.now()-t0>timeLimit)break;
@@ -307,7 +395,7 @@ function generate(diff,rng,maxIters,timeLimit){
     else cand=mutate(rng,cur.cars,cur.pos);
     const e=evalBoard(cand.cars,cand.pos);
     if(!e){stall++;continue}
-    if(!cur||e.mx>=cur.e.mx){if(cur&&e.mx===cur.e.mx)stall++;else stall=0;cur={cars:cand.cars,pos:e.mk.split('').map(Number),e}}
+    if(!cur||e.mx>=cur.e.mx){if(cur&&e.mx===cur.e.mx)stall++;else stall=0;cur={cars:cand.cars,pos:unkey(e.mk,cand.cars.length),e}}
     else stall++;
     if(!best||cur.e.mx>best.e.mx)best=cur;
     if(cur.e.mx>=D.lo)break;
@@ -315,10 +403,22 @@ function generate(diff,rng,maxIters,timeLimit){
   // 최단 수는 0부터 연속이므로 범위 안의 배치가 반드시 존재: 범위 안에서 가장 어려운 것을 선택
   let k=best.e.mk,kd=best.e.mx;
   if(kd>D.hi){kd=-1;for(const [kk,d] of best.e.an.dist)if(d<=D.hi&&d>kd){kd=d;k=kk}}
-  return mkPuzzle(best.cars,k,best.e.an);
+  return {cars:best.cars,pos:unkey(k,best.cars.length),opt:kd};
 }
-function mkPuzzle(cars,key,an){
-  return {cars,start:key.split('').map(Number),dist:an.dist,size:an.size,opt:an.dist.get(key)};
+// 생성 → 다이어트 → 쓸모없는 차 제거까지 거친 퍼즐
+function generate(diff,rng,maxIters,timeLimit,dietMs){
+  const r=generateRaw(diff,rng,maxIters,timeLimit);
+  const d=diet(r.cars,r.pos,r.opt,120000,performance.now()+dietMs,rng);
+  const D=DIFFS[diff];let cars=d.cars,pos=d.pos;
+  // 재배치로 난이도가 구간 위로 올라갔으면 구간 안에서 가장 어려운 배치로 맞춤
+  let an=analyze(cars,pos,400000);
+  if(d.opt>D.hi){let k=-1,kd=-1;for(const [kk,dd] of an.dist)if(dd<=D.hi&&dd>kd){kd=dd;k=kk}pos=unkey(k,cars.length)}
+  const s=stripUseless(cars,pos,an.dist.get(key(pos)));
+  if(s.cars.length!==cars.length)an=analyze(s.cars,s.pos,400000);
+  return mkPuzzle(s.cars,key(s.pos),an);
+}
+function mkPuzzle(cars,k,an){
+  return {cars,start:unkey(k,cars.length),dist:an.dist,size:an.size,opt:an.dist.get(k)};
 }
 
 /* ---------- 공유용 인코딩 (36칸 문자열) ---------- */
@@ -344,6 +444,13 @@ function decode(str){
   return {cars,pos};
 }
 
+const BANK={/*BANK_START*/
+easy:'ooCoooooCoooAACooooDDooooBBooooooooo,oooooDooooBDAAooBDooooCCoooooooooooo,oooooooooCBDAAoCBDoooooooooooooooooo,ooooooooDBoCAADBoCoooooooooooooooooo,ooooooooDCBoAADCBooooooooooooooooooo,oooooooooBCDAAoBCDoooooooooooooooooo,oooBoooooBooAAoBooooDDooooCCoooooooo,ooBoDoooBoDCAABoDCoooooooooooooooooo,ooooooooCBDoAACBDooooooooooooooooooo,oooooDoooooDAAoooDooooCCooooooooooBB,oooooDoooooDAAoooDoooooooooCCCooooBB,ooooooooBoCDAABoCDoooooooooooooooooo,oooooDooCooDAACooDoooooooooooooooBBB,ooooooooBDoCAABDoCoooooooooooooooooo,ooooooooBDCoAABDCooooooooooooooooooo,ooooCBooooCBAAooCBoooooooooooooooDDo,ooooooooBoDCAABoDCoooooooooooooooooo,oooCoooooCooAAoCooooDDooooooooooBBoo,oooooooooDBCAAoDBCoooooooooooooooooo,oooooDooooBDAAooBDooooooooooCCoooooo,oooEoooooEDoAAoEDooooooooCoooooCBBBo,ooooBoooooBoAAooBooooooooCCDDooooEEo,oooooEoooooEoAAooDooCooDooCBBBoooooo,ooooEoooooEooAAoEoooBCCoooBooooDDooo,oooooEoooooEoAAooBooCooBooCDDDoooooo,ooooDoooBoDCAABoDCoooEEooooooooooooo,oooCooooECDBAAECDBoooooooooooooooooo,oooooBoooEoBAAoEoBooooCCooooooooooDD,ooooooooCDBEAACDBEoooooooooooooooooo,ooCoooooCDBoAACDBooEEooooooooooooooo,ooDooBooDoCBAADoCBoooooooooooooEEooo,oooooEooBoCEAABoCEoooooooooooooooDDD,ooDoooooDoBCAADoBCoooooooooooooEEooo,ooDoooooDoooAADooooBBooooEEooooCCooo,oooooEoooooEAAoooEooooDDoooCCCooooBB,ooBBoooooDEoAAoDEoooooooooCCoooooooo,ooooooooCCBoAAoDBooooDooooEEoooooooo,ooEEEoooooCBAAooCBoooooooooDDooooooo,ooooooooCCoEAAoBoEoooBooooDDoooooooo,oDDoooooCooBAACooBoooooooEEooooooooo,oooDDoooooBEAAooBEoooooooooCCooooooo,oooooooooCCDAAooEDooooEooooBBooooooo,oooooooooEBBAAoEDoooooDooooCCooooooo,oooooooooEEBAAooDBooooDooooCCooooooo,oooBBoooooDEAAooDEoooCCooooooooooooo,oooooooooEBBAAoECoooooCooooDDooooooo,oDDoooooBooEAABooEooooooCCCooooooooo,ooooooooooBBAAooCDooooCDoooooEoooooE,oDDoooooEBooAAEBoooCCooooooooooooooo,ooCCCoooooEDAAooEDooBBBooooooooooooo,oooEEoooooDCAAooDCoooooooooBBooooooo,oDDoooooBoCoAABoCooEEooooooooooooooo,oooBBoooooDEAAooDEooCCCooooooooooooo,oDDoooooEooCAAEooCoBBooooooooooooooo,oooDDoooooBEAAooBEooCCCooooooooooooo,ooooooooEDDoAAEBoooooBooooCCoooooooo,oooooooooDDEAAooCEooooCoooooBoooooBo,oEEoooooDooCAADooCooooooBBBooooooooo,oDDoooooEooBAAEooBoCCooooooooooooooo,oCCoooooEBooAAEBoooDDooooooooooooooo,ooooFoooooFoooAAFooDDCCooooEBBoooEoo,oooooooooooEooAAoEDDFFoEoooCBBoooCoo,oooooCooooECooAAECoooDFFoooDBBoooDoo,oooooDoooooDAAoooDoCoooooCFFBBooooEE,ooCoooooCEEoAACooooBooDooBFFDooooooo,oooooBooCEFBAACEFBooooDDoooooooooooo,oCBBBooCooFDAAooFDooooEoooooEooooooo,oooooBooCoDBAACoDBooooooooooEEooooFF,ooooEoooDFEoAADFEoooBCCoooBooooooooo,oDDDooooBBooAAFCooooFCoooEEEoooooooo,oooooDoooooDooAAoFooEEoFoooCBBoooCoo,oooooCooFooCAAFooCooooEEooooDDooooBB,oooooDoooooDoEAAoDoEFFBBooooooooooCC,oooFooooDFooAADFooooCCooooBBooooEEoo,oooooDooooCDooAACBoooEoBoooEFFoooooo,ooBoooooBFooAABFoooCCooooDDooooEEooo,oooCFFoooCEBAAoCEBooooEDoooooDoooooo,oooBoooooBCCAAooEooFooEooFDDDooooooo,ooooooooDDEFAAoCEFoooCooooBBoooooooo,oooooooooDFFAAoDoEoooooEooCCBBoooooo,ooEEoooCCFooAADFooooDoooBBBooooooooo,oEEoooooDoBFAADoBFoCCooooooooooooooo,oooooFooEooFAAEooCoooooCooDDBBoooooo,ooooooooFFCDAAoBCDoooBooooEEoooooooo,BBBFFoooooEoAAooEooooDDoooCCCooooooo,oDDCCCoooooFAAoooFoooBBBooooEEoooooo,oFFCCoooooDoAAooDooEEBBooooooooooooo,ooooooooEEBBAAoooCoooooCooFFDDoooooo,ooooEEooooCCAAoooFoooooFoDDBBBoooooo,ooFFEEoooooDAAoooDooBBCCoooooooooooo,oooBoooooBEEAAoBoooFCCoGoFDDoGoooooo,oooDooBBBDoCAAEooCooEFFCooGoooooGooo,oBoEFFoBoEGoAAooGooooCDooooCDooooCoo,ooBooEooBooEoAADoCooFDoCooFDGGoooooo,oooGBBoooGooAAoDoooCoDEooCFFEooooooo,ooooCoooooCFooAACFoooBoooDDBGGooEEEo,oooooGoooooGAAoooGFooCCCFBBEEEooooDD,oooooCooGooCooGAAEooGBBEoooFDDoooFoo,ooooBooDDoBooCAABooCFEooooFEGGoooooo,oooooEooooGEAAooGEooooFFooooDDooBBCC,oooCDDoooCBBooAAoGoooooGooFFoEoooooE,ooGCCCooGDDBoAAEoBoooEoooooFoooooFoo,oFCCCooFoDDGAAooBGooooBoooooEoooooEo,oooGBBoDoGoEoDAAoEoooooCooFFoCoooooo,oFEBBoCFEoDoCFAADoooooGoooooGooooooo,oooGFFoooGEBooAAEBooDDoCoooooCoooooo,oEoooooEFFCCoEAAoGDDoooGoooooBoooooB,ooooooooGDDCAAGBFCoooBFooooEoooooEoo,oooGooDooGFFDoAABoooEoBoooECCooooooo,ooEEooooFFoGAABCoGooBCooooBDoooooDoo,GoFFFoGooCBoGAACBoooooooEEEDDooooooo,GGGCCCooooEoAAoDEooooDBBooooooooFFoo,oFCCEEoFBoooAABooooDDoooGGGooooooooo,oooHoooooHCCAAoHoBooDDoBoooooGEEFFoG,ooHoooooHGGoAAHDoooooDBoEECCBooFFooo,oooBDDoooBGGooAAoEoCCCoEooFFoHoooooH,oooHDDoFoHBBoFAAEGooooEGoooooCoooooC,ooCEEoHDCoFoHDAAFooBBoGoooooGooooooo,oGoDoooGoDBBoGAAHEooFoHEooFCCCoooooo,oooDDDoooBGGAAoBEHoooBEHoFFFoCoooooC,ooooooCDDBBoCAAoFoEEHoFoooHGGooooooo,oooooGoooEEGFAAoHGFCCoHoooBoooooBDDD,oooooHoGGooHAABooHooBoFFooEoDDooEoCC,oEooFFoEoBoHDAABoHDGGGCCoooooooooooo,oooBHHoooBoFoCAAoFoCDDGGooooEEoooooo,BCCGGoBoooHoAAooHoDDEEFFoooooooooooo,oFoooooFCCBBAAoDooGGoDooEHHHooEooooo,FGGDDoFoooCoBoAACoBooEoooooEHHoooooo,oEoDDDoEoCoGFAACoGFHHHoBoooooBoooooo,oooFBBoooFoHooAAoHEEEoooCDDDGGCooooo,ooooCCoFFFGGAAoooHoEoooHoEBBDDoooooo,ooCCHHBBBooIAAEooIooEGGGoDDooooFFooo',
+mid:'ooooooooooDEoAAoDECCCooEooFBBBooFooo,oooooooooEoDoAAEoDBBBooDooFoooooFCCC,oooooEoooCoEAAoCoEDDoCoooGBBoooGFFoo,oBEECooBDoCoAADoooooGoooooGFFoooGooo,ooooooooBBBDAAGoEDooGoEFooCCCFoooooo,ooooDoEFooDoEFAADoooBCooooBCooooBCGG,oCCCBoooGGBEooAABEoooDFFoooDoooooDoo,ooooBEoFooBEoFAABEoooCooooGCooooGCDD,oDCCFFoDEoooAAEoooooooGoBBBoGooooooo,ooooCoDBooCFDBAACFooGoooooGoooooGEEo,DDDoBooEooBooEAABoGGoFoooooFCCoooooo,ooooBCFGooBCFGAABCooEoooooEoooooEDDo,EEEHHoooGoooAAGoCoFFFoCoDBBoooDooooo,EEEoBCooFoBCAAFooCooFHHoooooGoDDDoGo,oooGoooooGFoAAoCFoEEoCBooDHHBooDoooo,oFDDCGoFoECGAAoEHooooBHooooBoooooooo,EEEooFooCooFAACooBGGGooBoHHDDDoooooo,DDDGoCooEGoCAAEoooHoBoooHoBFFooooooo,CCGGDooooBDooAABooooHEooooHEFFoooooo,oBoEFFoBoEoHoBAAGHooooGHooooCoDDDoCo,HGGEECHoFBoCAAFBooooooooDDDooooooooo,DDDooCoHHooCAAGooooFGooooFBBEEoooooo,ooBBDFooooDFooAADFoooEHHoooEoooGGCCo,ooCHHHooCEoDoAAEoDFFFBoooGGBoooooooo,oCooBoGCooBoGCAAHoooooHoooDFFoEEDooo,oooooGooHooGAAHooGoCooEEoCooBBoCFFDD,ooBHEEooBHGGooBAACoooFoCoooFoDoooooD,DDFFGooBBBGoooAAGooooHoooEEHCCoooooo,oHHoCooDDoCEoBAACEoBGoooooGFFooooooo,oooooDooooBDAAooBDoEooFFoEooCCoEHHGG,oEooGooEFFGooEAAHoooooHooooDBBCCoDoo,HHoooEoGooBEoGAABEFFoDoooooDCCoooooo,oooHGGooCHoFooCAAFBBDDDEoooooEoooooo,oooooHooooEHooAAEHoooGBBoooGDDoCCFFF,ooHHGEoooCGEAAoCGEoDDDoooooBFFoooBoo,ooooooBBDDCoHAAoCoHGGoCoooEIIIFFEooo,oooGBHFFFGBHAACoooEoCoooEoDoIIooDooo,CCCoDEooIoDEAAIooHBooooHBFFoGGoooooo,oooDoooooDIHAAoFIHGGoFBooCEEBooCoooo,oBooCHoBDDCHAAoFGIoooFGIoooEoooooEoo,HFFDooHoEDoCAAEBoCooGBIIooGBoooooooo,HoEBBBHoEDooIAADooIoooFGICCCFGoooooo,oFFFDDoooooEAAoIoEGGGIoHCBBBoHCooooo,IIoFoooGoFDDoGoAAHooooEHCCCoEBoooooB,oIIEEooooBHoAAoBHoFFFCCoGDDDooGooooo,ECCoBFEooHBFEAAHBFooooooooIGGoDDIooo,oooBCCoooBGGAAoBoHoDFFFHoDoooIEEoooI,GGooCoFIooCEFIAACEooDoooooDHHHoooBBo,oEEoooDDDoooAAGoooFHGBBoFHGoCoIIIoCo,oooFFHDDEECHAAIoCHooIoGGBBBooooooooo,CoHoooCoHBBBAAoEDGoooEDGoooFoGoooFII,CCooHoBBooHIAAooHIDEEEooDooGooDooGFF,oEEooGoCCooGAADooGHHDooooFIIBBoFoooo,oGGBCCoFoBDooFAADoHHIoooooIEEooooooo,BBBooFEECCCFoGAAIooGDoIoooDoHHoooooo,FCCCIoFooGIBAAoGIBoDDDoooooHoooooHEE,BBGGEooooDEHAAIDEHooIoooooFoooooFCCC,oHGGBBoHECIFAAECIFoooooDoooooDoooooo,ooHIIoooHCCEoAAoFEoBBoFoGGGDDDoooooo,ooFHHGooFoIGAACDIGooCDoooooBoooooBEE,oooIFFoBBICCooAADoooEEDoooHHGoooooGo,EoooooEFFCCHAAoDIHoooDIooooDBBooGGoo,oooHGoDDoHGIEAAHGIEoooooCFooooCFBBBo,ooIEDDooIEoCooIAACoooooGHooBoGHFFBoo,oooIIGooooEGAAooECBBBooCoDHHFFoDoooo,DGGGHHDoooCEAAooCEooFFFIoooBBIoooooo,oBEECCoBoFHGAAoFHGoooFoDoooooDooIIoD,GoFFFoGHHCCoAAoBDooooBDooIIEEooooooo,oDFFEEoDoCCCAAoBoGoooBoGooIIoHoooooH,DooBBBDCCEEEAAoooFIooooFIooooGHHoooG,oCCDDDooooFHAAooFHEooooBEIIGGBEooooB,ooooDBooEEDBAAoHDBoooHooGoCCCoGIIFFo,IIGGoCooEEoCAAoHoooooHDDoFFBBBoooooo,DDoHoooGoHFFoGAACBooooCBIIooCEoooooE,oooCIIooBCooEoBAAGEDDDoGoooFHHoooFoo,oooDCCoooDBBooAAGFooEEGFooIIoHoooooH,EEoDoooCoDBBHCAAoFHGGGoFoooooIoooooI,oooooCHHooDCFAAoDCFoooooGoooBBGIIIEE,oBFEEoGBFoIHGBAAIHooooCoooooCoDDoooo,EIIHHHEoooooEAAGoooooGCCFFBBoDoooooD,ooIIBBoooCoGAAoCoGHoFFoEHDDDoEoooooo,ooICGGBHICFEBHAAFEooooDoooooDooooooo,oooEIIoooEFFooAAGCooBBGCDDDHHooooooo,GHHIIIGooECCAAoEoBoDDDoBoooooFoooooF,oDDFIIoooFCHooAACHooBBGooEEEGooooooo,ooooEoooHBEFAAHBEFooooooCGooooCGIIDD,oEoBDDoEoBCFoEAACFoooooIooHooIGGHooo,IHGGCCIHoEDoBAAEDoBoooFoooooFoooooFo,oIIIoBoooCoBAAFCooDoFGGGDoEEHoooooHo,IEEFFFIoooHGAAooHGooCCCBoooDDBoooooB,FCBBDoFCIEDoAAIEJoooHEJoooHoooooGGoo,CBBFEoCHHFEoAAGFoooIGooooIDJJooIDooo,DDEECoooFoCoAAFICooBGIHHoBGoooJJJooo,BEEJoFBoGJoFAAGoooHooooDHIICCDoooooo,FFoJoooDoJBBoDAAoCIIIooCoooooHGGEEoH,DDDJBBoooJFFoAAoEGoHHHEGooCoIIooCooo,BIIJJJBooooHBoAAGHFFCEGHooCEDDoooooo,oooooFCCCooFAAJooEoHJDDEoHoIGGoBBIoo,oooooJFFFooJAAEooDoCEHHDoCoIBBoGGIoo,EEoooICCoooIJHAAoIJHFFFoBBoGDDoooGoo,HHIIIDFoooGDFAAoGDEEJCGoooJCBBoooooo,CCoJBBHHoJDooFAADoGFooooGFEEIIoooooo,GHHBJoGoCBJoAACBooooEDDoooEIIooFFooo,oFEEBBoFDDooAAJoooooJHHoIICCGoooooGo,oooooHIIEooHoFEAAHoFDDGooBooGooBJJCC,JHooBoJHGGBCJAAoBCoooFooooDFEEIIDooo,HJJIBGHoFIBGAAFoBGoooooooDEEEooDoCCC,ooJooGBoJEEGBAAHoooooHCCDDFFIoooooIo,oooGGoooooDIAAooDIECCCDoEFoHHoEFBBJJ,oooooEoJJCCEAABGooIIBGoooFHHDDoFoooo,HHHoDEoJooDEoJoAAFoBBBoFoooCIIGGoCoo,oJJoIoHHFFIDAAEoIDBoECCoBGGooooooooo,oGGoHHBBBooEAACooEoJCoDDoJFFIIoooooo,JJoHEEBBBHoGFoAAoGFooooDCIIIoDCooooo,oooooDEEGGoDoCAAoDoCoBBBoJoFFFoJIIHH,ooJGGoooJDDDoAAEoHoCCEIHBBFFIooooooo,IIoooGooooCGAAooCHoDBBoHoDoJEEFFFJoo,IFFFoGIoBBoGAAoCoGEEECoooJoooooJHHDD,oIHHoBoIoooBAAoEoBGooEDDGFFJJJooooCC,BHHIICBooEDCAAoEDCooFFJoooooJoooooGG,ooIIoooooJEEAAoJBGooooBGoFHHHGoFDDCC,oDooHHoDCCFFAAoBIEGGoBIEooooIJoooooJ,oooooDooIFBDAAIFBJGGoooJECCCHHEooooo,ooCCCFoooDDFAAooHJBBBoHJoGIIEEoGoooo,FoooGGFJJHHHAACooIDDCooIoooooEoBBooE,oGFFFDoGIooDAAIoCJBHHoCJBEEoooBooooo,oFoCCCoFHHBBAAEooIDDEooIoooooJoGGooJ,BEEIIoBoHGGGAAHCDFoooCDFoooCJFooooJo,ooFJJHDoFGGHDAAoBHCEEoBoCoooIoooooIo,oooooCooDDICAAoFIJGGoFoJEooFBBEHHHoo,ooIEJJGoIEDFGAAEDFoCHHBooCooBooooooo,oHHHooooDCCCAADIooooDIJoGGFFJEBBBooE,ooDDoIJJJBBIAAoHooEEoHooFGGCCCFooooo,oDDooCBBBooCAAIooFooIHHFEEJJGoooooGo,JIIFFoJGGEEBAAooDBHHooDoooooCoooooCo,ooJHEECBJHGGCBAAFDooooFDooooIoooooIo,oFFBBJooIEDJAAIEDooHCCCooHoGoooooGoo,ooJJoooooIFFAAoIoGCEEEoGCHBBDDCHoooo,FoCBBBFoCJDHFAAJDHoEGGoIoEoooIoooooo,BBooHoDDDoHJEAAoIJEoooIoFCCGGoFooooo,oEHHGGoEJJBBoEAAoCFFFooCDDoooIoooooI,oJoEEooJoHGFAAoHGFCBBIIoCoDDDooooooo,HCCGGoHooIIDHAAoBDEoooBoEoooFoJJooFo,oooJBBoooJCCAAoJFEooHHFEoIIIoDoGGGoD,EEEBBGooooDGAAooDGoFoCCooFHHHooJJIII,oHHGEEoooGJBooAAJBooFDDIooFooIoCCooo,oFJJIIoFooGGoFAAoCoDoooCoDoEoHBBoEoH,oooooBGGGEEBAAooDBFFFoDoCHHIIoCoooJJ,ooGCJJooGCBIooAABIFFDDoooooEHHoooEoo,oooJDDoCoJoFoCAAoFoGBBoHoGoooHEEooII,ooCIoooFCIGGoFCAABoooooBoEooHJoEDDHJ,CEEJJFCoHooFAAHoKFooooKooGIIKooGBBDD,oooGGoEEoooJAAooBJCCHHBJoKoIIIoKDDFF,CCBEooIoBEFFIAAHoooooHoKoJDDoKoJGGGo,JJFFBoDEEEBIDoAABIGGoHoooCoHoooCKKKo,oDDoFoHHGGFBJAAoFBJoKIooooKIEEooCCCo,oCKKHHoCIoooAAIoGJDDDoGJoBBoooFFFEEE,oJEEFFoJKooIAAKooIBBBooHoDDooHoGGCCC,HJJoIIHoooKoDAAoKoDoCCFFGGBBBEoooooE,ooHHoEoooGFEAAoGFJIIBBoJDCCCKKDooooo,HCCDoJHoEDoJAAEooooKIIGGoKoBooFFoBoo,FKKEEGFooBBGFAAoDGIIJJDooHoCCCoHoooo,HJJFFoHoCCCEHAAoKEIIBoKoooBDDDoGGooo,ooGKKKFoGoIBFJAAIBHJCCEEHooooDoooooD,EEHHooooDDJoAAoFJooIIFCCoBBGGKoooooK,BoKKCCBoJJEEAAooIGooooIGoDDHHFoooooF,oIIHoooGDHFFoGDAACooEKoCooEKLLoBBJJo,ECCCFFEBBBoDEAAooDLLHooJGoHooJGoIIKK,oEEDDDoCCCBIooAABIoHHLGGoooLoKoFFJJK,GGDDDEJIIoCEJAAoCoooKFCoooKFLLoBBHHo,FFoIIICCCoJoHoAAJEHGGBBEoooLDDKKoLoo,oGBBFooGCCFHAAKooHDDKoooJEIILLJEoooo,CoHHKKCJJBBBCAALoFGGILoFooIEEooDDooo,oooFLLoBoFGDoBAAGDCCIIEHoKKKEHoooJJo,oHLLBBoHEooGAAEooGooECCCFJKKooFJDDII,LCCGGoLKKIIFAAooJFBBBoJoDDEEHHoooooo,LMMHHJLooFFJLAAoGEKoooGEKoBBDDCCIIoo,oLJJHHoLECCCAAEooGKBBDDGKFFooMIIoooM,BDDDIIBoJJLHAAoELHoooEGGoCCCoMFFFKKM,KCEoNNKCEoFDGBAAFDGBoOMMLooOoILJJHHI',
+hard:'ooCBFFooCBGooAABGooEooHooEDDHooooooo,CHHHoECooBoEoAABoDooIFoDooIFGGoooooo,ooIDHHFoIDGoFAAEGooooECooBBBCooooooo,oooooooooCHHAAoCoooGoCIIoGBBoDEEFFoD,oEGGBCoEoHBCAAoHICoooFIooooFoooooFDD,ECCBBoEoooooAAIooHooIGGHDDDoFHooooFo,BBBCCEoooooEAAJooDHoJIIDHFFoGoooooGo,HooDooHoEDGGooEAAFooIIoFBBBCCJoooooJ,ooooDoGGEEDoCAABDoCoJBFFooJIIHoooooH,oEooooFEooCIFEAACIJJHoCoooHBBBoDDGGo,oBEECIoBooCIAAoFHIGGoFHooooDoooooDJJ,IFBBDDIFooooAAJooHooJGGHEEEoCHooooCo,oBooHDoBCCHDAAJFIDGGJFIooooEoooooEoo,FIIGDoFoEGDBAAEHCBooJHCoooJooooooooo,FBBoooFGGIIoAAHJooooHJDECCCoDEoooooo,ooJooFooJIIFAADBooCoDBHoCEEGHooooGoo,oDoGHHIDoGJoIDAAJoFKKEJoFoBEooFoBCCo,JJJoCFHoGGCFHoIAAEKoIBoEKooBDDoooBoo,oDDoIHKKKoIHAAGooFEEGooFCoJJBBCooooo,IIDoooooDooJAAEBoJGGEBooHFFBoKHCCooK,KJJEEoKoHDGGAAHDCoooooCooIFFCooIBBBo,HHEEBDoCooBDoCAABGoIIKoGooJKooooJKFF,KKKoJHoDDoJHAAIooGFFIooGBoCCEEBooooo,FJJIIIFDDDCBAAEoCBoHEooKoHGGoKoooooo,IIJoFFoEJoKCoEAAKCoEHHHCDDooooGGBBoo,DFFGGoDCCBooAAIBoooKIJJooKHHEoooooEo,HHIIoGEEEFFGAABoooJoBDKoJCCDKooooooo,oBooDoHBGGDIHCAADIoCoooooCJEEoFFJKKo,DDoHoooCoHJJoCoAAIGGooFIBBooFKEEEoFK,HJJFCCHooFooAAGooooIGBBBoIDDKoEEooKo,HHCooooECooKoEAAoKoIIGGKoooJBBDDDJFF,oHDDoooHFKKoAAFJoooGFJEEoGBBIoCCCoIo,JJCFFIooCGGIoAAKooooEKHHooEDBBoooDoo,EEEoFDooJoFDAAJooIoCGGoIoCoBKKHHoBoo,JJooBKoGIIBKoGAABKHHoEoooFoEDDoFoCCC,BBBooIFFGooIAAGKoLHCCKoLHoEEJJooooDD,HHKooGBCKoJGBCAAJLBFFooLoooIDDEEEIoo,DDDoBHooGoBHAAGooIKoFCCIKoFELLoJJEoo,CGGoJJCoIooFAAIHoFEEEHoKoDoooKoDBBLL,oooLBoIDDLBoIoJAAEFFJooEoGCCCEoGKKHH,EEDDDFBooJJFBAAoIHBGGoIHooLCCCKKLooo,BKKHEIBCCHEIAAFooLoDFooLoDGGJJoooooo,IHDDDCIHFFJCIAAEJGooLEoGooLBBBKKKooo,ooLEEEKCLGGDKCAAFDoIIoFJHHBBBJoooooo,oCCooIEEFFFIJoLAAGJoLKoGoooKHHooBBDD,DDoGooCooGoKCAAGBKHHFFBLEoJooLEoJIII,LoHHDFLooBDFAAoBCFoJKKCooJIGGoEEIooo,DJJGooDIKGBBoIKAAFEEooCFLLLoCHoooooH,oBBooCooIDDCAAIHEFGLLHEFGKKJooGooJoo,oCKKJGoCDDJGAAIFoBooIFoBHoILooHEELoo,LLoIBKGJoIBKGJAABoFFDoooHoDCCoHEEooo,KooDJJKBBDoIooCAAIooCGGGLLHHEFooooEF,EEHHDLFoBoDLFoBAALKKoJoooooJGGoCCCII,KKooHoDLLoHoDoCAAGBBCooGoEFFoGoEIIJJ,IKKHJJIooHLBIoAALBEECCDBoFFFDooGGGoo,oGGCooFooCLLFAACDEoKIIDEoKBooHJJBooH,HHHoEKooLoEKAALoooGDCCBBGDoFJJIIoFoo,LLLHHEIIIoDEAAooDEJoKKBBJooGGoJCCFFF,CCooBoEEooBLFIAABLFIDoooGoDJJoGHHKKo,oooBBoLLIIEoJAAHEoJoKHFFooKCCDooGGoD,GGGoHBooooHBAAJooBDEJoLLDECCFFoKKKII,KKooGoBBLLGoAAoCooJEECooJoFHIIDDFHoo,ooKIIoJoKBGGJAABooEooBFHEDCCFHEDLLLo,KKLLooooBEEoAABDooooBDJJIIHHCFoGGoCF,oJGFFMoJGDoMAABDoELLBHCEKooHCoKIIoCo,CCCoJMoDHHJMoDLAAEGGLooEIBBooEIKKFFF,JJCFoooMCFBBoMoAADLLEooDKKEooIGGHHoI,KDDIFBKGGIFBAACooBJJCooooHEEMMoHooLL,IIMMGoDDDoGBAAEooBLoEKKFLHHJoFCCCJoo,oMLLHooMBJHoAABJooIIoJCCEFFDDGEoKKoG,oGGEELHHFFDLAAoJDoMMMJooIBBBCCIoKKoo,oDLLLGIDooJGIAAEJoCKKEHHCoMFFFooMBBo,HBBBELHoKoELAAKoCLIJMMCoIJoDooFFoDGG,EECCLoIoHHLMIoAAoMIJJBBMoGGDKKoooDFF,CCGIooBoGIHHBAAFoooMoFoEoMDDoEJJKKLL,FFooHKJEEoHKJMAAoKDMoCGGDIICBBooLLoo,IIoEDFJLLEDFJoCAAFBBCoooHGGoooHMMKKK,oGGoIBHHKKIBAAMEIoooMEFFoDDJJooLLCCo,LLHIooMoHICCMAABooDDoBFKEEGGFKJJoooo,CLLMMoCJJFGGAAoFoooooFHHEEBBKDooIIKD,oLLEEoCCCoMFAAooMFDDIIMoKBBHHoKJJGGo,BHHHoJBDDDMJAAoIMJGGoIoooLFFCCoLEEKK,oECCKKoEDoHoAADoHoGLLFFFGJJJoBMMIIoB,oJooHHoJFFBBAAKooDLLKNIDCGGNIECMMooE,EEELBBMGoLoFMGoAAFCJJoNICoDoNIKKDHHo,EIINNBEoJCCBAAJoKHGMFFKHGMoLooGooLDD,FFDCCMGoDHHMGAAEooKKoENNJJBBBoLLIIoo,NFFBBJNMMEEJAAoDIGHHHDIGCCoDLoKKooLo,ooKEEEJoKICCJAAINoBLMMNFBLDDDFHHGGoo,JJNNDLBoEEDLBIAADoHIoKKoHooGMMHCCGFF,HEooFFHEBBBIJAACGIJoMCGDooMNNDooLLKK,FooBIIFooBEEDoAAoJDoCCCJKKGGNMHHLLNM',
+expert:'JoooooJCCCoDAAHGoDIIHGoDoooBFFoEEBoo,oooFDDooIFoBAAIECBGooECJGHHHCJoooooo,JoIIDDJGGFoHAAKFoHooKEECoLLLBCooooBo,GoHHIIGoJBBBAAJoLCoDDoLCEEEoLFKKKooF,KoGGDDKBBCoEAALCoEooLIIJoFFFHJooooHo,DoFLLLDoFCCIDAAKJIHHoKJooooBEEGGoBoo,IEEoHGIKKKHGAALDBJooLDBJoooDFFooCCoo,IIGooCLoGKKCLAAoFELBBBFEoHoDJJoHoDoo,KooDIIKHHDBCAAEFBCooEFBLooJooLooJGGL,JKKoooJoBIIIAABFooooCFGGoLCDDEoLHHoE,BBBIoooooILLAAoCooEGGCJJEoFDDKHHFooK,IKKDDHIoEFFHAAEJoooBoJCCoBLLGoooooGo,ooHGFFooHGIoAAHoIJooooDJELBBDJELCCKK,LBBHHJLoMCCJAAMFoooooFKKEEEFGoIIDDGo,oKKEEEBBBCHGAAoCHGJIICoLJoFMMLDDFooo,EoKKFFEooooIAADooIMMDCCGBBBLHGJJoLHo,EEDoHHKKDooBMAAoGBMFFFGBMooJLLIIoJCC,EDDFooELoFCCELAAIoGGKoIHooKMMHBBJJoH,CCCFooooDFLLAADooJIIHHoJMEEEBBMKKKGG,GBBMEEGoDMFFAADHoooIIHLLoCCCoJooKKoJ,MMoGoIJFoGBIJFAABILCCKooLoEKHHooEDDD,MooCGGMHHCDBAAJCDBKKJLLEFFFooEIIoooo,HHHIoooCCIEEAAFooMBoFGGMBKKLLMBDDJJo,oDHHCCoDoIGGLAAIoFLBBooFMoKEEFMoKJJJ,oKDDHMGKoLHMGAALJMBBIEJoooIEooCCCFFo,oCGGIIoCFooBAAFooBMHHEEKMDDJoKLLLJoo,oEEoCCooDoHHAADooMFoDBBMFJJJLIGGKKLI,FFFBoooKKBHHAAMooDEoMCCDEIILLDoJJGGo,HoLLKKHooBDDAAMBoGooMCCGEEEooFJJIIoF,MMooooKGoLLBKGAACBoHEECBoHIDJJFFIDoo,FLLoooFDBBoEIDAAoEIMJCCEIMJKGGHHJKoo,GGKKDCoFFFDCAALoDEBoLJJEBHHMooIIIMoo,oCoIIoGCFFDEGAABDELJJBDELoKMMoHHKooo,CCHHooooFJJoAAFBooMoFBEEMIIoKLDDGGKL,oDDoCIEEEoCIoAAoCHGGKMoHJoKMBBJoFFLL,FFHHHJLLoMEJGAAMEoGoBCCCIIBooKDDDooK,oLLoCJoGDoCJoGDAAIHHBKoIooBKMMoEEFFo,oKKoMIBBBoMIoAAoMGCCDHoGLoDHEELoJJFF,CCGooEDDGooELHAAoELHoFMMBKKFooBJJIII,DLLoKBDIJoKBDIJAAMCCNFoMooNFHHoEEGGo,KoEEIFKGGGIFAAMDCHJJMDCHoooNLLoooNBB,FKKIooFBDIMMLBDAAELoGooEooGNNCHHHJJC,IIIBBGooNEEGAANooCDMMLLCDKKFHoJJoFHo,FFoCooDNoCJJDNAAIEBKKoIEBoMLLEGGMHHo,oGCCJBoGIDJBAAIDoNFFHMMNKoHEooKLLEoo,HDCCKJHDEoKJMoEAAJMGGBLLIIoBooFFNNoo,CCLLLDHHGGFDAAIoFJooIBBJMooKEEMNNKoo,oNEEKKoNLLoBAAIGoBFFIGoMDCCooMDJJHHH,NDDFooNLoFCCoLAAMKIIIoMKHEEooGHJJBBG,BEDDKCBEFoKCLoFAACLIIHGGoJNHoooJNMMo,NNoJoCGBoJLCGBAALFMIIoLFMoDKKFHHDEEo,DDBBKoMMoCKNJAACoNJoGLLLIIGooFHHEEEF,MMIIEoJJoNEBKAANoBKoFDDDLLFooGCCCHHG,EFFKLGEDDKLGAAJooGCCJooooHBBNNoHMMII,IINHooDLNHGGDLAAJoMMKFJoooKFEEoCCBBo,EEIFFFNoIKJJNAAKoCDDBBoCGGHHooMMLLoo,CJJBooCNoBGGoNAAFIEEMoFIHHMooLDDKKKL,DMMBIoDoNBICAANooCJJKKoCoGHHEEoGLLFF,LCCJKoLoDJKBAADooBIIFFoBoNHHMMoNEEGG,JJJoMCNELoMCNELAAFHBBKoFHooKDDGGIIoo,DDBGooIoBGNNIAAKJoEECKJFooCHHFLLMMoo'
+/*BANK_END*/};
+
 /* ---------- 상태 ---------- */
 const grid=$('#grid');
 let P=null,cur=[],hist=[],redo=[],hints=0,assisted=false,solved=false,autoPlaying=false;
@@ -357,7 +464,6 @@ const store={
 const today=()=>{const d=new Date();return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`};
 const dailyNo=k=>Math.round((new Date(k+'T00:00:00')-new Date('2026-01-01T00:00:00'))/864e5)+1;
 const fmt=s=>`${Math.floor(s/60)}:${String(s%60).padStart(2,'0')}`;
-const key=p=>p.join('');
 const D=p=>P.dist.get(key(p));
 const baseUrl=()=>location.href.split('#')[0];
 
@@ -391,26 +497,40 @@ function loadPuzzle(pz,k,label){
   setMode('play');buildCars();
   $('#pLabel').textContent=label;
   $('#sOpt').textContent=P.opt;
-  $('#pInfo').innerHTML=`이 퍼즐에서 나올 수 있는 배치 <b>${P.size.toLocaleString()}</b>가지를 모두 분석해서 최단 해를 계산했습니다. `+
+  const useless=necessity(P.cars,P.start,P.opt).filter(x=>!x).length;
+  $('#pInfo').innerHTML=(useless?`<span class="badge warn">🧹 빼도 되는 차 ${useless}대 포함</span>`:`<span class="badge">✨ 차 ${P.cars.length}대 모두 꼭 필요한 최소 퍼즐</span>`)+
+    `<br>이 퍼즐에서 나올 수 있는 배치 <b>${P.size.toLocaleString()}</b>가지를 모두 분석해서 최단 해를 계산했습니다. `+
     (k==='daily'?'오늘의 퍼즐은 오늘 접속한 모든 사람이 같은 문제를 풉니다.':'');
   $('#coachOn').checked=k!=='daily'&&store.get('rh_coach',true);
   document.querySelectorAll('.chip').forEach(c=>c.classList.toggle('on',c.dataset.d===k||c.dataset.m===k));
   refresh(null);
 }
 function busyRun(fn){$('#busy').classList.add('show');setTimeout(()=>{try{fn()}finally{$('#busy').classList.remove('show')}},40)}
+/* 퍼즐 은행: 오프라인에서 생성 → 차 다이어트 → 최소성 검증까지 마친 퍼즐들.
+   다 풀면 실시간 생성기(같은 다이어트 과정 포함)로 넘어가므로 퍼즐은 끝없이 나온다. */
+const bankList=d=>(BANK[d]||'').split(',').filter(Boolean);
+function dailyCode(k){
+  const list=bankList('hard'),rng=mulberry32(strHash('rushhour-daily-v2')),idx=list.map((_,i)=>i);
+  for(let i=idx.length-1;i>0;i--){const j=Math.floor(rng()*(i+1));[idx[i],idx[j]]=[idx[j],idx[i]]}
+  return list.length?list[idx[((dailyNo(k)-1)%list.length+list.length)%list.length]]:null;
+}
+function puzzleFrom(code){const b=decode(code);if(!b)return null;const an=analyze(b.cars,b.pos,2000000);return an&&an.dist.has(key(b.pos))?mkPuzzle(b.cars,key(b.pos),an):null}
 function newRandom(d){
   busyRun(()=>{
-    const pz=generate(d,Math.random,4000,6000);
-    loadPuzzle(pz,d,`${DIFFS[d].name} · 무작위 생성 퍼즐`);
-    history.replaceState(null,'',baseUrl()+'#p='+encode(pz.cars,pz.start));
+    const seen=new Set(store.get('rh_seen',[])),daily=dailyCode(today());
+    const pool=bankList(d).filter(g=>!seen.has(g)&&g!==daily);
+    let pz=null,src='';
+    if(pool.length){pz=puzzleFrom(pool[Math.floor(Math.random()*pool.length)]);src=`퍼즐 은행 (남은 ${pool.length-1}개)`}
+    if(!pz){pz=generate(d,Math.random,4000,6000,1500);src='실시간 생성'}
+    const code=encode(pz.cars,pz.start);seen.add(code);store.set('rh_seen',[...seen].slice(-3000));
+    loadPuzzle(pz,d,`${DIFFS[d].name} · ${src}`);
+    history.replaceState(null,'',baseUrl()+'#p='+code);
   });
 }
 function loadDaily(){
   busyRun(()=>{
-    const k=today(),cache=store.get('rh_daily_code',{});let pz=null;
-    const cb=cache.k===k&&decode(cache.code);
-    if(cb){const an=analyze(cb.cars,cb.pos,400000);pz=mkPuzzle(cb.cars,key(cb.pos),an)}
-    else{pz=generate('hard',mulberry32(strHash('rushhour-'+k)),1500,Infinity);store.set('rh_daily_code',{k,code:encode(pz.cars,pz.start)})}
+    const k=today(),code=dailyCode(k);
+    const pz=(code&&puzzleFrom(code))||generate('hard',mulberry32(strHash('rushhour-'+k)),1500,Infinity,1500);
     const done=store.get('rh_daily',{})[k];
     loadPuzzle(pz,'daily',`📅 오늘의 퍼즐 #${dailyNo(k)} (${k})`+(done?` · 이미 클리어: ${done.moves}수 ${fmt(done.time)}`:''));
     history.replaceState(null,'',baseUrl()+'#daily');
@@ -418,9 +538,14 @@ function loadDaily(){
 }
 function loadFromCode(code,label){
   const b=decode(code);if(!b){toast('잘못된 퍼즐 링크입니다');return false}
-  const an=analyze(b.cars,b.pos,400000);
-  if(!an||!an.dist.has(key(b.pos))){toast('풀 수 없는 퍼즐입니다');return false}
-  loadPuzzle(mkPuzzle(b.cars,key(b.pos),an),'shared',label);return true;
+  const o=solveLen(b.cars,b.pos,99);
+  if(o===Infinity){toast('풀 수 없는 퍼즐입니다');return false}
+  let r={cars:b.cars,pos:b.pos,n0:b.cars.length};
+  if(!necessity(b.cars,b.pos,o).every(Boolean))r=autoDiet(b.cars,b.pos);
+  const an=analyze(r.cars,r.pos,2000000);
+  loadPuzzle(mkPuzzle(r.cars,key(r.pos),an),'shared',label);
+  if(dietMsg(r))toast(dietMsg(r));
+  return true;
 }
 
 /* ---------- 플레이 ---------- */
@@ -611,7 +736,7 @@ function renderEdit(){
   const cars=sorted.map(o=>({len:o.len,h:o.h,fix:o.h?o.r:o.c})),pos=sorted.map(o=>o.h?o.c:o.r);
   colorize(cars);
   if(!sorted.length||!sorted[0].t)cars.forEach(c=>c.color=c.len===3?'#6c7396':'#8a91b5');
-  cars.forEach((a,i)=>{const el=makeCarEl(a,sorted[0]&&sorted[0].t?i:i+1);placeEl(el,a,pos[i]);grid.appendChild(el)});
+  const els=cars.map((a,i)=>{const el=makeCarEl(a,sorted[0]&&sorted[0].t?i:i+1);placeEl(el,a,pos[i]);grid.appendChild(el);return el});
   edAn=null;edBoard=null;
   const v=$('#verdict');
   ['#ePlay','#eHard','#eShare'].forEach(s=>$(s).disabled=true);
@@ -624,8 +749,13 @@ function renderEdit(){
   edAn=an;
   let mx=0;for(const x of an.dist.values())if(x>mx)mx=x;
   const lvl=d<=8?'초급':d<=15?'중급':d<=24?'고급':'전문가';
-  v.innerHTML=`✅ <b>풀 수 있음!</b> 최단 <b>${d}수</b> · 난이도 <b>${lvl}</b><br><span class="mini">배치 ${an.size.toLocaleString()}가지 분석 완료. 같은 차 구성으로 만들 수 있는 가장 어려운 문제는 <b>${mx}수</b>짜리예요.</span>`;
+  const nec=necessity(cars,pos,d),useless=nec.filter(x=>!x).length;
+  nec.forEach((ok,i)=>els[i].classList.toggle('useless',!ok));
+  v.innerHTML=`✅ <b>풀 수 있음!</b> 최단 <b>${d}수</b> · 난이도 <b>${lvl}</b> · 차 ${cars.length}대<br>`+
+    (d===0?'':useless?`<span class="badge warn">🧹 필요 없는 차 ${useless}대: 플레이할 때 자동으로 빠져요</span><br>`:`<span class="badge">✨ 모든 차가 꼭 필요한 최소 퍼즐</span><br>`)+
+    `<span class="mini">배치 ${an.size.toLocaleString()}가지 분석 완료. 같은 차 구성으로 만들 수 있는 가장 어려운 문제는 <b>${mx}수</b>짜리예요.</span>`;
   ['#ePlay','#eShare'].forEach(s=>$(s).disabled=false);
+
   $('#eHard').disabled=mx<=d;
 }
 
@@ -672,17 +802,22 @@ document.querySelectorAll('.tool').forEach(b=>b.onclick=()=>{
 $('#eLoad').onclick=()=>enterEdit(true);
 $('#ePlay').onclick=()=>{
   if(!edAn)return;
-  loadPuzzle(mkPuzzle(edBoard.cars,key(edBoard.pos),edAn),'custom','🛠 내가 만든 퍼즐');
-  history.replaceState(null,'',baseUrl()+'#p='+encode(P.cars,P.start));
+  busyRun(()=>{
+    const r=autoDiet(edBoard.cars,edBoard.pos),an=analyze(r.cars,r.pos,2000000);
+    loadPuzzle(mkPuzzle(r.cars,key(r.pos),an),'custom','🛠 내가 만든 퍼즐');
+    history.replaceState(null,'',baseUrl()+'#p='+encode(P.cars,P.start));
+    if(dietMsg(r))toast(dietMsg(r));
+  });
 };
 $('#eHard').onclick=()=>{
   if(!edAn)return;let mk=null,mx=-1;
   for(const [k,d] of edAn.dist)if(d>mx){mx=d;mk=k}
-  const pos=mk.split('').map(Number),cars=edBoard.cars;
+  const cars=edBoard.cars,pos=unkey(mk,cars.length);
   ed=cars.map((a,i)=>({len:a.len,h:a.h,r:a.h?a.fix:pos[i],c:a.h?pos[i]:a.fix,t:i===0}));
   renderEdit();toast(`같은 차들로 만들 수 있는 최고 난이도 ${mx}수로 바꿨어요`);
 };
-$('#eShare').onclick=()=>edBoard&&copy(baseUrl()+'#p='+encode(edBoard.cars,edBoard.pos),'내 퍼즐 링크가 복사됐어요');
+$('#eShare').onclick=()=>{if(!edAn)return;const r=autoDiet(edBoard.cars,edBoard.pos);
+  copy(baseUrl()+'#p='+encode(r.cars,r.pos),(r.cars.length<r.n0?`차 ${r.n0}→${r.cars.length}대로 다이어트한 `:'')+'내 퍼즐 링크가 복사됐어요')};
 
 /* ---------- 시작 ---------- */
 function boot(){
