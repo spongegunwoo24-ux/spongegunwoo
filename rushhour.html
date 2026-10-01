@@ -1,0 +1,700 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>러시아워 온라인</title>
+<style>
+:root{
+  --bg:#0f1220;--panel:#181c2e;--panel2:#22273f;--line:#2f3555;--text:#e8ebf5;--muted:#9aa3c0;
+  --accent:#ffcc33;--good:#3ddc84;--bad:#ff5d5d;--meh:#ffb547;--cell:#2b3150;--boardbg:#1a1e31;
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--text);
+  font-family:system-ui,-apple-system,"Apple SD Gothic Neo","Malgun Gothic","Noto Sans KR",sans-serif}
+button{font:inherit;color:inherit;cursor:pointer}
+.wrap{max-width:1040px;margin:0 auto;padding:16px}
+header{display:flex;flex-wrap:wrap;align-items:center;gap:10px 16px;margin-bottom:14px}
+h1{font-size:22px;margin:0;letter-spacing:-.5px}
+h1 span{color:var(--accent)}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{background:var(--panel2);border:1px solid var(--line);border-radius:999px;padding:7px 13px;font-size:14px}
+.chip:hover{border-color:#4a5280}
+.chip.on{background:var(--accent);color:#1a1a1a;border-color:var(--accent);font-weight:700}
+.main{display:flex;flex-wrap:wrap;gap:20px;align-items:flex-start;justify-content:center}
+
+/* board */
+.board{position:relative;width:min(calc(100vw - 56px),460px);padding:10px;background:var(--boardbg);
+  border-radius:16px;border:3px solid #3a4166;box-shadow:0 12px 40px #0008}
+#grid{position:relative;width:100%;aspect-ratio:1;touch-action:none;user-select:none;-webkit-user-select:none}
+.cell{position:absolute;width:16.6667%;height:16.6667%;padding:3px}
+.cell::after{content:"";display:block;width:100%;height:100%;background:var(--cell);border-radius:7px}
+.exit{position:absolute;left:100%;top:33.3333%;height:16.6667%;width:16px;margin-left:3px;display:flex;align-items:center;
+  justify-content:center;color:var(--accent);font-weight:900;font-size:13px;writing-mode:vertical-rl;letter-spacing:1px}
+.car{position:absolute;padding:3px;transition:left .22s ease,top .22s ease;z-index:2}
+.car .b{position:relative;width:100%;height:100%;border-radius:10px;background:var(--c);
+  box-shadow:inset 0 -5px 0 #0003,inset 0 3px 0 #fff4,0 4px 10px #0006;cursor:grab}
+.car.h .b::before{content:"";position:absolute;right:16%;top:16%;width:12%;height:68%;background:#0a1830cc;border-radius:4px}
+.car.h .b::after{content:"";position:absolute;left:10%;top:16%;width:8%;height:68%;background:#0a183099;border-radius:3px}
+.car.v .b::before{content:"";position:absolute;bottom:16%;left:16%;height:12%;width:68%;background:#0a1830cc;border-radius:4px}
+.car.v .b::after{content:"";position:absolute;top:10%;left:16%;height:8%;width:68%;background:#0a183099;border-radius:3px}
+.car.truck .b::after{width:40%;background:#ffffff22;left:8%}
+.car.v.truck .b::after{height:40%;width:68%;top:8%;left:16%}
+.car.target .b{box-shadow:inset 0 -5px 0 #0003,inset 0 3px 0 #fff5,0 0 0 2px #fff6,0 4px 14px #ef233c88}
+.car.drag{transition:none;z-index:5}
+.car.drag .b{cursor:grabbing;filter:brightness(1.12)}
+.car.sel .b{outline:3px solid #fff;outline-offset:1px}
+.car.pulse .b{animation:pulse .7s ease-in-out 3}
+@keyframes pulse{50%{filter:brightness(1.6);transform:scale(1.04)}}
+.car.exitgo{transition:transform .7s cubic-bezier(.5,0,.8,.4),opacity .7s;transform:translateX(260%);opacity:0}
+.ghost{position:absolute;padding:3px;z-index:1;pointer-events:none}
+.ghost div{width:100%;height:100%;border:3px dashed var(--accent);border-radius:10px;background:#ffcc3322}
+.edit #grid{cursor:crosshair}
+.edit .car .b{cursor:pointer}
+.hover{position:absolute;padding:3px;pointer-events:none;z-index:1}
+.hover div{width:100%;height:100%;border-radius:10px;background:#ffffff22;border:2px dashed #ffffff55}
+
+/* side panel */
+.side{flex:1;min-width:280px;max-width:440px;display:flex;flex-direction:column;gap:12px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:14px}
+.label{font-size:13px;color:var(--muted)}
+.title{font-size:18px;font-weight:800;margin:2px 0 10px}
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.stat{background:var(--panel2);border-radius:10px;padding:8px 6px;text-align:center}
+.stat b{display:block;font-size:22px;font-variant-numeric:tabular-nums}
+.stat small{color:var(--muted);font-size:12px}
+.coach{display:flex;align-items:center;gap:10px;margin-top:10px;background:var(--panel2);border-radius:10px;padding:10px;min-height:48px}
+.coach .n{font-size:26px;font-weight:900;min-width:36px;text-align:center;font-variant-numeric:tabular-nums}
+.coach .msg{font-size:14px}
+.good{color:var(--good)}.bad{color:var(--bad)}.meh{color:var(--meh)}
+.btns{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.btn{background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:10px 6px;font-size:14px}
+.btn:hover:not(:disabled){border-color:#4a5280;background:#283052}
+.btn:disabled{opacity:.4;cursor:default}
+.btn.primary{background:var(--accent);color:#1a1a1a;border-color:var(--accent);font-weight:800}
+.toggle{display:flex;align-items:center;gap:8px;font-size:14px;margin-top:10px;color:var(--muted)}
+.mini{font-size:12px;color:var(--muted);margin-top:8px;line-height:1.5}
+.tools{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+.tool{background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:8px 4px;font-size:13px}
+.tool.on{border-color:var(--accent);background:#3a3420}
+.verdict{margin:10px 0;padding:10px;border-radius:10px;background:var(--panel2);font-size:14px;line-height:1.5}
+
+/* why online */
+.why{margin-top:26px}
+.why h2{font-size:19px;margin:0 0 4px}
+.why p.sub{color:var(--muted);margin:0 0 12px;font-size:14px}
+table{width:100%;border-collapse:collapse;font-size:14px;background:var(--panel);border-radius:14px;overflow:hidden}
+th,td{padding:10px 12px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}
+th{background:var(--panel2);font-size:13px;color:var(--muted)}
+td:first-child{font-weight:700;white-space:nowrap}
+td.off{color:#b6bdd6}
+td.on{color:var(--good)}
+tr:last-child td{border-bottom:0}
+
+/* overlay */
+.overlay{position:fixed;inset:0;background:#0009;display:none;align-items:center;justify-content:center;z-index:50;padding:16px}
+.overlay.show{display:flex}
+.modal{background:var(--panel);border:1px solid var(--line);border-radius:18px;padding:22px;max-width:380px;width:100%;text-align:center}
+.modal .stars{font-size:38px;letter-spacing:4px;margin:6px 0}
+.modal h3{margin:0;font-size:22px}
+.modal .row{display:flex;justify-content:center;gap:18px;margin:12px 0;color:var(--muted);font-size:14px}
+.modal .row b{display:block;color:var(--text);font-size:20px}
+.modal .btns{grid-template-columns:1fr 1fr;margin-top:14px}
+.busy{position:fixed;inset:0;background:#000a;display:none;align-items:center;justify-content:center;z-index:60;font-size:17px}
+.busy.show{display:flex}
+.toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%) translateY(30px);opacity:0;background:#fff;color:#111;
+  padding:10px 16px;border-radius:999px;font-size:14px;font-weight:700;transition:.25s;z-index:70;pointer-events:none}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+.hidden{display:none!important}
+@media (max-width:520px){td:first-child{white-space:normal}th,td{padding:8px}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>🚗 러시아워 <span>ONLINE</span></h1>
+    <div class="chips" id="chips">
+      <button class="chip" data-d="easy">초급</button>
+      <button class="chip on" data-d="mid">중급</button>
+      <button class="chip" data-d="hard">고급</button>
+      <button class="chip" data-d="expert">전문가</button>
+      <button class="chip" data-m="daily">📅 오늘의 퍼즐</button>
+      <button class="chip" data-m="edit">🛠 퍼즐 만들기</button>
+    </div>
+  </header>
+
+  <div class="main" id="main">
+    <div class="board"><div id="grid"><div class="exit">EXIT ▶</div></div></div>
+
+    <div class="side">
+      <!-- play panel -->
+      <div id="playPanel" class="card">
+        <div class="label" id="pLabel">-</div>
+        <div class="title" id="pTitle">빨간 차를 출구로 탈출시키세요</div>
+        <div class="stats">
+          <div class="stat"><b id="sMoves">0</b><small>내 이동</small></div>
+          <div class="stat"><b id="sOpt">-</b><small>최단 해</small></div>
+          <div class="stat"><b id="sTime">0:00</b><small>시간</small></div>
+        </div>
+        <div class="coach" id="coach">
+          <div class="n" id="cN">-</div>
+          <div class="msg" id="cMsg">남은 최단 이동 수. 차를 드래그해서 움직여 보세요.</div>
+        </div>
+        <label class="toggle"><input type="checkbox" id="coachOn" checked> 실시간 코치 (한 수마다 최단 경로에 가까워졌는지 알려줌)</label>
+        <div class="btns" style="margin-top:12px">
+          <button class="btn" id="bUndo">↶ 되돌리기</button>
+          <button class="btn" id="bRedo">↷ 다시</button>
+          <button class="btn" id="bReset">⟲ 처음부터</button>
+          <button class="btn" id="bHint">💡 힌트</button>
+          <button class="btn" id="bSolve">▶ 해답 보기</button>
+          <button class="btn" id="bShare">🔗 링크 공유</button>
+        </div>
+        <button class="btn primary" id="bNew" style="width:100%;margin-top:8px">새 퍼즐 생성 ↻</button>
+        <div class="mini" id="pInfo"></div>
+      </div>
+
+      <!-- edit panel -->
+      <div id="editPanel" class="card hidden">
+        <div class="label">퍼즐 만들기</div>
+        <div class="title">직접 배치하면 즉시 풀이를 검증합니다</div>
+        <div class="tools" id="tools">
+          <button class="tool on" data-t="target">🟥 빨간 차</button>
+          <button class="tool" data-t="c2h">승용차 ↔</button>
+          <button class="tool" data-t="c2v">승용차 ↕</button>
+          <button class="tool" data-t="c3h">트럭 ↔</button>
+          <button class="tool" data-t="c3v">트럭 ↕</button>
+          <button class="tool" data-t="clear">🗑 전부 지우기</button>
+        </div>
+        <div class="mini">빈 칸을 누르면 그 칸을 기준으로 차를 놓고, 놓인 차를 누르면 지웁니다. 빨간 차는 출구가 있는 3번째 줄에만 놓을 수 있어요.</div>
+        <div class="verdict" id="verdict">빨간 차부터 놓아 주세요.</div>
+        <div class="btns" style="grid-template-columns:1fr 1fr">
+          <button class="btn primary" id="ePlay" disabled>▶ 이 퍼즐 플레이</button>
+          <button class="btn" id="eHard" disabled>🔥 가장 어렵게 바꾸기</button>
+          <button class="btn" id="eLoad">현재 퍼즐 불러오기</button>
+          <button class="btn" id="eShare" disabled>🔗 링크 공유</button>
+        </div>
+      </div>
+
+      <div class="card mini" id="myStats" style="margin:0"></div>
+    </div>
+  </div>
+
+  <section class="why">
+    <h2>왜 오프라인 말고 온라인으로 해야 할까요?</h2>
+    <p class="sub">보드게임 박스로는 할 수 없는 것들입니다. 아래 기능은 모두 이 페이지에서 바로 쓸 수 있어요.</p>
+    <table>
+      <tr><th></th><th>오프라인 보드게임</th><th>러시아워 ONLINE</th></tr>
+      <tr><td>문제 수</td><td class="off">카드 40장이면 끝, 한 번 풀면 답을 기억함</td><td class="on">무한 생성. 컴퓨터가 수만 가지 배치를 탐색해서 난이도에 맞는 문제를 골라 줌</td></tr>
+      <tr><td>막혔을 때</td><td class="off">카드 뒷면을 보면 해답 전체가 스포일러</td><td class="on">💡 딱 다음 한 수만 알려 주는 힌트</td></tr>
+      <tr><td>잘하고 있나?</td><td class="off">끝날 때까지 알 수 없음</td><td class="on">실시간 코치가 한 수마다 남은 최단 이동 수를 보여 줌</td></tr>
+      <tr><td>실수</td><td class="off">처음부터 카드 보고 차를 다시 배치</td><td class="on">무제한 되돌리기/다시하기, 버튼 하나로 처음부터</td></tr>
+      <tr><td>준비·정리</td><td class="off">매번 차 10~16대를 손으로 배치, 분실 위험</td><td class="on">0초. 잃어버릴 부품도 없음</td></tr>
+      <tr><td>친구와 경쟁</td><td class="off">같은 카드를 한 자리에서 번갈아 풀어야 함</td><td class="on">📅 오늘의 퍼즐은 전 세계가 같은 문제. 결과를 이모지로 공유</td></tr>
+      <tr><td>문제 만들기</td><td class="off">직접 만든 배치가 풀리는지, 몇 수짜리인지 알 수 없음</td><td class="on">🛠 놓는 즉시 풀이 가능 여부와 최단 수를 검증, "가장 어렵게" 자동 변형</td></tr>
+      <tr><td>기록</td><td class="off">없음</td><td class="on">이동 수, 시간, 최단해 달성, 연속 출석이 자동 저장</td></tr>
+    </table>
+  </section>
+</div>
+
+<div class="overlay" id="winOv"><div class="modal">
+  <h3 id="wTitle">탈출 성공!</h3>
+  <div class="stars" id="wStars">★★★</div>
+  <div class="row">
+    <div><b id="wMoves">0</b>이동</div><div><b id="wOpt">0</b>최단</div><div><b id="wTime">0:00</b>시간</div><div><b id="wHints">0</b>힌트</div>
+  </div>
+  <div class="mini" id="wMsg"></div>
+  <div class="btns">
+    <button class="btn" id="wShare">📋 결과 공유</button>
+    <button class="btn primary" id="wNext">다음 퍼즐 ▶</button>
+  </div>
+</div></div>
+<div class="busy" id="busy">🧠 수만 가지 배치를 탐색해서 퍼즐을 만드는 중…</div>
+<div class="toast" id="toast"></div>
+
+<script>
+"use strict";
+const $=s=>document.querySelector(s);
+const N=6, TARGET_ROW=2, GOAL=4;
+const DIFFS={
+  easy:{name:'초급',lo:4,hi:8,cars:[7,9]},
+  mid:{name:'중급',lo:9,hi:15,cars:[9,11]},
+  hard:{name:'고급',lo:16,hi:24,cars:[10,13]},
+  expert:{name:'전문가',lo:25,hi:99,cars:[11,13]},
+};
+const PALETTE=['#4cc9f0','#f7b801','#7bd389','#b388eb','#ff8fab','#f4845f','#5fa8d3','#c3e88d','#ffd166','#06d6a0','#ef8354','#a0c4ff'];
+const TRUCKS=['#8338ec','#3a86ff','#fb5607','#2a9d8f','#e9c46a','#ff006e'];
+
+/* ---------- 엔진: 상태 = 각 차의 위치(가로차=열, 세로차=행) ---------- */
+const cellIdx=(a,q)=>a.h?a.fix*N+q:q*N+a.fix;
+function occ(cars,pos){
+  const g=new Int8Array(36).fill(-1);
+  for(let i=0;i<cars.length;i++)for(let k=0;k<cars[i].len;k++)g[cellIdx(cars[i],pos[i]+k)]=i;
+  return g;
+}
+function moveList(cars,pos){
+  const g=occ(cars,pos),out=[];
+  for(let i=0;i<cars.length;i++){
+    const a=cars[i],p=pos[i];
+    for(let q=p-1;q>=0&&g[cellIdx(a,q)]===-1;q--)out.push([i,q]);
+    for(let q=p+1;q+a.len<=N&&g[cellIdx(a,q+a.len-1)]===-1;q++)out.push([i,q]);
+  }
+  return out;
+}
+// 시작 배치에서 도달 가능한 모든 배치를 탐색하고, 각 배치에서 탈출까지의 최단 이동 수를 계산
+function analyze(cars,start,cap){
+  const seen=new Set([start.join('')]),list=[start];
+  for(let i=0;i<list.length;i++){
+    const s=list[i];
+    for(const [ci,q] of moveList(cars,s)){
+      const n=s.slice();n[ci]=q;const k=n.join('');
+      if(!seen.has(k)){if(list.length>=cap)return null;seen.add(k);list.push(n);}
+    }
+  }
+  const dist=new Map(),qu=[],dq=[];
+  for(const s of list)if(s[0]===GOAL){dist.set(s.join(''),0);qu.push(s);dq.push(0);}
+  for(let i=0;i<qu.length;i++){
+    const s=qu[i],d=dq[i]+1;
+    for(const [ci,q] of moveList(cars,s)){
+      const n=s.slice();n[ci]=q;const k=n.join('');
+      if(!dist.has(k)){dist.set(k,d);qu.push(n);dq.push(d);}
+    }
+  }
+  return {dist,size:list.length};
+}
+
+/* ---------- 퍼즐 생성 ---------- */
+function mulberry32(a){return()=>{a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
+function strHash(s){let h=2166136261;for(const ch of s){h^=ch.charCodeAt(0);h=Math.imul(h,16777619)}return h>>>0}
+function randBoard(rng,n){
+  const cars=[{len:2,h:true,fix:TARGET_ROW}],pos=[Math.floor(rng()*3)];
+  const g=occ(cars,pos);
+  for(let t=0;t<400&&cars.length<n+1;t++){
+    const len=rng()<0.72?2:3,h=rng()<0.5,fix=Math.floor(rng()*N);
+    if(h&&fix===TARGET_ROW)continue;
+    const p=Math.floor(rng()*(N-len+1)),a={len,h,fix};
+    let ok=true;for(let k=0;k<len;k++)if(g[cellIdx(a,p+k)]!==-1){ok=false;break}
+    if(!ok)continue;
+    for(let k=0;k<len;k++)g[cellIdx(a,p+k)]=cars.length;
+    cars.push(a);pos.push(p);
+  }
+  return {cars,pos};
+}
+// 언덕 오르기: 차를 넣고 빼면서 "가장 어려운 배치의 최단 수"가 줄지 않는 변형만 채택
+function evalBoard(cars,pos){
+  const an=analyze(cars,pos,40000);if(!an||!an.dist.size)return null;
+  let mk=null,mx=-1;for(const [k,d] of an.dist)if(d>mx){mx=d;mk=k}
+  return {an,mx,mk};
+}
+function mutate(rng,cars,pos){
+  cars=cars.slice();pos=pos.slice();
+  if(cars.length>3&&rng()<0.4){const i=1+Math.floor(rng()*(cars.length-1));cars.splice(i,1);pos.splice(i,1)}
+  const g=occ(cars,pos);
+  for(let t=0;t<50;t++){
+    const len=rng()<0.7?2:3,h=rng()<0.5,fix=Math.floor(rng()*N);
+    if(h&&fix===TARGET_ROW)continue;
+    const p=Math.floor(rng()*(N-len+1)),a={len,h,fix};
+    let ok=true;for(let k=0;k<len;k++)if(g[cellIdx(a,p+k)]!==-1){ok=false;break}
+    if(ok){cars.push(a);pos.push(p);break}
+  }
+  return {cars,pos};
+}
+function generate(diff,rng,maxIters,timeLimit){
+  const D=DIFFS[diff],t0=performance.now();let best=null,cur=null,stall=0;
+  for(let it=0;it<maxIters;it++){
+    if(best&&performance.now()-t0>timeLimit)break;
+    let cand;
+    if(!cur||stall>120){const b=randBoard(rng,D.cars[0]);cand={cars:b.cars,pos:b.pos};stall=0;cur=null}
+    else cand=mutate(rng,cur.cars,cur.pos);
+    const e=evalBoard(cand.cars,cand.pos);
+    if(!e){stall++;continue}
+    if(!cur||e.mx>=cur.e.mx){if(cur&&e.mx===cur.e.mx)stall++;else stall=0;cur={cars:cand.cars,pos:e.mk.split('').map(Number),e}}
+    else stall++;
+    if(!best||cur.e.mx>best.e.mx)best=cur;
+    if(cur.e.mx>=D.lo)break;
+  }
+  // 최단 수는 0부터 연속이므로 범위 안의 배치가 반드시 존재: 범위 안에서 가장 어려운 것을 선택
+  let k=best.e.mk,kd=best.e.mx;
+  if(kd>D.hi){kd=-1;for(const [kk,d] of best.e.an.dist)if(d<=D.hi&&d>kd){kd=d;k=kk}}
+  return mkPuzzle(best.cars,k,best.e.an);
+}
+function mkPuzzle(cars,key,an){
+  return {cars,start:key.split('').map(Number),dist:an.dist,size:an.size,opt:an.dist.get(key)};
+}
+
+/* ---------- 공유용 인코딩 (36칸 문자열) ---------- */
+function encode(cars,pos){
+  const g=Array(36).fill('o');
+  cars.forEach((a,i)=>{for(let k=0;k<a.len;k++)g[cellIdx(a,pos[i]+k)]=String.fromCharCode(65+i)});
+  return g.join('');
+}
+function decode(str){
+  if(!/^[A-Zo]{36}$/.test(str))return null;
+  const cells={};
+  for(let i=0;i<36;i++){const ch=str[i];if(ch!=='o')(cells[ch]=cells[ch]||[]).push(i)}
+  if(!cells.A)return null;
+  const letters=Object.keys(cells).sort(),cars=[],pos=[];
+  for(const L of letters){
+    const cs=cells[L],len=cs.length;if(len<2||len>3)return null;
+    const r=Math.floor(cs[0]/N),c=cs[0]%N,h=cs[1]-cs[0]===1;
+    for(let k=0;k<len;k++)if(cs[k]!==cs[0]+k*(h?1:N))return null;
+    if(h&&Math.floor(cs[len-1]/N)!==r)return null;
+    cars.push({len,h,fix:h?r:c});pos.push(h?c:r);
+  }
+  if(!cars[0].h||cars[0].fix!==TARGET_ROW||cars[0].len!==2)return null;
+  return {cars,pos};
+}
+
+/* ---------- 상태 ---------- */
+const grid=$('#grid');
+let P=null,cur=[],hist=[],redo=[],hints=0,assisted=false,solved=false,autoPlaying=false;
+let mode='play',kind='mid',sel=-1,elapsed=0,timerId=null,tStart=0,drag=null,carEls=[];
+for(let i=0;i<36;i++){const c=document.createElement('div');c.className='cell';c.style.left=(i%N)*100/N+'%';c.style.top=Math.floor(i/N)*100/N+'%';grid.appendChild(c)}
+
+const store={
+  get(k,d){try{const v=localStorage.getItem(k);return v?JSON.parse(v):d}catch(e){return d}},
+  set(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}
+};
+const today=()=>{const d=new Date();return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`};
+const dailyNo=k=>Math.round((new Date(k+'T00:00:00')-new Date('2026-01-01T00:00:00'))/864e5)+1;
+const fmt=s=>`${Math.floor(s/60)}:${String(s%60).padStart(2,'0')}`;
+const key=p=>p.join('');
+const D=p=>P.dist.get(key(p));
+const baseUrl=()=>location.href.split('#')[0];
+
+function colorize(cars){let a=0,b=0;cars.forEach((c,i)=>c.color=i===0?'#ef233c':c.len===3?TRUCKS[b++%TRUCKS.length]:PALETTE[a++%PALETTE.length])}
+function placeEl(el,a,p){
+  const r=a.h?a.fix:p,c=a.h?p:a.fix;
+  el.style.left=c*100/N+'%';el.style.top=r*100/N+'%';
+  el.style.width=(a.h?a.len:1)*100/N+'%';el.style.height=(a.h?1:a.len)*100/N+'%';
+}
+function makeCarEl(a,i){
+  const el=document.createElement('div');
+  el.className='car '+(a.h?'h':'v')+(a.len===3?' truck':'')+(i===0?' target':'');
+  el.dataset.i=i;el.innerHTML='<div class="b"></div>';el.style.setProperty('--c',a.color);
+  return el;
+}
+function clearBoard(){grid.querySelectorAll('.car,.ghost,.hover').forEach(e=>e.remove());carEls=[]}
+function buildCars(){clearBoard();P.cars.forEach((a,i)=>{const el=makeCarEl(a,i);placeEl(el,a,cur[i]);grid.appendChild(el);carEls.push(el)})}
+function syncPositions(instant){
+  P.cars.forEach((a,i)=>{
+    const el=carEls[i];
+    if(instant){el.style.transition='none';placeEl(el,a,cur[i]);el.style.transform='';void el.offsetWidth;el.style.transition=''}
+    else placeEl(el,a,cur[i]);
+  });
+}
+
+/* ---------- 퍼즐 로드 ---------- */
+function loadPuzzle(pz,k,label){
+  $('#winOv').classList.remove('show');P=pz;kind=k;P.label=label;colorize(P.cars);
+  cur=P.start.slice();hist=[];redo=[];hints=0;assisted=false;solved=false;autoPlaying=false;sel=-1;
+  stopTimer();elapsed=0;tStart=0;$('#sTime').textContent='0:00';
+  setMode('play');buildCars();
+  $('#pLabel').textContent=label;
+  $('#sOpt').textContent=P.opt;
+  $('#pInfo').innerHTML=`이 퍼즐에서 나올 수 있는 배치 <b>${P.size.toLocaleString()}</b>가지를 모두 분석해서 최단 해를 계산했습니다. `+
+    (k==='daily'?'오늘의 퍼즐은 오늘 접속한 모든 사람이 같은 문제를 풉니다.':'');
+  $('#coachOn').checked=k!=='daily'&&store.get('rh_coach',true);
+  document.querySelectorAll('.chip').forEach(c=>c.classList.toggle('on',c.dataset.d===k||c.dataset.m===k));
+  refresh(null);
+}
+function busyRun(fn){$('#busy').classList.add('show');setTimeout(()=>{try{fn()}finally{$('#busy').classList.remove('show')}},40)}
+function newRandom(d){
+  busyRun(()=>{
+    const pz=generate(d,Math.random,4000,6000);
+    loadPuzzle(pz,d,`${DIFFS[d].name} · 무작위 생성 퍼즐`);
+    history.replaceState(null,'',baseUrl()+'#p='+encode(pz.cars,pz.start));
+  });
+}
+function loadDaily(){
+  busyRun(()=>{
+    const k=today(),cache=store.get('rh_daily_code',{});let pz=null;
+    const cb=cache.k===k&&decode(cache.code);
+    if(cb){const an=analyze(cb.cars,cb.pos,400000);pz=mkPuzzle(cb.cars,key(cb.pos),an)}
+    else{pz=generate('hard',mulberry32(strHash('rushhour-'+k)),1500,Infinity);store.set('rh_daily_code',{k,code:encode(pz.cars,pz.start)})}
+    const done=store.get('rh_daily',{})[k];
+    loadPuzzle(pz,'daily',`📅 오늘의 퍼즐 #${dailyNo(k)} (${k})`+(done?` · 이미 클리어: ${done.moves}수 ${fmt(done.time)}`:''));
+    history.replaceState(null,'',baseUrl()+'#daily');
+  });
+}
+function loadFromCode(code,label){
+  const b=decode(code);if(!b){toast('잘못된 퍼즐 링크입니다');return false}
+  const an=analyze(b.cars,b.pos,400000);
+  if(!an||!an.dist.has(key(b.pos))){toast('풀 수 없는 퍼즐입니다');return false}
+  loadPuzzle(mkPuzzle(b.cars,key(b.pos),an),'shared',label);return true;
+}
+
+/* ---------- 플레이 ---------- */
+function startTimer(){if(timerId)return;tStart=Date.now()-elapsed*1000;timerId=setInterval(()=>{elapsed=Math.floor((Date.now()-tStart)/1000);$('#sTime').textContent=fmt(elapsed)},250)}
+function stopTimer(){clearInterval(timerId);timerId=null}
+function clearHint(){grid.querySelectorAll('.ghost').forEach(e=>e.remove());carEls.forEach(e=>e.classList.remove('pulse'))}
+function applyMove(i,q){
+  if(solved||cur[i]===q)return;
+  clearHint();
+  const prev=cur.slice();hist.push(prev);redo=[];cur[i]=q;
+  if(!timerId&&!solved)startTimer();
+  refresh(prev);
+}
+function refresh(prev){
+  $('#sMoves').textContent=hist.length;
+  $('#bUndo').disabled=!hist.length||solved||autoPlaying;
+  $('#bRedo').disabled=!redo.length||solved||autoPlaying;
+  $('#bReset').disabled=!hist.length||solved||autoPlaying;
+  $('#bHint').disabled=solved||autoPlaying;
+  $('#bSolve').textContent=autoPlaying?'⏸ 멈추기':'▶ 해답 보기';
+  $('#bSolve').disabled=solved;
+  const d=D(cur),cN=$('#cN'),cMsg=$('#cMsg');
+  if(!$('#coachOn').checked){cN.textContent='?';cN.className='n';cMsg.textContent='실시간 코치 꺼짐. 실력으로 도전!';}
+  else{
+    cN.textContent=d;
+    if(!prev){cN.className='n';cMsg.textContent='남은 최단 이동 수. 차를 드래그해서 움직여 보세요.'}
+    else{
+      const pd=D(prev);
+      if(d<pd){cN.className='n good';cMsg.innerHTML='<span class="good">👍 최단 경로를 따라가는 중!</span>'}
+      else if(d===pd){cN.className='n meh';cMsg.innerHTML='<span class="meh">😐 탈출까지 거리는 그대로예요</span>'}
+      else{cN.className='n bad';cMsg.innerHTML=`<span class="bad">⚠️ 탈출에서 ${d-pd}수 멀어졌어요. 되돌려 볼까요?</span>`}
+    }
+  }
+  if(cur[0]===GOAL&&!solved)win();
+}
+function win(){
+  solved=true;stopTimer();autoPlaying=false;
+  if(timerId===null&&tStart)elapsed=Math.floor((Date.now()-tStart)/1000);
+  carEls[0].classList.add('exitgo');
+  const m=hist.length,opt=P.opt;
+  const stars=assisted?0:m<=opt?3:m<=Math.ceil(opt*1.5)?2:1;
+  refresh(null);
+  if(!assisted){
+    const st=store.get('rh_stats',{solved:0,perfect:0});st.solved++;if(m<=opt)st.perfect++;store.set('rh_stats',st);
+    if(kind==='daily'){const all=store.get('rh_daily',{}),k=today();if(!all[k]||all[k].moves>m)all[k]={moves:m,opt,time:elapsed,hints};store.set('rh_daily',all)}
+  }
+  showStats();
+  setTimeout(()=>{
+    $('#wTitle').textContent=assisted?'해답 재생 완료':'🎉 탈출 성공!';
+    $('#wStars').textContent=assisted?'🤖':'★'.repeat(stars)+'☆'.repeat(3-stars);
+    $('#wMoves').textContent=m;$('#wOpt').textContent=opt;$('#wTime').textContent=fmt(elapsed);$('#wHints').textContent=hints;
+    $('#wMsg').textContent=assisted?'다음엔 직접 풀어 보세요! 힌트는 한 수씩만 알려 줍니다.':
+      m<=opt?'완벽해요! 컴퓨터가 찾은 최단 해와 같은 수로 풀었습니다.':`최단 해보다 ${m-opt}수 더 썼어요. 같은 링크로 다시 도전해 보세요.`;
+    $('#wShare').classList.toggle('hidden',assisted);
+    $('#winOv').classList.add('show');
+  },650);
+}
+function bestMove(){
+  const d=D(cur);
+  for(const [i,q] of moveList(P.cars,cur)){const n=cur.slice();n[i]=q;if(P.dist.get(key(n))===d-1)return [i,q]}
+  return null;
+}
+function hint(){
+  if(solved)return;clearHint();
+  const m=bestMove();if(!m)return;hints++;
+  const [i,q]=m,a=P.cars[i],g=document.createElement('div');
+  g.className='ghost';g.innerHTML='<div></div>';placeEl(g,a,q);grid.appendChild(g);
+  carEls[i].classList.add('pulse');
+  toast(`힌트 ${hints}번째: 반짝이는 차를 점선 위치로`);
+}
+async function autoSolve(){
+  if(autoPlaying){autoPlaying=false;refresh(null);return}
+  if(solved)return;
+  assisted=true;autoPlaying=true;refresh(null);
+  while(autoPlaying&&!solved){
+    const m=bestMove();if(!m)break;
+    const prev=cur.slice();hist.push(prev);redo=[];cur[m[0]]=m[1];
+    clearHint();syncPositions(false);refresh(prev);
+    await new Promise(r=>setTimeout(r,480));
+  }
+  autoPlaying=false;if(!solved)refresh(null);
+}
+function undo(){if(!hist.length||solved||autoPlaying)return;clearHint();redo.push(cur);cur=hist.pop();syncPositions(false);refresh(null)}
+function redoMove(){if(!redo.length||solved||autoPlaying)return;clearHint();hist.push(cur);cur=redo.pop();syncPositions(false);refresh(null)}
+function reset(){if(solved||autoPlaying)return;clearHint();hist=[];redo=[];cur=P.start.slice();syncPositions(false);refresh(null)}
+
+/* 드래그 */
+function range(i){
+  const a=P.cars[i],g=occ(P.cars,cur),p=cur[i];let mn=p,mx=p;
+  while(mn-1>=0&&g[cellIdx(a,mn-1)]===-1)mn--;
+  while(mx+a.len<N&&g[cellIdx(a,mx+a.len)]===-1)mx++;
+  return [mn,mx];
+}
+function select(i){sel=i;carEls.forEach((e,j)=>e.classList.toggle('sel',j===i))}
+grid.addEventListener('pointerdown',e=>{
+  if(mode==='edit'){editClick(e);return}
+  const el=e.target.closest('.car');if(!el||solved||autoPlaying)return;
+  const i=+el.dataset.i,[mn,mx]=range(i);
+  drag={i,el,a:P.cars[i],sx:e.clientX,sy:e.clientY,p0:cur[i],mn,mx,np:cur[i]};
+  el.setPointerCapture(e.pointerId);el.classList.add('drag');select(i);e.preventDefault();
+});
+grid.addEventListener('pointermove',e=>{
+  if(mode==='edit'){editHover(e);return}
+  if(!drag)return;
+  const cs=grid.clientWidth/N,{a,p0,mn,mx}=drag;
+  const d=(a.h?e.clientX-drag.sx:e.clientY-drag.sy)/cs;
+  drag.np=Math.max(mn,Math.min(mx,p0+d));
+  drag.el.style.transform=a.h?`translateX(${(drag.np-p0)*cs}px)`:`translateY(${(drag.np-p0)*cs}px)`;
+});
+function endDrag(){
+  if(!drag)return;
+  const {i,el,np}=drag,q=Math.round(np);drag=null;
+  el.classList.remove('drag');
+  if(q!==cur[i])applyMoveInstant(i,q);
+  else{el.style.transform=''}
+}
+function applyMoveInstant(i,q){
+  if(solved)return;clearHint();
+  const prev=cur.slice();hist.push(prev);redo=[];cur[i]=q;
+  if(!timerId)startTimer();
+  const el=carEls[i];el.style.transition='none';placeEl(el,P.cars[i],q);el.style.transform='';void el.offsetWidth;el.style.transition='';
+  refresh(prev);
+}
+grid.addEventListener('pointerup',endDrag);
+grid.addEventListener('pointercancel',endDrag);
+document.addEventListener('keydown',e=>{
+  if(mode!=='play')return;
+  if((e.ctrlKey||e.metaKey)&&e.key==='z'){undo();e.preventDefault();return}
+  if(sel<0||solved||autoPlaying)return;
+  const a=P.cars[sel],dirs={ArrowLeft:[1,-1],ArrowRight:[1,1],ArrowUp:[0,-1],ArrowDown:[0,1]}[e.key];
+  if(!dirs)return;e.preventDefault();
+  if((dirs[0]===1)!==a.h)return;
+  const [mn,mx]=range(sel),q=cur[sel]+dirs[1];
+  if(q>=mn&&q<=mx)applyMove(sel,q),syncPositions(false);
+});
+
+/* ---------- 에디터 ---------- */
+let ed=[],tool='target',edAn=null,edBoard=null;
+const TOOLDEF={target:{len:2,h:true},c2h:{len:2,h:true},c2v:{len:2,h:false},c3h:{len:3,h:true},c3v:{len:3,h:false}};
+function setMode(m){
+  mode=m;document.body.classList.toggle('edit',m==='edit');
+  $('#playPanel').classList.toggle('hidden',m!=='play');$('#editPanel').classList.toggle('hidden',m!=='edit');
+}
+function enterEdit(fromCurrent){
+  stopTimer();autoPlaying=false;setMode('edit');
+  document.querySelectorAll('.chip').forEach(c=>c.classList.toggle('on',c.dataset.m==='edit'));
+  if(fromCurrent&&P){ed=P.cars.map((a,i)=>({len:a.len,h:a.h,r:a.h?a.fix:cur[i],c:a.h?cur[i]:a.fix,t:i===0}))}
+  history.replaceState(null,'',baseUrl()+'#edit');
+  renderEdit();
+}
+function edCells(o){const out=[];for(let k=0;k<o.len;k++)out.push(o.h?o.r*N+o.c+k:(o.r+k)*N+o.c);return out}
+function edCellAt(e){
+  const r=grid.getBoundingClientRect(),c=Math.floor((e.clientX-r.left)/r.width*N),w=Math.floor((e.clientY-r.top)/r.height*N);
+  return (c<0||c>=N||w<0||w>=N)?null:{r:w,c};
+}
+function edCandidate(pt){
+  const T=TOOLDEF[tool];if(!T)return null;
+  const o={len:T.len,h:T.h,r:pt.r,c:pt.c,t:tool==='target'};
+  if(o.t)o.r=TARGET_ROW;
+  if(o.h&&o.c+o.len>N)o.c=N-o.len;
+  if(!o.h&&o.r+o.len>N)o.r=N-o.len;
+  const used=new Set(ed.filter(x=>!(o.t&&x.t)).flatMap(edCells));
+  return edCells(o).some(x=>used.has(x))?null:o;
+}
+function editClick(e){
+  const pt=edCellAt(e);if(!pt)return;
+  const hit=ed.findIndex(o=>edCells(o).includes(pt.r*N+pt.c));
+  if(hit>=0){ed.splice(hit,1);renderEdit();return}
+  const o=edCandidate(pt);if(!o){toast('그 자리에는 놓을 수 없어요');return}
+  if(o.t)ed=ed.filter(x=>!x.t);
+  if(ed.length>=20){toast('차는 최대 20대까지');return}
+  ed.push(o);
+  if(o.t)selectTool('c2v');
+  renderEdit();
+}
+function editHover(e){
+  grid.querySelectorAll('.hover').forEach(x=>x.remove());
+  const pt=edCellAt(e);if(!pt||ed.some(o=>edCells(o).includes(pt.r*N+pt.c)))return;
+  const o=edCandidate(pt);if(!o)return;
+  const g=document.createElement('div');g.className='hover';g.innerHTML='<div></div>';
+  placeEl(g,{len:o.len,h:o.h,fix:o.h?o.r:o.c},o.h?o.c:o.r);grid.appendChild(g);
+}
+grid.addEventListener('pointerleave',()=>grid.querySelectorAll('.hover').forEach(x=>x.remove()));
+function selectTool(t){tool=t;document.querySelectorAll('.tool').forEach(b=>b.classList.toggle('on',b.dataset.t===t))}
+function renderEdit(){
+  clearBoard();
+  const sorted=[...ed.filter(o=>o.t),...ed.filter(o=>!o.t)];
+  const cars=sorted.map(o=>({len:o.len,h:o.h,fix:o.h?o.r:o.c})),pos=sorted.map(o=>o.h?o.c:o.r);
+  colorize(cars);
+  if(!sorted.length||!sorted[0].t)cars.forEach(c=>c.color=c.len===3?'#6c7396':'#8a91b5');
+  cars.forEach((a,i)=>{const el=makeCarEl(a,sorted[0]&&sorted[0].t?i:i+1);placeEl(el,a,pos[i]);grid.appendChild(el)});
+  edAn=null;edBoard=null;
+  const v=$('#verdict');
+  ['#ePlay','#eHard','#eShare'].forEach(s=>$(s).disabled=true);
+  if(!sorted.length||!sorted[0].t){v.innerHTML='🟥 빨간 차(목표 차)부터 놓아 주세요.';return}
+  const an=analyze(cars,pos,400000);
+  if(!an){v.innerHTML='⚠️ 경우의 수가 너무 많아요(40만 개 이상). 차를 더 놓아 주세요.';return}
+  const d=an.dist.get(key(pos));
+  edBoard={cars,pos};
+  if(d===undefined){v.innerHTML=`❌ <b>풀 수 없는 배치</b>입니다.<br><span class="mini">가능한 배치 ${an.size.toLocaleString()}가지를 전부 확인했지만 빨간 차가 나갈 방법이 없어요.</span>`;return}
+  edAn=an;
+  let mx=0;for(const x of an.dist.values())if(x>mx)mx=x;
+  const lvl=d<=8?'초급':d<=15?'중급':d<=24?'고급':'전문가';
+  v.innerHTML=`✅ <b>풀 수 있음!</b> 최단 <b>${d}수</b> · 난이도 <b>${lvl}</b><br><span class="mini">배치 ${an.size.toLocaleString()}가지 분석 완료. 같은 차 구성으로 만들 수 있는 가장 어려운 문제는 <b>${mx}수</b>짜리예요.</span>`;
+  ['#ePlay','#eShare'].forEach(s=>$(s).disabled=false);
+  $('#eHard').disabled=mx<=d;
+}
+
+/* ---------- 공유 / 통계 ---------- */
+function toast(t){const el=$('#toast');el.textContent=t;el.classList.add('show');clearTimeout(toast.t);toast.t=setTimeout(()=>el.classList.remove('show'),1800)}
+async function copy(text,msg){
+  try{await navigator.clipboard.writeText(text);toast(msg)}
+  catch(e){window.prompt('복사해서 공유하세요',text)}
+}
+function streak(){
+  const all=store.get('rh_daily',{});let n=0;const d=new Date();
+  if(!all[today()])d.setDate(d.getDate()-1);
+  for(;;){const k=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;if(!all[k])break;n++;d.setDate(d.getDate()-1)}
+  return n;
+}
+function showStats(){
+  const st=store.get('rh_stats',{solved:0,perfect:0});
+  $('#myStats').innerHTML=`📊 내 기록 (이 기기에 자동 저장) · 푼 퍼즐 <b>${st.solved}</b> · 최단해 달성 <b>${st.perfect}</b> · 오늘의 퍼즐 연속 <b>${streak()}일</b> 🔥`;
+}
+
+/* ---------- 이벤트 ---------- */
+$('#chips').addEventListener('click',e=>{
+  const b=e.target.closest('.chip');if(!b)return;
+  if(b.dataset.d)newRandom(b.dataset.d);
+  else if(b.dataset.m==='daily')loadDaily();
+  else if(b.dataset.m==='edit')enterEdit(false);
+});
+$('#bUndo').onclick=undo;$('#bRedo').onclick=redoMove;$('#bReset').onclick=reset;
+$('#bHint').onclick=hint;$('#bSolve').onclick=autoSolve;
+$('#bNew').onclick=()=>kind==='daily'||kind==='shared'||kind==='custom'?newRandom('mid'):newRandom(kind);
+$('#bShare').onclick=()=>copy(kind==='daily'?baseUrl()+'#daily':baseUrl()+'#p='+encode(P.cars,P.start),'퍼즐 링크가 복사됐어요. 친구도 똑같은 문제를 풀 수 있어요');
+$('#coachOn').onchange=e=>{if(kind!=='daily')store.set('rh_coach',e.target.checked);refresh(null)};
+$('#wNext').onclick=()=>{$('#winOv').classList.remove('show');kind==='daily'||kind==='shared'||kind==='custom'?newRandom('mid'):newRandom(kind)};
+$('#winOv').onclick=e=>{if(e.target.id==='winOv')$('#winOv').classList.remove('show')};
+$('#wShare').onclick=()=>{
+  const m=hist.length,stars=m<=P.opt?'⭐⭐⭐':m<=Math.ceil(P.opt*1.5)?'⭐⭐':'⭐';
+  const head=kind==='daily'?`🚗 러시아워 오늘의 퍼즐 #${dailyNo(today())}`:`🚗 러시아워 ${P.label}`;
+  const link=kind==='daily'?baseUrl()+'#daily':baseUrl()+'#p='+encode(P.cars,P.start);
+  copy(`${head}\n${stars} ${m}수 (최단 ${P.opt}) · ⏱ ${fmt(elapsed)} · 💡${hints}\n나보다 잘할 수 있어? ${link}`,'결과가 복사됐어요. 친구에게 붙여넣기!');
+};
+document.querySelectorAll('.tool').forEach(b=>b.onclick=()=>{
+  if(b.dataset.t==='clear'){ed=[];selectTool('target');renderEdit()}else selectTool(b.dataset.t);
+});
+$('#eLoad').onclick=()=>enterEdit(true);
+$('#ePlay').onclick=()=>{
+  if(!edAn)return;
+  loadPuzzle(mkPuzzle(edBoard.cars,key(edBoard.pos),edAn),'custom','🛠 내가 만든 퍼즐');
+  history.replaceState(null,'',baseUrl()+'#p='+encode(P.cars,P.start));
+};
+$('#eHard').onclick=()=>{
+  if(!edAn)return;let mk=null,mx=-1;
+  for(const [k,d] of edAn.dist)if(d>mx){mx=d;mk=k}
+  const pos=mk.split('').map(Number),cars=edBoard.cars;
+  ed=cars.map((a,i)=>({len:a.len,h:a.h,r:a.h?a.fix:pos[i],c:a.h?pos[i]:a.fix,t:i===0}));
+  renderEdit();toast(`같은 차들로 만들 수 있는 최고 난이도 ${mx}수로 바꿨어요`);
+};
+$('#eShare').onclick=()=>edBoard&&copy(baseUrl()+'#p='+encode(edBoard.cars,edBoard.pos),'내 퍼즐 링크가 복사됐어요');
+
+/* ---------- 시작 ---------- */
+function boot(){
+  showStats();
+  const h=location.hash;
+  if(h.startsWith('#p=')&&loadFromCode(h.slice(3),'🔗 공유받은 퍼즐'))return;
+  if(h==='#edit'){P=null;enterEdit(false);return}
+  if(h==='#daily'){loadDaily();return}
+  newRandom('mid');
+}
+window.addEventListener('hashchange',()=>{const h=location.hash;if(h.startsWith('#p=')&&(!P||h.slice(3)!==encode(P.cars,P.start)))loadFromCode(h.slice(3),'🔗 공유받은 퍼즐')});
+boot();
+</script>
+</body>
+</html>
