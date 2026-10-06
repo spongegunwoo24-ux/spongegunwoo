@@ -147,6 +147,30 @@ body { background: var(--bg-color); color: var(--text-main); }
     color: var(--text-main); font-size: 16px; font-weight: 900; cursor: pointer; box-shadow: 0 2px 8px rgba(10,20,40,.15);
 }
 .hk-zoom button:hover { background: var(--hover-bg); }
+.hk-zoom button.on { background: var(--primary); border-color: var(--primary); color: #fff; }
+.hk-minibar.gold > i { background: var(--hk-fame); }
+.hk-minibar.gold { width: 34px; }
+.hk-reco { display: inline-flex; margin-left: 6px; padding: 1px 7px; border-radius: 999px; background: #f6c343; color: #3b2a00; font-size: 10.5px; font-weight: 900; vertical-align: middle; }
+.hk-btn.on { background: var(--primary-soft); border-color: var(--primary); color: var(--primary); }
+.hk-toolrow { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 12px; padding: 8px 10px; border-radius: 12px; background: var(--surface-secondary); border: 1px solid var(--border-color); }
+.hk-switch { display: inline-flex; align-items: center; gap: 8px; cursor: pointer; font-size: 13px; font-weight: 800; color: var(--text-main); }
+.hk-switch small { font-size: 11.5px; font-weight: 600; color: var(--text-muted); margin-left: 4px; }
+.hk-switch input { display: none; }
+.hk-switch > span { width: 38px; height: 22px; border-radius: 999px; background: var(--border-strong); position: relative; flex: 0 0 auto; transition: background .15s; }
+.hk-switch > span::after { content: ''; position: absolute; left: 3px; top: 3px; width: 16px; height: 16px; border-radius: 50%; background: #fff; transition: transform .15s; box-shadow: 0 1px 3px rgba(0,0,0,.25); }
+.hk-switch input:checked + span { background: var(--primary); }
+.hk-switch input:checked + span::after { transform: translateX(16px); }
+.hk-switch.sm > span { width: 32px; height: 18px; } .hk-switch.sm > span::after { width: 12px; height: 12px; } .hk-switch.sm input:checked + span::after { transform: translateX(14px); }
+.hk-switch.row { align-items: flex-start; padding: 10px 12px; border-radius: 12px; background: var(--surface-secondary); border: 1px solid var(--border-color); }
+.hk-switch.row > span { margin-top: 2px; }
+.hk-switch.row small { display: block; margin: 2px 0 0; line-height: 1.45; }
+.hk-cityrow { display: grid; grid-template-columns: minmax(130px, 1.1fr) 2fr minmax(140px, 1.2fr) auto; gap: 10px; align-items: center; padding: 10px 12px; border-radius: 12px; border: 1px solid var(--border-color); background: var(--surface-secondary); margin-bottom: 7px; cursor: pointer; }
+.hk-cityrow:hover { border-color: var(--primary); }
+.hk-cityrow .nm { font-size: 14px; font-weight: 900; }
+.hk-cityrow .ys { display: flex; flex-wrap: wrap; gap: 4px 10px; font-size: 12px; font-weight: 800; color: var(--text-secondary); }
+.hk-cityrow .pr { font-size: 12.5px; font-weight: 800; }
+.hk-cityrow .pr small { color: var(--text-muted); }
+@media (max-width: 760px) { .hk-cityrow { grid-template-columns: 1fr auto; } .hk-cityrow .ys, .hk-cityrow .pr { grid-column: 1 / -1; } .hk-cityrow .hk-switch { grid-row: 1; grid-column: 2; } }
 
 /* 알림 피드 */
 .hk-feed { left: 10px; top: 10px; width: min(330px, calc(100% - 70px)); display: flex; flex-direction: column; gap: 6px; pointer-events: none; }
@@ -334,6 +358,10 @@ body { background: var(--bg-color); color: var(--text-main); }
     background: radial-gradient(circle at 30% 20%, rgba(47,111,237,.35), transparent 55%), radial-gradient(circle at 80% 80%, rgba(224,161,0,.25), transparent 55%), rgba(9, 15, 30, .82);
 }
 .hk-start.show { display: flex; }
+.hk-prestart .hk-topbar { visibility: hidden; height: 0; padding: 0; border: none; margin: 0; overflow: hidden; }
+.hk-prestart .hk-float, .hk-prestart .hk-tip { display: none !important; }
+.hk-start .hk-form { gap: 10px; margin-top: 12px; }
+.hk-start-card { padding: 20px 22px; }
 .hk-start-card { width: min(520px, 100%); max-height: 100%; overflow-y: auto; padding: 22px; border-radius: 22px; background: var(--modal-bg); border: 1px solid var(--border-color); box-shadow: 0 24px 60px rgba(0,0,0,.4); }
 .hk-start-card h2 { font-size: 24px; font-weight: 900; letter-spacing: -.5px; }
 .hk-start-card p { font-size: 13px; font-weight: 600; color: var(--text-muted); line-height: 1.6; margin-top: 6px; }
@@ -417,7 +445,9 @@ body { background: var(--bg-color); color: var(--text-main); }
                         <div class="hk-float hk-zoom">
                             <button id="hk-zoom-in" title="확대">＋</button>
                             <button id="hk-zoom-out" title="축소">－</button>
-                            <button id="hk-zoom-home" title="수도로">⌂</button>
+                            <button id="hk-zoom-home" title="수도로 (C)">⌂</button>
+                            <button id="hk-yields" title="산출 보기 (Y)">🌾</button>
+                            <button id="hk-clearfeed" title="알림 지우기">🔕</button>
                         </div>
                         <div class="hk-float hk-glass hk-banner" id="hk-banner"></div>
                         <div class="hk-float hk-glass hk-panel" id="hk-panel"></div>
@@ -844,6 +874,7 @@ body { background: var(--bg-color); color: var(--text-main); }
     ];
 
     const SPEEDS = {
+        blitz:  { name: '초고속', cost: 0.33, turns: 50, neoStars: 1 },
         fast:   { name: '빠름', cost: 0.6, turns: 110 },
         normal: { name: '보통', cost: 1.0, turns: 180 }
     };
@@ -1202,7 +1233,8 @@ body { background: var(--bg-color); color: var(--text-main); }
             curio: new Array(G.n).fill(0),
             dist: {},                     // 구역: 타일 → { t: 종류, c: 도시 id }
             nextId: 1, war: [], warSince: [], peaceOffer: [], takenCultures: {},
-            cityNameIdx: 0, over: null, humanSeen: null
+            cityNameIdx: 0, over: null, humanSeen: null,
+            opts: { autoResearch: !!opts.autoResearch, autoProd: !!opts.autoProd }   // 사람 쪽 자동화 설정
         });
         const personas = shuffle(AI_PERSONAS.slice());
         for (let i = 0; i < nPlayers; i++) {
@@ -1823,7 +1855,8 @@ body { background: var(--bg-color); color: var(--text-main); }
         const c = {
             id: G.nextId++, name: nextCityName(p), owner: p.id, tile: tr.outpost, territories: [tr.id],
             pop: 1, food: 0, prod: null, queue: [], buildings: [], fort: 100, focus: 'balanced',
-            capital: false, founded: G.turn, attackedTurn: -1, unrest: 0, prodOverflow: 0
+            capital: false, founded: G.turn, attackedTurn: -1, unrest: 0, prodOverflow: 0,
+            auto: !p.ai && !!(G.opts && G.opts.autoProd)
         };
         tr.city = c.id;
         G.cities.push(c);
@@ -2228,7 +2261,7 @@ body { background: var(--bg-color); color: var(--text-main); }
                 G.spaceWinner = p.id;
             }
             p.sciBank = over;
-            if (p.ai) aiPickResearch(p);
+            if (p.ai || (G.opts && G.opts.autoResearch)) aiPickResearch(p);
             else if (p.queueResearch && p.queueResearch.length) {
                 while (p.queueResearch.length && !techAvailable(p, p.queueResearch[0])) p.queueResearch.shift();
                 if (p.queueResearch.length) setResearch(p, p.queueResearch.shift());
@@ -2316,7 +2349,7 @@ body { background: var(--bg-color); color: var(--text-main); }
             if (!p.ai) logEvent(p.id, `🌅 다음 시대로 넘어갈 수 있어요! 상단의 '시대' 버튼을 눌러 문화를 고르세요. (머무르면서 별을 더 모아도 돼요)`, 'era');
         }
     }
-    function starsNeeded(p) { return p.era === 0 ? NEOLITHIC_STARS_TO_ADVANCE : STARS_TO_ADVANCE; }
+    function starsNeeded(p) { return p.era === 0 ? (SPEEDS[G.speed].neoStars || NEOLITHIC_STARS_TO_ADVANCE) : STARS_TO_ADVANCE; }
     function canAdvanceEra(p) { return p.alive && p.era < LAST_ERA && eraStarCount(p) >= starsNeeded(p); }
     function availableCultures(p) {
         const next = p.era + 1;
@@ -2453,7 +2486,7 @@ body { background: var(--bg-color); color: var(--text-main); }
                 // 만들 게 없으면 생산력의 절반이 돈이 된다
                 money += Math.floor((y.ind + (c.prodOverflow || 0)) / 2);
                 c.prodOverflow = 0;
-                if (!p.ai) logEvent(p.id, `🏗️ ${c.name}: 생산할 것을 골라 주세요.`, 'idle', { city: c.id });
+                if (!p.ai && !c.auto) logEvent(p.id, `🏗️ ${c.name}: 생산할 것을 골라 주세요.`, 'idle', { city: c.id });
             }
             // 방어 회복
             const maxF = cityMaxFort(c);
@@ -2552,10 +2585,25 @@ body { background: var(--bg-color); color: var(--text-main); }
     }
 
     // 사람이 '턴 종료'를 누르면 호출. AI → 동물 → 경제 → 새 턴 순서.
+    // 사람 쪽 자동화: 자동 연구, '자동 생산'을 켠 도시의 생산 고르기
+    function humanAutomation() {
+        const p = G.players[0];
+        if (!p.alive || p.ai) return;
+        try {
+            if (G.opts && G.opts.autoResearch && p.era >= 1 && !p.research) aiPickResearch(p);
+            playerCities(0).forEach(c => {
+                if (!c.auto || c.prod) return;
+                const item = aiChooseProduction(p, c);
+                if (item) setProduction(c, item);
+            });
+        } catch (e) { console.error('자동화 오류', e); }
+    }
+
     function endTurn() {
         if (G.over) return;
         G.combatLog = [];
         G.players.forEach(p => { if (p.ai && p.alive) { try { aiTurn(p); } catch (e) { console.error('AI 오류', e); } } });
+        humanAutomation();
         animalsAct();
         // 도시 포격
         G.cities.forEach(c => { const r = cityBombard(c); if (r) G.combatLog.push(r); });
@@ -2577,6 +2625,7 @@ body { background: var(--bg-color); color: var(--text-main); }
             else if (u.order === 'explore') autoExplore(u);
         });
         updateExplored(G.players[0]);
+        humanAutomation();
         checkGameOver();
     }
 
@@ -2632,6 +2681,7 @@ body { background: var(--bg-color); color: var(--text-main); }
         const o = JSON.parse(str);
         if (!o || o.v !== 1) return false;
         G = o;
+        G.opts = G.opts || { autoResearch: false, autoProd: false };
         G.players.forEach(p => {
             p.explored = typeof p.explored === 'string' ? p.explored.split('').map(Number) : p.explored;
             recomputeMods(p);
@@ -2695,14 +2745,19 @@ body { background: var(--bg-color); color: var(--text-main); }
 
     function aiPickResearch(p) {
         if (p.research) return;
+        const best = techRecommendation(p, true);
+        if (best) setResearch(p, best);
+    }
+    // 연구 추천 (사람 화면의 '추천' 표시에도 쓴다. jitter=false면 난수 없이 일정한 답)
+    function techRecommendation(p, jitter) {
         const avail = Object.keys(TECHS).filter(id => techAvailable(p, id));
-        if (!avail.length) return;
+        if (!avail.length) return null;
         const atWar = G.players.some(o => o.id !== p.id && o.alive && G.war[p.id][o.id]);
         const pref = p.persona ? p.persona.pref : [];
         let best = null, bestS = -Infinity;
         avail.forEach(id => {
             const t = TECHS[id];
-            let s = -techCost(p, id) / 40 + rand() * 1.5;
+            let s = -techCost(p, id) / 40 + (jitter ? rand() * 1.5 : 0);
             techUnlocks(id).forEach(u => {
                 if (u.kind === 'unit') s += (atWar ? 3 : 1) + (pref[0] === 'militarist' ? 1.5 : 0);
                 if (u.kind === 'district') s += 2.5;
@@ -2713,7 +2768,7 @@ body { background: var(--bg-color); color: var(--text-main); }
             if (id === 'shipbuilding' && !p.ai) s -= 2;
             if (s > bestS) { bestS = s; best = id; }
         });
-        setResearch(p, best);
+        return best;
     }
 
     function aiPickCulture(p) {
@@ -2787,7 +2842,7 @@ body { background: var(--bg-color); color: var(--text-main); }
         if (enemies.length) return;
         let aggr = p.persona ? p.persona.aggr : 0.4;
         if (p.culture && CULTURE_BY_ID[p.culture].aff === 'militarist') aggr += 0.2;
-        if (G.turn < Math.round(G.maxTurns * 0.15)) return;
+        if (G.turn < Math.max(12, Math.round(G.maxTurns * 0.15))) return;
         const myCities = playerCities(p.id);
         if (!myCities.length) return;
         const myMil = playerUnits(p.id).filter(u => unitDef(u).cls !== 'recon').length;
@@ -3177,8 +3232,13 @@ body { background: var(--bg-color); color: var(--text-main); }
         hover: -1, mode: null, reach: null, pathPreview: null, pendingAttack: -1,
         floats: [], anims: [], busy: false, dirty: true, baked: null, bakeScale: 1,
         warned: { turn: -1, research: false, idle: false }, lastEv: 0, notes: [],
-        mmBase: null, started: false, visible: false, lastSave: 0
+        mmBase: null, started: false, visible: false, lastSave: 0,
+        pref: { anim: true, autoSelect: true, showYields: false, skipIdle: false }
     };
+    try { Object.assign(UI.pref, (JSON.parse(localStorage.getItem('hk_settings_v1')) || {}).pref || {}); } catch (e) { /* 무시 */ }
+    function savePref() {
+        try { const st = JSON.parse(localStorage.getItem('hk_settings_v1')) || {}; st.pref = UI.pref; localStorage.setItem('hk_settings_v1', JSON.stringify(st)); } catch (e) { /* 무시 */ }
+    }
 
     // ---------------------------------------------------------------------
     // 지형 그리기 (한 번 구워 두고 매 프레임 그대로 복사한다)
@@ -3410,6 +3470,15 @@ body { background: var(--bg-color); color: var(--text-main); }
             }
         });
 
+        // 산출 보기 (Y): 내가 아는 모든 칸의 기본 산출
+        if (UI.pref.showYields && s >= 0.55) {
+            tiles.forEach(t => {
+                if (!human.explored[t] || G.dist[t] || cityAt(t) || T(t).impass || G.terrain[t] === 'ocean') return;
+                const [x, y] = tileXY(t);
+                drawYieldPips(tileBaseYield(t), x, y + 8);
+            });
+        }
+
         // 선택한 도시가 거두는 타일
         const selCity = UI.sel && UI.sel.kind === 'city' ? cityById(UI.sel.id) : null;
         if (selCity && selCity.owner === 0) {
@@ -3418,7 +3487,7 @@ body { background: var(--bg-color); color: var(--text-main); }
                 const [x, y] = tileXY(t);
                 hexPath(ctx, x, y, R - 3);
                 ctx.strokeStyle = 'rgba(255,214,90,.85)'; ctx.lineWidth = 1.6; ctx.stroke();
-                if (s >= 0.7 && !G.dist[t] && t !== selCity.tile) drawYieldPips(tileBaseYield(t), x, y + 8);
+                if (s >= 0.7 && !G.dist[t] && t !== selCity.tile && !UI.pref.showYields) drawYieldPips(tileBaseYield(t), x, y + 8);
             });
         }
 
@@ -3833,13 +3902,14 @@ body { background: var(--bg-color); color: var(--text-main); }
         advanceAlongPath(u);
         // 지나간 길을 따라 미끄러지듯 움직인다
         const idx = full.indexOf(u.tile);
-        if (idx > 0) UI.anims.push({ id: u.id, path: full.slice(0, idx + 1), t0: performance.now(), dur: Math.min(650, 120 * idx) });
+        if (idx > 0 && UI.pref.anim) UI.anims.push({ id: u.id, path: full.slice(0, idx + 1), t0: performance.now(), dur: Math.min(650, 120 * idx) });
         afterHumanAction();
         if (u.mv <= 0 && !UI.mode) autoNext(u);
         return true;
     }
     // 이 유닛이 행동을 다 쓰면 잠시 뒤 다음 유닛을 고른다
     function autoNext(u) {
+        if (!UI.pref.autoSelect) return;
         setTimeout(() => {
             if (UI.busy || $('hk-modal').classList.contains('show')) return;
             const cur = selectedUnit();
@@ -3990,6 +4060,15 @@ body { background: var(--bg-color); color: var(--text-main); }
         const t = cap ? cap.tile : (playerUnits(0)[0] || {}).tile;
         if (t !== undefined) centerOn(t, true);
     };
+    function toggleYields() {
+        UI.pref.showYields = !UI.pref.showYields; savePref();
+        $('hk-yields').classList.toggle('on', UI.pref.showYields);
+        toast(UI.pref.showYields ? '🌾 지도에 칸별 산출을 표시해요. (Y)' : '산출 표시를 껐어요.');
+        requestDraw();
+    }
+    $('hk-yields').onclick = toggleYields;
+    $('hk-yields').classList.toggle('on', UI.pref.showYields);
+    $('hk-clearfeed').onclick = () => { $('hk-feed').innerHTML = ''; };
     $('hk-minimap-wrap').addEventListener('pointerdown', (e) => {
         const rect = mm.getBoundingClientRect();
         const wx = (e.clientX - rect.left) / rect.width * worldSize()[0], wy = (e.clientY - rect.top) / rect.height * worldSize()[1];
@@ -4120,6 +4199,11 @@ body { background: var(--bg-color); color: var(--text-main); }
         else if (k === '+' || k === '=') zoomAt(1.2, UI.vw / 2, UI.vh / 2);
         else if (k === '-') zoomAt(1 / 1.2, UI.vw / 2, UI.vh / 2);
         else if (k === 't' || k === 'T') openTech();
+        else if (k === 'y' || k === 'Y') toggleYields();
+        else if (k === 'l' || k === 'L') openCities();
+        else if (k === 'c' || k === 'C') $('hk-zoom-home').onclick();
+        else if (k === 'n' || k === 'N') { const w = unitsNeedingOrders(); if (w.length) { const cur = selectedUnit(); const nx = w[(w.indexOf(cur) + 1) % w.length]; select({ kind: 'unit', id: nx.id }); centerOn(nx.tile, true); } }
+        else if (k === 'h' || k === 'H' || k === '?') openHelp();
         else if (su && su.owner === 0) {
             if (k === 'f' || k === 'F') unitAction('sleep');
             else if (k === 'e' || k === 'E') unitAction('explore');
@@ -4139,9 +4223,9 @@ body { background: var(--bg-color); color: var(--text-main); }
         const canAdv = canAdvanceEra(p);
         let h = `<div class="hk-res hk-res-era hk-click ${canAdv ? 'hk-pulse' : ''}" data-act="stars" style="background:${aff ? aff.color : '#7c5a2c'}" title="시대 별과 문화">
                     ${ERAS[p.era].icon} ${ERAS[p.era].name} <small>${cul ? esc(cul.name) + ' · ' + aff.icon + aff.name : '부족'}</small></div>`;
-        h += `<div class="hk-res hk-click ${canAdv ? 'hk-pulse' : ''}" data-act="stars" title="시대 별: ${need}개를 모으면 다음 시대로">⭐ ${stars}<small>/${need}</small>${canAdv ? ' <small style="color:var(--hk-fame)">다음 시대!</small>' : ''}</div>`;
+        h += `<div class="hk-res hk-click ${canAdv ? 'hk-pulse' : ''}" data-act="stars" title="시대 별: ${need}개를 모으면 다음 시대로">⭐ ${stars}<small>/${need}</small><span class="hk-minibar gold"><i style="width:${Math.min(100, stars / need * 100)}%"></i></span>${canAdv ? ' <small style="color:var(--hk-fame)">다음 시대!</small>' : ''}</div>`;
         h += `<div class="hk-res hk-click" data-act="stars" title="명성: 게임이 끝날 때 가장 높은 문명이 승리">🏆 ${fmt(p.fame)}</div>`;
-        h += `<div class="hk-res" title="턴">📅 ${G.turn}<small>/${G.maxTurns}</small></div>`;
+        h += `<div class="hk-res" title="턴 (${SPEEDS[G.speed].name})">📅 ${G.turn}<small>/${G.maxTurns}</small></div>`;
         if (p.era === 0) {
             h += `<div class="hk-res" title="식량 25마다 부족이 하나 늘어나요 (최대 5)">🍖 ${p.neo.food}<small>/25</small></div>`;
         } else {
@@ -4150,10 +4234,10 @@ body { background: var(--bg-color); color: var(--text-main); }
             if (p.research) {
                 const cost = techCost(p, p.research.id), pr = p.research.progress;
                 const turns = inc.sci > 0 ? Math.max(1, Math.ceil((cost - pr) / inc.sci)) : '∞';
-                h += `<div class="hk-res hk-click" data-act="tech" title="연구 중 — 눌러서 기술 트리 열기">${TECHS[p.research.id].icon} ${TECHS[p.research.id].name} <span class="hk-minibar"><i style="width:${Math.min(100, pr / cost * 100)}%"></i></span><small>${turns}턴</small></div>`;
+                h += `<div class="hk-res hk-click" data-act="tech" title="연구 중 — 눌러서 기술 트리 열기">${TECHS[p.research.id].icon} ${TECHS[p.research.id].name} <span class="hk-minibar"><i style="width:${Math.min(100, pr / cost * 100)}%"></i></span><small>${turns}턴${G.opts && G.opts.autoResearch ? ' · 🤖' : ''}</small></div>`;
             } else {
                 const any = Object.keys(TECHS).some(id => techAvailable(p, id));
-                h += `<div class="hk-res hk-click ${any ? 'hk-pulse' : ''}" data-act="tech" title="기술 트리">🔬 ${any ? '<span style="color:var(--danger)">연구 선택!</span>' : '<small>연구할 기술 없음</small>'}</div>`;
+                h += `<div class="hk-res hk-click ${any ? 'hk-pulse' : ''}" data-act="tech" title="기술 트리">🔬 ${any ? '<span style="color:var(--danger)">연구 선택!</span>' : '<small>다음 시대에 새 기술</small>'}</div>`;
             }
             h += `<div class="hk-res" title="영향력: 전초기지·도시·합병·정책에 써요">🎭 ${fmt(p.inf)} <span class="hk-delta-pos">${signed(inc.inf)}</span></div>`;
         }
@@ -4161,13 +4245,13 @@ body { background: var(--bg-color); color: var(--text-main); }
         const wars = G.players.some(o => o.id !== 0 && o.alive && G.war[0][o.id]);
         const offers = G.players.some(o => o.id !== 0 && G.peaceOffer[o.id][0]);
         const civicReady = p.era >= 1 && CIVICS.some(c => c.era <= p.era && p.civics[c.id] === undefined) && p.inf >= civicCost(p);
+        const idle = playerCities(0).some(c => !c.prod);
+        h += `<button class="hk-iconbtn" data-act="cities" title="도시 목록 (L)">🏛️ 도시${idle ? ' <span class="hk-dot"></span>' : ''}</button>`;
         h += `<button class="hk-iconbtn" data-act="tech" title="기술 (T)">🔬 기술</button>`;
         h += `<button class="hk-iconbtn" data-act="civics" title="정책">📜 정책${civicReady ? ' <span class="hk-dot"></span>' : ''}</button>`;
         h += `<button class="hk-iconbtn" data-act="diplo" title="외교">${wars ? '⚔️' : '🤝'} 외교${offers ? ' <span class="hk-dot"></span>' : ''}</button>`;
-        h += `<button class="hk-iconbtn" data-act="log" title="기록">📋</button>`;
-        h += `<button class="hk-iconbtn" data-act="help" title="도움말">❓</button>`;
-        h += `<button class="hk-iconbtn" data-act="full" title="전체 화면">⛶</button>`;
-        h += `<button class="hk-iconbtn" data-act="menu" title="메뉴">⚙️</button>`;
+        h += `<button class="hk-iconbtn" data-act="help" title="도움말 (H)">❓</button>`;
+        h += `<button class="hk-iconbtn" data-act="menu" title="메뉴 · 설정">☰</button>`;
         $('hk-topbar').innerHTML = h;
     }
     $('hk-topbar').addEventListener('click', (e) => {
@@ -4178,6 +4262,7 @@ body { background: var(--bg-color); color: var(--text-main); }
         else if (a === 'tech') openTech();
         else if (a === 'civics') openCivics();
         else if (a === 'diplo') openDiplomacy();
+        else if (a === 'cities') openCities();
         else if (a === 'log') openLog();
         else if (a === 'help') openHelp();
         else if (a === 'menu') openMenu();
@@ -4287,7 +4372,7 @@ body { background: var(--bg-color); color: var(--text-main); }
             h += `<div class="hk-odds">${info.icon} <b>${info.name}</b> — ${turns}턴 <div class="hk-progress"><i style="width:${Math.min(100, c.prod.progress / cost * 100)}%;background:var(--hk-ind)"></i></div></div>`;
         } else h += `<div class="hk-odds" style="color:var(--danger)">❗ 생산 중인 것이 없어요</div>`;
         const bc = buyCost(p, c);
-        h += `<div class="hk-actions"><button class="hk-btn primary" data-act="openCity">🏗️ 도시 관리</button>${c.prod ? `<button class="hk-btn gold" data-act="buy" ${p.gold >= bc ? '' : 'disabled'}>💰 구매 <small>${bc}</small></button>` : ''}</div>`;
+        h += `<div class="hk-actions"><button class="hk-btn primary" data-act="openCity">🏗️ 도시 관리</button>${c.prod ? `<button class="hk-btn gold" data-act="buy" ${p.gold >= bc ? '' : 'disabled'}>💰 구매 <small>${bc}</small></button>` : ''}<button class="hk-btn ${c.auto ? 'on' : ''}" data-act="toggleAuto" title="생산이 비면 알아서 고르기">🤖 자동 ${c.auto ? '켬' : '끔'}</button></div>`;
         return h;
     }
     function tilePanelHTML(t) {
@@ -4315,6 +4400,12 @@ body { background: var(--bg-color); color: var(--text-main); }
         const a = el.dataset.act;
         if (a === 'close') { select(null); return; }
         if (a === 'openCity') { openCity(UI.sel.id); return; }
+        if (a === 'toggleAuto') {
+            const c = cityById(UI.sel.id); if (!c) return;
+            c.auto = !c.auto;
+            if (c.auto && !c.prod) { const it = aiChooseProduction(G.players[0], c); if (it) setProduction(c, it); }
+            renderAll(); scheduleSave(); return;
+        }
         if (a === 'buy') { const c = cityById(UI.sel.id); if (c && buyItem(c)) { toast('💰 구매했어요!'); afterHumanAction(); } return; }
         if (a === 'foundCity') {
             const tr = territoryOf(UI.sel.t);
@@ -4384,20 +4475,21 @@ body { background: var(--bg-color); color: var(--text-main); }
         const idle = idleCities();
         const needResearch = p.era >= 1 && !p.research && Object.keys(TECHS).some(id => techAvailable(p, id));
         let label = '턴 종료', sub = `${G.turn}턴`, wait = false;
-        if (waiting.length) { label = '다음 유닛'; sub = `명령 기다리는 유닛 ${waiting.length}`; wait = true; }
+        if (waiting.length && !UI.pref.skipIdle) { label = '다음 유닛'; sub = `명령 기다리는 유닛 ${waiting.length}`; wait = true; }
         else if (needResearch) { label = '연구 선택'; sub = '기술을 골라 주세요'; wait = true; }
         else if (idle.length) { label = '생산 선택'; sub = idle.length > 1 ? `${idle[0].name} 외 ${idle.length - 1}곳` : idle[0].name; wait = true; }
-        btn.innerHTML = `${label}<small>${esc(sub)}</small>`;
+        if (!wait && waiting.length) sub = `${G.turn}턴 · 대기 유닛 ${waiting.length}`;
+        btn.innerHTML = `${label}<small>${esc(sub)} · Enter</small>`;
         btn.className = 'hk-turnbtn' + (wait ? ' wait' : '');
         skip.style.display = wait ? '' : 'none';
-        skip.textContent = waiting.length ? '모두 건너뛰고 턴 종료' : '그냥 턴 종료';
+        skip.textContent = waiting.length && !UI.pref.skipIdle ? '모두 건너뛰고 턴 종료' : '그냥 턴 종료';
     }
     function onTurnButton() {
         if (!G || UI.busy) return;
         if (G.over) { openGameOver(); return; }
         if (UI.mode) cancelMode();
         const p = G.players[0];
-        const waiting = unitsNeedingOrders();
+        const waiting = UI.pref.skipIdle ? [] : unitsNeedingOrders();
         if (waiting.length) {
             const cur = selectedUnit();
             let idx = cur ? waiting.indexOf(cur) : -1;
@@ -4429,7 +4521,7 @@ body { background: var(--bg-color); color: var(--text-main); }
                 const from = before.get(u.id);
                 if (from === undefined || from === u.tile || u.owner === 0) return;
                 if (!isTileVisibleToHuman(u.tile) && !isTileVisibleToHuman(from)) return;
-                if (hexDist(from, u.tile) > 6) return;
+                if (hexDist(from, u.tile) > 6 || !UI.pref.anim) return;
                 UI.anims.push({ id: u.id, path: [from, u.tile], t0: now, dur: 380 });
             });
             (G.combatLog || []).forEach(r => { if (isTileVisibleToHuman(r.tile)) showCombat(r); });
@@ -4444,7 +4536,7 @@ body { background: var(--bg-color); color: var(--text-main); }
             if (G.over) { openGameOver(); return; }
             // 다음 유닛 자동 선택
             const w = unitsNeedingOrders();
-            if (w.length) select({ kind: 'unit', id: w[0].id });
+            if (w.length && UI.pref.autoSelect) select({ kind: 'unit', id: w[0].id });
             if (canAdvanceEra(G.players[0]) && G.players[0].canAdvanceSince === G.turn) openStars();
         }, 40);
     }
@@ -4555,6 +4647,7 @@ body { background: var(--bg-color); color: var(--text-main); }
         const p = G.players[0];
         const render = () => {
             const sci = projectedIncome(p).sci;
+            const reco = p.era >= 1 ? techRecommendation(p, false) : null;
             let cols = '';
             for (let e = 1; e <= LAST_ERA; e++) {
                 const locked = e > p.era;
@@ -4570,7 +4663,7 @@ body { background: var(--bg-color); color: var(--text-main); }
                     const names = techUnlocks(id).map(u => esc(u.name)).join(', ');
                     const req = t.req && !done ? `<div class="m">필요: ${t.req.map(r => TECHS[r].name).join(', ')}</div>` : '';
                     cards += `<div class="hk-card ${done ? 'done' : cur ? 'sel' : avail ? 'click' : 'locked'}" ${avail && !cur ? `data-tech="${id}"` : ''} title="${names}">
-                        <div class="t">${t.icon} ${t.name} ${done ? '✓' : ''}</div>
+                        <div class="t">${t.icon} ${t.name} ${done ? '✓' : ''}${id === reco && !cur ? '<span class="hk-reco">추천</span>' : ''}</div>
                         <div class="m">${done ? '연구 완료' : `🔬 ${fmt(cost)} · ${turns}턴`}</div>
                         ${unl ? `<div style="font-size:15px;margin-top:4px;">${unl}</div>` : ''}
                         ${names ? `<div class="m" style="font-weight:600">${names}</div>` : ''}
@@ -4580,10 +4673,29 @@ body { background: var(--bg-color); color: var(--text-main); }
                 cols += `<div class="hk-tech-col"><h4>${ERAS[e].icon} ${ERAS[e].name} ${locked ? '🔒' : ''}</h4>${cards}</div>`;
             }
             const note = p.era === 0 ? '신석기에는 연구할 수 없어요. 고대에 들어서면 열려요.' : `턴당 과학 ${sci} · 지금 시대(${ERAS[p.era].name})까지의 기술만 연구할 수 있어요.` + (p.sciBank ? ` · 모아 둔 과학 ${p.sciBank}` : '');
-            openModal(dialogHead('🔬 기술', note) + `<div class="hk-dialog-body"><div class="hk-tech-cols">${cols}</div></div>`, false, render);
+            const autoBar = p.era >= 1 ? `<div class="hk-toolrow"><label class="hk-switch"><input type="checkbox" data-autoresearch ${G.opts.autoResearch ? 'checked' : ''}><span></span> 🤖 자동 연구 <small>연구가 끝나면 추천 기술을 알아서 골라요</small></label></div>` : '';
+            openModal(dialogHead('🔬 기술', note) + `<div class="hk-dialog-body">${autoBar}<div class="hk-tech-cols">${cols}</div></div>`, false, render);
         };
         render();
     }
+    modal.addEventListener('change', (e) => {
+        if (e.target.matches('[data-autoresearch]')) {
+            G.opts.autoResearch = e.target.checked;
+            if (G.opts.autoResearch && !G.players[0].research) aiPickResearch(G.players[0]);
+            renderAll(); scheduleSave(); if (modalRender) modalRender();
+        } else if (e.target.matches('[data-autoprod]')) {
+            const c = cityById(+e.target.dataset.autoprod);
+            if (!c) return;
+            c.auto = e.target.checked;
+            if (c.auto && !c.prod) { const it = aiChooseProduction(G.players[0], c); if (it) setProduction(c, it); }
+            renderAll(); scheduleSave(); if (modalRender) modalRender();
+        } else if (e.target.matches('[data-pref]')) {
+            const k = e.target.dataset.pref;
+            if (k === 'autoProd') { G.opts.autoProd = e.target.checked; scheduleSave(); }
+            else { UI.pref[k] = e.target.checked; savePref(); if (k === 'showYields') $('hk-yields').classList.toggle('on', UI.pref.showYields); }
+            renderAll();
+        }
+    });
     modal.addEventListener('click', (e) => {
         const tc = e.target.closest('[data-tech]');
         if (tc) {
@@ -4672,6 +4784,9 @@ body { background: var(--bg-color); color: var(--text-main); }
                 prod += `<div class="hk-section-title">⏭ 대기열</div><div class="hk-queue">` + c.queue.map((q, i) => { const inf = itemInfo(q); return `<div class="hk-qitem">${inf.icon} ${inf.name} <span class="m" style="color:var(--text-muted)">${itemCost(p, c, q)}</span><button data-unqueue="${i}" title="빼기">✕</button></div>`; }).join('') + `</div>`;
             }
             const opts = buildable(p, c);
+            let reco = null;
+            try { reco = aiChooseProduction(p, c); } catch (e) { reco = null; }
+            const isReco = (o) => reco && reco.kind === o.kind && reco.id === o.id;
             const group = (kind, title) => {
                 const list = opts.filter(o => o.kind === kind);
                 if (!list.length) return '';
@@ -4679,13 +4794,17 @@ body { background: var(--bg-color); color: var(--text-main); }
                     const inf = itemInfo(o);
                     const turns = y.ind > 0 ? Math.max(1, Math.ceil(o.cost / y.ind)) : '∞';
                     return `<div class="hk-item" data-produce="${o.kind}:${o.id}" title="누르면 지금 생산 · +는 대기열">
-                        <div class="ic">${inf.icon}</div><div style="min-width:0"><div class="nm">${inf.name}</div><div class="ds">${itemDesc(o)}</div></div>
+                        <div class="ic">${inf.icon}</div><div style="min-width:0"><div class="nm">${inf.name}${isReco(o) ? '<span class="hk-reco">추천</span>' : ''}</div><div class="ds">${itemDesc(o)}</div></div>
                         <div class="cost">⚙️${o.cost}<br>${turns}턴</div><button class="add" data-queue="${o.kind}:${o.id}" title="대기열에 추가">＋</button></div>`;
                 }).join('') + `</div>`;
             };
             prod += group('district', '🏘️ 구역 (지도에서 자리를 골라요)') + group('building', '🏛️ 건물') + group('unit', '⚔️ 유닛');
             const head = dialogHead(`${c.capital ? '★ ' : ''}${esc(c.name)} <span class="hk-tag">인구 ${c.pop}</span>`, `${ERAS[p.era].name} · 영토 ${c.territories.length}개 · 구역 ${districtCount(c, false)}개`);
-            openModal(head + `<div class="hk-dialog-body"><div class="hk-city-grid"><div>${left}</div><div><div class="hk-section-title">🏗️ 생산</div>${prod}</div></div></div>`, false, render);
+            const autoRow = `<div class="hk-toolrow"><label class="hk-switch"><input type="checkbox" data-autoprod="${c.id}" ${c.auto ? 'checked' : ''}><span></span> 🤖 자동 생산 <small>생산이 비면 추천 항목을 알아서 골라요</small></label>
+                ${reco && !c.prod ? `<button class="hk-btn primary" data-recoprod>⭐ 추천대로 생산</button>` : ''}
+                <span style="flex:1"></span><button class="hk-btn" data-citynav="-1" title="이전 도시">◀</button><button class="hk-btn" data-citynav="1" title="다음 도시">▶</button></div>`;
+            UI.cityReco = reco;
+            openModal(head + `<div class="hk-dialog-body">${autoRow}<div class="hk-city-grid"><div>${left}</div><div><div class="hk-section-title">🏗️ 생산</div>${prod}</div></div></div>`, false, render);
             modal.dataset.city = c.id;
         };
         render();
@@ -4702,6 +4821,19 @@ body { background: var(--bg-color); color: var(--text-main); }
         if (e.target.closest('[data-buy]')) { if (buyItem(c)) { toast('💰 구매했어요!'); afterHumanAction(); modalRender && modalRender(); } return; }
         if (e.target.closest('[data-cancelprod]')) { c.prod = c.queue.shift() || null; modalRender(); renderAll(); return; }
         if (uq) { c.queue.splice(+uq.dataset.unqueue, 1); modalRender(); return; }
+        if (e.target.closest('[data-recoprod]') && UI.cityReco) {
+            const it = UI.cityReco;
+            if (it.kind === 'district' && it.tile === undefined) { startDistrictMode(c, it.id, true); return; }
+            produceNow(c, it); afterHumanAction(); modalRender(); return;
+        }
+        const nav = e.target.closest('[data-citynav]');
+        if (nav) {
+            const list = playerCities(0);
+            const i = list.indexOf(c);
+            const next = list[(i + (+nav.dataset.citynav) + list.length) % list.length];
+            if (next) { centerOn(next.tile, true); openCity(next.id); }
+            return;
+        }
         const target = q || pr;
         if (!target) return;
         e.stopPropagation();
@@ -4888,22 +5020,81 @@ body { background: var(--bg-color); color: var(--text-main); }
                 <li>빨간 테두리 칸의 적을 누르면 공격해요. 마우스를 올리면 예상 피해가 보여요(터치는 한 번 눌러 확인, 한 번 더 눌러 공격).</li>
                 <li>숲·언덕은 방어 +25%, 한 턴 쉬면 경계 +20%. 창병 계열은 기병에 강하고, 공성 무기는 도시에 두 배로 강해요.</li>
                 <li>도시의 방어도를 0으로 만든 뒤 근접 유닛으로 공격하면 점령해요. 성벽이 있는 도시는 다가오는 적을 쏴요.</li></ul>
-            <h3>⌨️ 단축키</h3><p><kbd>Enter</kbd>/<kbd>Space</kbd> 다음 유닛·턴 종료 · <kbd>Esc</kbd> 선택 취소 · <kbd>B</kbd> 전초기지 · <kbd>E</kbd> 자동 탐험 · <kbd>F</kbd> 경계 · <kbd>S</kbd> 넘기기 · <kbd>T</kbd> 기술 · 방향키 지도 이동 · <kbd>+</kbd>/<kbd>-</kbd> 확대 · 오른쪽 클릭 = 선택 유지한 채 이동</p>
+            <h3>⌨️ 단축키</h3><p><kbd>Enter</kbd>/<kbd>Space</kbd> 다음 유닛·턴 종료 · <kbd>Esc</kbd> 선택 취소 · <kbd>B</kbd> 전초기지 · <kbd>E</kbd> 자동 탐험 · <kbd>F</kbd> 경계 · <kbd>S</kbd> 넘기기 · <kbd>T</kbd> 기술 · <kbd>L</kbd> 도시 목록 · <kbd>N</kbd> 다음 유닛 · <kbd>C</kbd> 수도로 · <kbd>Y</kbd> 산출 보기 · <kbd>H</kbd> 도움말 · 방향키 지도 이동 · <kbd>+</kbd>/<kbd>-</kbd> 확대 · 오른쪽 클릭 = 선택 유지한 채 이동</p>
+            <h3>🤖 편하게 하기</h3><ul>
+                <li>기술 창의 <b>자동 연구</b>, 도시의 <b>🤖 자동 생산</b>을 켜면 비어 있을 때 추천 항목을 알아서 골라요. '추천' 표시는 언제든 참고용으로 보여요.</li>
+                <li>☰ 메뉴 → 설정에서 대기 유닛 무시, 다음 유닛 자동 선택, 애니메이션 등을 바꿀 수 있어요.</li>
+                <li>🏛️ 도시 목록에서 모든 도시의 생산과 성장을 한눈에 보고 바로 들어갈 수 있어요.</li></ul>
             <h3>💾 저장</h3><p>매 턴 이 브라우저에 자동 저장돼요. 다른 기기에서는 이어지지 않아요.</p></div>`;
         openModal(dialogHead('❓ 도움말', '인류 연대기 플레이 방법') + body, true);
     }
+    function openCities() {
+        const p = G.players[0];
+        const render = () => {
+            const list = playerCities(0);
+            const rows = list.map(c => {
+                const y = cityYields(c);
+                const need = growthNeeded(c, y.growthBonus);
+                const growT = y.surplus > 0 ? Math.ceil((need - c.food) / y.surplus) + '턴' : (y.surplus < 0 ? '굶주림' : '정체');
+                let prod;
+                if (c.prod) {
+                    const info = itemInfo(c.prod), cost = itemCost(p, c, c.prod);
+                    const t = y.ind > 0 ? Math.max(1, Math.ceil((cost - c.prod.progress) / y.ind)) : '∞';
+                    prod = `${info.icon} ${info.name} <small>${t}턴</small>`;
+                } else prod = '<b style="color:var(--danger)">❗ 생산 없음</b>';
+                return `<div class="hk-cityrow" data-opencity="${c.id}">
+                    <div class="nm">${c.capital ? '★ ' : ''}${esc(c.name)} <span class="hk-tag">인구 ${c.pop}</span></div>
+                    <div class="ys"><span>🌾${signed(y.surplus)}</span><span>⚙️${y.ind}</span><span>💰${y.money}</span><span>🔬${y.sci}</span><span>🎭${y.inf}</span><span title="안정도">${y.stab >= 60 ? '😄' : y.stab >= 0 ? '🙂' : '😠'}${y.stab}</span><span title="다음 인구까지">👶${growT}</span></div>
+                    <div class="pr">${prod}</div>
+                    <label class="hk-switch sm" title="자동 생산" onclick="event.stopPropagation()"><input type="checkbox" data-autoprod="${c.id}" ${c.auto ? 'checked' : ''}><span></span>🤖</label></div>`;
+            }).join('');
+            const outposts = playerTerritories(0).filter(tr => tr.city < 0 && tr.outpost >= 0);
+            const op = outposts.length ? `<div class="hk-section-title">⛺ 전초기지 ${outposts.length}곳</div><div class="hk-hint" style="margin-top:0">${outposts.map(tr => `<button class="hk-btn" data-gotile="${tr.outpost}">⛺ 보기</button>`).join(' ')} — 도시로 승격하거나 도시에 합병할 수 있어요.</div>` : '';
+            const allAuto = list.length && list.every(c => c.auto);
+            openModal(dialogHead('🏛️ 도시 목록', `도시 ${list.length} / 한도 ${cityCap(p)} · 줄을 누르면 도시 화면이 열려요`) +
+                `<div class="hk-dialog-body"><div class="hk-toolrow"><button class="hk-btn" data-allauto="${allAuto ? 0 : 1}">🤖 모든 도시 자동 생산 ${allAuto ? '끄기' : '켜기'}</button></div>${rows || '<div class="hk-hint">아직 도시가 없어요.</div>'}${op}</div>`, false, render, (e) => {
+                    const a = e.target.closest('[data-allauto]');
+                    if (a) { const on = a.dataset.allauto === '1'; list.forEach(c => { c.auto = on; if (on && !c.prod) { const it = aiChooseProduction(p, c); if (it) setProduction(c, it); } }); renderAll(); scheduleSave(); render(); return; }
+                    const g = e.target.closest('[data-gotile]');
+                    if (g) { closeModal(); centerOn(+g.dataset.gotile, true); select({ kind: 'tile', t: +g.dataset.gotile }); return; }
+                    const r = e.target.closest('[data-opencity]');
+                    if (r && !e.target.closest('.hk-switch')) { const c = cityById(+r.dataset.opencity); centerOn(c.tile, true); openCity(c.id); }
+                });
+        };
+        render();
+    }
+    function openSettings() {
+        const sw = (key, on, label, desc) => `<label class="hk-switch row"><input type="checkbox" data-pref="${key}" ${on ? 'checked' : ''}><span></span><div><b>${label}</b><small>${desc}</small></div></label>`;
+        const body = `<div class="hk-dialog-body" style="display:flex;flex-direction:column;gap:10px;">
+            <div class="hk-section-title">🤖 자동화 (이 게임)</div>
+            <label class="hk-switch row"><input type="checkbox" data-autoresearch ${G.opts.autoResearch ? 'checked' : ''}><span></span><div><b>자동 연구</b><small>연구가 끝나면 추천 기술을 알아서 골라요</small></div></label>
+            ${sw('autoProd', G.opts.autoProd, '새 도시 자동 생산', '앞으로 세우는 도시는 자동 생산이 켜진 채로 시작해요 (도시 목록에서 도시마다 바꿀 수 있어요)')}
+            <div class="hk-section-title">🖱️ 조작</div>
+            ${sw('autoSelect', UI.pref.autoSelect, '다음 유닛 자동 선택', '유닛이 행동을 다 쓰면 다음 유닛을 골라 줘요')}
+            ${sw('skipIdle', UI.pref.skipIdle, '대기 유닛 무시하고 턴 종료', '명령을 기다리는 유닛이 있어도 턴 종료 버튼이 바로 턴을 넘겨요')}
+            <div class="hk-section-title">🎨 화면</div>
+            ${sw('anim', UI.pref.anim, '이동 애니메이션', '유닛이 미끄러지듯 움직여요. 끄면 더 빨라요')}
+            ${sw('showYields', UI.pref.showYields, '지도에 산출 표시', '칸마다 🌾⚙️💰🔬 산출을 보여 줘요 (Y)')}</div>`;
+        openModal(dialogHead('⚙️ 설정') + body, true, openSettings);
+    }
     function openMenu() {
-        const body = `<div class="hk-dialog-body"><div class="hk-grid">
-            <button class="hk-btn" data-menu="new" style="justify-content:center;padding:12px;">🆕 새 게임</button>
+        const body = `<div class="hk-dialog-body"><div class="hk-grid c2">
+            <button class="hk-btn" data-menu="settings" style="justify-content:center;padding:12px;">⚙️ 설정</button>
+            <button class="hk-btn" data-menu="log" style="justify-content:center;padding:12px;">📋 기록</button>
+            <button class="hk-btn" data-menu="stars" style="justify-content:center;padding:12px;">⭐ 시대 별 · 순위</button>
             <button class="hk-btn" data-menu="help" style="justify-content:center;padding:12px;">❓ 도움말</button>
             <button class="hk-btn" data-menu="full" style="justify-content:center;padding:12px;">⛶ 전체 화면</button>
-            <button class="hk-btn" data-menu="save" style="justify-content:center;padding:12px;">💾 지금 저장</button></div>
+            <button class="hk-btn" data-menu="save" style="justify-content:center;padding:12px;">💾 지금 저장</button>
+            <button class="hk-btn" data-menu="new" style="justify-content:center;padding:12px;">🆕 새 게임</button></div>
             <div class="hk-hint">시드 ${G.seed} · ${MAP_SIZES[G.mapSize].name} 지도 · ${DIFFICULTIES[G.difficulty].name} · ${SPEEDS[G.speed].name}</div></div>`;
-        openModal(dialogHead('⚙️ 메뉴') + body, true, null, (e) => {
+        openModal(dialogHead('☰ 메뉴') + body, true, null, (e) => {
             const m = e.target.closest('[data-menu]');
             if (!m) return;
             const k = m.dataset.menu;
             if (k === 'new') { closeModal(); showStart(true); }
+            else if (k === 'settings') openSettings();
+            else if (k === 'log') openLog();
+            else if (k === 'stars') openStars();
             else if (k === 'help') openHelp();
             else if (k === 'full') { closeModal(); toggleFullscreen(); }
             else if (k === 'save') { saveGame(); closeModal(); toast('💾 저장했어요.'); }
@@ -4935,7 +5126,7 @@ body { background: var(--bg-color); color: var(--text-main); }
     // 시작 화면 · 새 게임
     // ---------------------------------------------------------------------
     function loadSettings() { try { return JSON.parse(localStorage.getItem(SETTINGS_KEY)) || {}; } catch (e) { return {}; } }
-    function saveSettings(s) { try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(s)); } catch (e) { /* 무시 */ } }
+    function saveSettings(s) { try { const old = loadSettings(); localStorage.setItem(SETTINGS_KEY, JSON.stringify(Object.assign(old, s, { pref: UI.pref }))); } catch (e) { /* 무시 */ } }
     function savedSummary() {
         try {
             const raw = localStorage.getItem(SAVE_KEY);
@@ -4949,7 +5140,7 @@ body { background: var(--bg-color); color: var(--text-main); }
     function showStart(fromMenu) {
         const st = $('hk-start');
         const sv = savedSummary();
-        const s = Object.assign({ ai: 3, mapSize: 'small', difficulty: 'normal', speed: 'fast', name: '나의 부족' }, loadSettings());
+        const s = Object.assign({ ai: 3, mapSize: 'small', difficulty: 'normal', speed: 'blitz', name: '나의 부족', helper: 0 }, loadSettings());
         const seg = (key, opts) => `<div class="hk-seg" data-seg="${key}">${opts.map(([v, l]) => `<button type="button" data-v="${v}" class="${String(s[key]) === String(v) ? 'on' : ''}">${l}</button>`).join('')}</div>`;
         let save = '';
         if (sv) {
@@ -4966,11 +5157,13 @@ body { background: var(--bg-color); color: var(--text-main); }
                 <div><label>상대 문명 수</label>${seg('ai', [[1, '1'], [2, '2'], [3, '3'], [4, '4'], [5, '5']])}</div>
                 <div><label>지도 크기</label>${seg('mapSize', [['small', '작음'], ['medium', '보통'], ['large', '큼']])}</div>
                 <div><label>난이도</label>${seg('difficulty', [['easy', '쉬움'], ['normal', '보통'], ['hard', '어려움']])}</div>
-                <div><label>게임 속도</label>${seg('speed', [['fast', `빠름 (${SPEEDS.fast.turns}턴)`], ['normal', `보통 (${SPEEDS.normal.turns}턴)`]])}</div>
+                <div><label>게임 속도</label>${seg('speed', [['blitz', `⚡ 초고속 (${SPEEDS.blitz.turns}턴)`], ['fast', `빠름 (${SPEEDS.fast.turns}턴)`], ['normal', `보통 (${SPEEDS.normal.turns}턴)`]])}</div>
+                <div><label>자동화 도우미</label>${seg('helper', [[0, '끔 (직접 다 하기)'], [1, '🤖 자동 연구 + 자동 생산']])}<div class="hk-hint" style="margin-top:4px">켜도 언제든 직접 고를 수 있어요. 초고속으로 가볍게 즐길 때 추천!</div></div>
                 <button class="hk-btn primary" id="hk-newgame" style="justify-content:center;padding:13px;font-size:15px;">🔥 새 게임 시작</button>
                 <div class="hk-hint" style="text-align:center;">혼자 하는 게임이에요. 진행 상황은 이 브라우저에 자동 저장돼요. 처음이라면 시작 후 ❓ 도움말을 꼭 보세요!</div>
             </div></div>`;
         st.classList.add('show');
+        root.classList.add('hk-prestart');
         st.querySelectorAll('[data-seg]').forEach(g => g.addEventListener('click', (e) => {
             const b = e.target.closest('button');
             if (!b) return;
@@ -4985,16 +5178,16 @@ body { background: var(--bg-color); color: var(--text-main); }
         }));
         const cont = $('hk-continue');
         if (cont) cont.onclick = () => {
-            if (fromMenu && G) { st.classList.remove('show'); return; }
-            if (loadGame()) { st.classList.remove('show'); startUI(); }
+            if (fromMenu && G) { (st.classList.remove('show'), root.classList.remove('hk-prestart')); return; }
+            if (loadGame()) { (st.classList.remove('show'), root.classList.remove('hk-prestart')); startUI(); }
             else toast('저장을 불러오지 못했어요.');
         };
         $('hk-newgame').onclick = () => {
             s.name = ($('hk-name').value || '').trim() || '나의 부족';
             if (sv && !sv.over && !confirm('진행 중인 게임이 지워져요. 새로 시작할까요?')) return;
             saveSettings(s);
-            st.classList.remove('show');
-            newGame({ ai: s.ai, mapSize: s.mapSize, difficulty: s.difficulty, speed: s.speed, name: s.name });
+            (st.classList.remove('show'), root.classList.remove('hk-prestart'));
+            newGame({ ai: s.ai, mapSize: s.mapSize, difficulty: s.difficulty, speed: s.speed, name: s.name, autoResearch: !!s.helper, autoProd: !!s.helper });
             UI.baked = null; UI.lastEv = 0; UI.sel = null; UI.mode = null;
             startUI(true);
             saveGame();
@@ -5073,7 +5266,7 @@ body { background: var(--bg-color); color: var(--text-main); }
     // 자동 테스트용 (주소에 ?hkdebug 가 있을 때만)
     if (/[?&]hkdebug/.test(location.search)) {
         window.__hk = { get G() { return G; }, endTurn, advanceEra, availableCultures, canAdvanceEra, eraStarCount, playerUnits, playerCities, cityById, unitById,
-            select, openCity, openTech, tileOnScreen, tileXY, reachable, openStars, openCulture, openCivics, openDiplomacy, openGameOver, autoExplore, buildOutpost, canOutpost, renderAll, centerOn, UI, saveGame, loadGame, doEndTurn, afterHumanAction, startDistrictMode, findPath, moveUnitTo };
+            select, openCity, openTech, openCities, openSettings, tileOnScreen, tileXY, reachable, openStars, openCulture, openCivics, openDiplomacy, openGameOver, autoExplore, buildOutpost, canOutpost, renderAll, centerOn, UI, saveGame, loadGame, doEndTurn, afterHumanAction, startDistrictMode, findPath, moveUnitTo };
     }
     // 이미 이 탭이 열려 있는 채로 로드됐다면
     if ($('tab-humankind').classList.contains('active')) onShow();
