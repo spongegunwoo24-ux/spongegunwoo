@@ -218,7 +218,7 @@ const MAP = {"W":720,"H":280,"CELL":0.5,"LAT0":84,"grid":"0.rm,3f.1,0.3,3f.3,0.2
 // ============================================================
 //  정적 데이터
 // ============================================================
-const W = MAP.W, H = MAP.H, S = 4, WW = W * S, HH = H * S;
+const W = MAP.W, H = MAP.H, PX = 4, WW = W * PX, HH = H * PX;
 const grid = new Int16Array(W * H);
 { let i = 0; for (const t of MAP.grid.split(',')) { const [a, b] = t.split('.'); const v = parseInt(a, 36) - 1, n = parseInt(b, 36); grid.fill(v, i, i + n); i += n; } }
 const TER = { p: 'plains', h: 'hills', f: 'forest', m: 'mountain', d: 'desert', t: 'tundra' };
@@ -330,7 +330,15 @@ const KIND_KO = { move: '이동', attack: '공격', naval: '해상 이동', nava
 // ============================================================
 //  로그 / 제안
 // ============================================================
-function addLog(kind, msg, p) { S.log.push({ t: S.turn, k: kind, m: msg, p: p == null ? -1 : p }); if (S.log.length > 400) S.log.splice(0, S.log.length - 400); }
+// '이(가)' 같은 조사를 앞 글자 받침에 맞춰 고른다
+const JOSA = { '이(가)': ['이', '가'], '을(를)': ['을', '를'], '과(와)': ['과', '와'], '은(는)': ['은', '는'] };
+function josa(s) {
+  return String(s).replace(/([^\s])(이\(가\)|을\(를\)|과\(와\)|은\(는\))/g, (m, ch, j) => {
+    const code = ch.charCodeAt(0), has = code >= 0xAC00 && code <= 0xD7A3 && (code - 0xAC00) % 28 !== 0;
+    return ch + JOSA[j][has ? 0 : 1];
+  });
+}
+function addLog(kind, msg, p) { msg = josa(msg); S.log.push({ t: S.turn, k: kind, m: msg, p: p == null ? -1 : p }); if (S.log.length > 400) S.log.splice(0, S.log.length - 400); }
 const involvesPlayer = (...cs) => cs.includes(S.player);
 const nm = c => c < 0 ? '중립 세력' : C[c].name;
 
@@ -758,8 +766,8 @@ function rebuildBase() {
   const sea = pack(...SEA_RGB), seaEdge = pack(...mix(SEA_RGB, [255, 255, 255], 0.18));
   for (let r = 0; r < H; r++) for (let c = 0; c < W; c++) {
     const pid = grid[r * W + c], color = pid < 0 ? sea : col[pid];
-    const y0 = r * S, x0 = c * S;
-    for (let y = 0; y < S; y++) { const row = (y0 + y) * WW + x0; for (let x = 0; x < S; x++) buf[row + x] = color; }
+    const y0 = r * PX, x0 = c * PX;
+    for (let y = 0; y < PX; y++) { const row = (y0 + y) * WW + x0; for (let x = 0; x < PX; x++) buf[row + x] = color; }
   }
   const put = (x, y, v) => { buf[y * WW + x] = v; };
   for (let r = 0; r < H; r++) for (let c = 0; c < W; c++) {
@@ -769,10 +777,10 @@ function rebuildBase() {
       if (rr >= H) continue;
       const b = grid[rr * W + cc];
       if (a === b) continue;
-      for (let k = 0; k < S; k++) {
+      for (let k = 0; k < PX; k++) {
         // a쪽 경계 픽셀
-        const ax = dir === 'R' ? c * S + S - 1 : c * S + k, ay = dir === 'R' ? r * S + k : r * S + S - 1;
-        const bx = dir === 'R' ? cc * S : cc * S + k, by = dir === 'R' ? rr * S + k : rr * S;
+        const ax = dir === 'R' ? c * PX + PX - 1 : c * PX + k, ay = dir === 'R' ? r * PX + k : r * PX + PX - 1;
+        const bx = dir === 'R' ? cc * PX : cc * PX + k, by = dir === 'R' ? rr * PX + k : rr * PX;
         if (a < 0 || b < 0) { // 해안
           if (a >= 0) put(ax, ay, dkS[a]); else put(ax, ay, seaEdge);
           if (b >= 0) put(bx, by, dkS[b]); else put(bx, by, seaEdge);
@@ -817,8 +825,8 @@ function clampCam() {
   else cam.y = Math.max(-60 / cam.z, Math.min(HH - viewH + 70 / cam.z, cam.y));
   cam.x = ((cam.x % WW) + WW) % WW;
 }
-function centerOn(p, z) { if (z) cam.z = z; cam.x = (P[p].lx + 0.5) * S - vw / 2 / cam.z; cam.y = (P[p].ly + 0.5) * S - vh / 2 / cam.z; clampCam(); dirty = true; }
-const wx = p => (P[p].lx + 0.5) * S, wy = p => (P[p].ly + 0.5) * S;
+function centerOn(p, z) { if (z) cam.z = z; cam.x = (P[p].lx + 0.5) * PX - vw / 2 / cam.z; cam.y = (P[p].ly + 0.5) * PX - vh / 2 / cam.z; clampCam(); dirty = true; }
+const wx = p => (P[p].lx + 0.5) * PX, wy = p => (P[p].ly + 0.5) * PX;
 
 function pill(x, y, text, color, opts) {
   ctx.font = `700 ${opts && opts.big ? 13 : 12}px Pretendard, system-ui, sans-serif`;
@@ -853,7 +861,7 @@ function draw() {
     for (let p = 0; p < NP; p++) {
       const sx = (wx(p) + k * WW - cam.x) * z, sy = (wy(p) - cam.y) * z;
       if (sx < -60 || sx > vw + 60 || sy < -30 || sy > vh + 30) continue;
-      const size = Math.sqrt(P[p].cells) * S * z;
+      const size = Math.sqrt(P[p].cells) * PX * z;
       const o = S ? S.prov[p].o : P[p].owner0;
       const cap = S ? isCapitalProv(p) : P[p].cap0;
       if (cap && size > 10) { ctx.font = `${Math.min(16, 9 + z * 2)}px system-ui`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillStyle = '#ffd34d'; ctx.strokeStyle = 'rgba(0,0,0,.6)'; ctx.lineWidth = 3; ctx.strokeText('★', sx, sy - 16); ctx.fillText('★', sx, sy - 16); }
@@ -954,7 +962,7 @@ canvas.addEventListener('wheel', e => {
 }, { passive: false });
 function provAt(x, y) {
   const wxp = cam.x + x / cam.z, wyp = cam.y + y / cam.z;
-  const c = Math.floor((((wxp % WW) + WW) % WW) / S), r = Math.floor(wyp / S);
+  const c = Math.floor((((wxp % WW) + WW) % WW) / PX), r = Math.floor(wyp / PX);
   if (r < 0 || r >= H) return -1;
   let p = grid[r * W + c];
   if (p >= 0) return p;
@@ -971,7 +979,7 @@ function provAt(x, y) {
 // ============================================================
 const $ = id => document.getElementById(id);
 let uiMode = null; // {type:'move', from}
-function toast(msg) { const t = $('toast'); t.textContent = msg; t.style.opacity = 1; clearTimeout(toast._t); toast._t = setTimeout(() => t.style.opacity = 0, 2600); }
+function toast(msg) { const t = $('toast'); t.textContent = josa(msg); t.style.opacity = 1; clearTimeout(toast._t); toast._t = setTimeout(() => t.style.opacity = 0, 2600); }
 function esc(s) { return String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
 function civBadge(c) { return c < 0 ? `<span class="sw" style="background:#9ea3a8"></span>중립 지역` : `<span class="sw" style="background:${C[c].color}"></span><span class="flag">${flagOf(C[c].tag)}</span>${esc(C[c].name)}`; }
 
@@ -979,7 +987,18 @@ function tapAt(x, y) {
   const p = provAt(x, y);
   if (!S) { if (p >= 0 && P[p].owner0 >= 0) pickStart(P[p].owner0); return; }
   if (uiMode && uiMode.type === 'move') {
-    if (p >= 0 && targets.has(p)) { const from = uiMode.from, kind = targets.get(p); cancelMode(); askMove(from, p, kind); return; }
+    if (p >= 0 && targets.has(p)) {
+      const from = uiMode.from, kind = targets.get(p), foe = needWar.get(p);
+      cancelMode();
+      if (foe != null) askWarThenAttack(from, p, kind, foe); else askMove(from, p, kind);
+      return;
+    }
+    if (p >= 0 && S.prov[p].o >= 0 && S.prov[p].o !== S.player) {
+      const why = warBlock(S.player, S.prov[p].o);
+      if (why) { toast(why); return; }
+      const from = uiMode.from;
+      if (!P[from].adj.includes(p)) { toast(P[from].coastal && P[from].sea.includes(p) ? '바다를 건너려면 출발 지역에 항구(⚓)가 있어야 한다.' : '붙어 있는 지역으로만 갈 수 있다.'); return; }
+    }
     cancelMode();
   }
   select(p);
@@ -1039,11 +1058,25 @@ function renderPanel() {
   if ($('aDip')) $('aDip').onclick = () => openDiplomacy(o);
 }
 
+// 선전포고가 가능한 상대인가 (안 되면 이유 문자열)
+function warBlock(a, b) {
+  if (b < 0 || a === b || atWar(a, b)) return '';
+  if (allied(a, b)) return `${C[b].name}과(와)는 동맹이라 공격할 수 없다. 외교에서 동맹을 먼저 파기하자.`;
+  if (pactLeft(a, b)) return `${C[b].name}과(와)는 불가침 조약 중이다. (${pactLeft(a, b)}턴 남음)`;
+  if (civ(b).vassalOf === a || civ(a).vassalOf === b) return '종속 관계인 나라는 공격할 수 없다.';
+  return '';
+}
+let needWar = new Map();
 function startMove(p) {
-  const ew = pendingWarTargets();
-  targets = new Map();
-  for (const t of [...P[p].adj, ...((S.prov[p].b & 4) ? P[p].sea : [])]) { const k = moveKind(S.player, p, t, ew); if (k) targets.set(t, k); }
-  if (!targets.size) { toast('갈 수 있는 곳이 없다. (전쟁 중이 아닌 나라는 공격할 수 없음)'); targets = new Map(); return; }
+  const pl = S.player, ew = pendingWarTargets();
+  targets = new Map(); needWar = new Map();
+  for (const t of [...P[p].adj, ...((S.prov[p].b & 4) ? P[p].sea : [])]) {
+    const k = moveKind(pl, p, t, ew);
+    if (k) { targets.set(t, k); continue; }
+    const o = S.prov[t].o;
+    if (o >= 0 && o !== pl && !warBlock(pl, o)) { const k2 = moveKind(pl, p, t, [...ew, o]); if (k2) { targets.set(t, k2); needWar.set(t, o); } }
+  }
+  if (!targets.size) { toast('갈 수 있는 곳이 없다.'); targets = new Map(); return; }
   uiMode = { type: 'move', from: p };
   $('modeHintText').textContent = `${P[p].name}: 목적지를 고르세요 (노랑=이동, 빨강=공격)`;
   $('modeHint').classList.remove('hidden');
@@ -1053,7 +1086,7 @@ function startMove(p) {
 $('modeCancel').onclick = () => { cancelMode(); renderPanel(); };
 
 // ----- 모달 -----
-function openModal(html) { $('modalBox').innerHTML = html; $('modal').classList.remove('hidden'); }
+function openModal(html) { $('modalBox').innerHTML = josa(html); $('modal').classList.remove('hidden'); }
 function closeModal() { $('modal').classList.add('hidden'); }
 $('modal').addEventListener('pointerdown', e => { if (e.target.id === 'modal' && !$('modal').dataset.lock) closeModal(); });
 
@@ -1075,6 +1108,15 @@ function amountModal({ title, sub, max, init, step, info, ok }, cb) {
 function addOrder(o) { S.orders.push(o); afterChange(); }
 function afterChange() { renderTop(); renderPanel(); renderDrawer(); dirty = true; save(); }
 
+function askWarThenAttack(from, to, kind, foe) {
+  const need = COST.dip + COST[kind];
+  if (mpLeft() < need) { toast(`MP가 부족하다 (선전포고 ${COST.dip} + 공격 ${COST[kind]})`); return; }
+  openModal(`<h2>⚔ 선전포고</h2><div class="sub" style="margin-bottom:6px">${civBadge(foe)}</div>
+    <p>${esc(C[foe].name)}과(와)는 아직 전쟁 중이 아니다. 선전포고하고 ${esc(P[to].name)}을(를) 공격할까?<br>상대의 동맹국도 함께 참전할 수 있다. (MP ${need})</p>
+    <div class="btns"><button id="wNo">취소</button><button class="ok" id="wYes">선전포고 후 공격</button></div>`);
+  $('wNo').onclick = closeModal;
+  $('wYes').onclick = () => { closeModal(); addOrder({ civ: S.player, type: 'dip', act: 'war', target: foe, gold: 0, mp: COST.dip }); askMove(from, to, kind); };
+}
 function askMove(from, to, kind) {
   const av = availableArmy(from), cost = COST[kind];
   if (mpLeft() < cost) { toast(`MP가 부족하다 (필요 ${cost})`); return; }
