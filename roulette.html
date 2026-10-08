@@ -60,8 +60,6 @@ header { text-align: center; }
 }
 .subtitle { color: var(--muted); font-size: 13px; font-weight: 700; letter-spacing: 2px; margin-top: 4px; }
 
-.top { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 24px; align-items: center; margin-top: 14px; }
-@media (max-width: 860px) { .top { grid-template-columns: 1fr; gap: 16px; } }
 
 /* ---------- 휠 + 전구 링 ---------- */
 .wheel-zone { position: relative; width: 100%; max-width: 520px; margin: 0 auto; aspect-ratio: 1 / 1; }
@@ -165,7 +163,6 @@ header { text-align: center; }
 }
 .tool:hover:not(:disabled) { border-color: var(--gold); background: rgba(245,197,66,.1); }
 .tool:disabled { opacity: .4; cursor: not-allowed; }
-.hint { margin-top: 10px; font-size: 12px; font-weight: 700; color: var(--muted); text-align: center; line-height: 1.6; }
 .refill {
     display: none; width: 100%; margin-top: 10px; padding: 12px; border-radius: 12px; border: 2px dashed var(--gold);
     background: rgba(245,197,66,.12); color: var(--gold); font: 900 14px 'Noto Sans KR', sans-serif; cursor: pointer;
@@ -173,10 +170,7 @@ header { text-align: center; }
 .refill.show { display: block; animation: pulseUp 1.6s infinite; }
 
 /* ---------- 베팅 테이블 ---------- */
-.table-panel { margin-top: 20px; }
-.felt-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; padding-bottom: 4px; }
 .felt {
-    min-width: 600px;
     background: radial-gradient(ellipse at 50% 0%, #138a59, var(--felt) 60%, #064028);
     border: 4px solid #c9a34a; border-radius: 16px; padding: 12px;
     box-shadow: inset 0 0 26px rgba(0,0,0,.5), 0 0 0 2px #6b4a12;
@@ -318,8 +312,63 @@ footer { text-align: center; margin-top: 26px; font-size: 12px; color: var(--mut
     .chip { width: 46px; height: 46px; font-size: 12px; } .chip::before { inset: 7px; }
     .panel > .tools { grid-template-columns: 1fr 1fr; }
     .panel h2 small { display: none; }
-    .felt { min-width: 540px; }
     .spot { font-size: 12px; }
+}
+
+/* ===== 한눈에 보이는 레이아웃 ===== */
+.app { max-width: 1320px; padding: 14px 16px 18px; }
+.game { display: grid; grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.25fr); gap: 22px; align-items: center; min-height: calc(100vh - 60px); }
+.left { display: flex; flex-direction: column; align-items: center; gap: 6px; }
+.left header { text-align: center; }
+.left .title { font-size: clamp(28px, 3.6vw, 46px); }
+.wheel-zone { width: min(100%, calc(100vh - 150px), 560px); }
+.right { display: flex; flex-direction: column; gap: 12px; padding: 16px; }
+.wallet { display: grid; grid-template-columns: 1fr 1fr auto; gap: 10px; margin: 0; }
+.icon-btn {
+    width: 54px; border-radius: 14px; border: 1px solid rgba(245,197,66,.4); background: rgba(0,0,0,.35);
+    color: var(--gold); font-size: 22px; cursor: pointer; transition: transform .3s, background .15s;
+}
+.icon-btn:hover { background: rgba(245,197,66,.12); transform: rotate(60deg); }
+.felt { min-width: 0; padding: 10px; }
+.board { grid-template-rows: repeat(3, minmax(40px, 5.2vh)) minmax(34px, 4.4vh) minmax(34px, 4.4vh); }
+.paytable { margin: 0; gap: 4px 14px; }
+.paytable .dim { color: rgba(201,185,138,.7); font-weight: 600; }
+.controls { display: grid; grid-template-columns: auto 1fr; gap: 14px; align-items: center; }
+.controls .chips { margin: 0; gap: 6px; justify-content: flex-start; }
+.controls .chip-pick { flex: 0 0 auto; }
+.controls .tools { margin: 0; grid-template-columns: 1fr 1fr; gap: 6px; }
+.controls .tool { padding: 8px 4px; }
+.chip { width: 50px; height: 50px; }
+.refill { margin: 0; }
+.spin-btn { padding: 12px; font-size: 26px; }
+footer { margin-top: 8px; font-size: 11px; }
+/* 넓은 바깥 칸은 칩을 오른쪽 끝에 놓아 글자가 가려지지 않게 */
+.spot.out:not(.col) .stack { left: auto; right: 4px; margin-left: 0; }
+
+@media (max-width: 1100px) {
+    .controls { grid-template-columns: 1fr; }
+    .controls .chips { justify-content: space-between; }
+    .controls .tools { grid-template-columns: repeat(4, 1fr); }
+}
+@media (max-width: 860px) {
+    .game { grid-template-columns: 1fr; min-height: 0; gap: 12px; }
+    .wheel-zone { width: min(100%, 40vh, 420px); }
+    .board { grid-template-rows: repeat(3, 38px) 32px 32px; }
+}
+@media (max-width: 520px) {
+    .app { padding: 10px 10px 16px; }
+    .right { padding: 10px; gap: 10px; border-radius: 16px; }
+    .felt { padding: 6px; border-width: 3px; }
+    .board { gap: 2px; grid-template-rows: repeat(3, 34px) 30px 30px; }
+    .spot { font-size: 11px; border-radius: 4px; }
+    .spot.out { font-size: 10px; }
+    .spot.green { font-size: 14px; }
+    .stack { width: 24px; height: 24px; margin: -12px 0 0 -12px; font-size: 8px; }
+    .chip { width: 44px; height: 44px; font-size: 11px; } .chip::before { inset: 6px; }
+    .controls .tools { grid-template-columns: 1fr 1fr; }
+    .wbox { padding: 8px 10px; }
+    .icon-btn { width: 46px; }
+    .paytable { font-size: 11px; }
 }
 </style>
 </head>
@@ -371,53 +420,47 @@ footer { text-align: center; margin-top: 26px; font-size: 12px; color: var(--mut
 </div>
 
 <div class="app" id="app">
-    <header>
-        <div class="title">ROYAL ROULETTE</div>
-        <div class="subtitle">♠ EUROPEAN · 0 – 36 ♦</div>
-    </header>
-
-    <div class="top">
-        <div class="wheel-zone" id="wheelZone">
-            <div class="bulbs" id="bulbs"></div>
-            <canvas id="wheel"></canvas>
-            <div class="result-pop" id="resultPop"><div class="num" id="resultNum">0</div><div class="lbl" id="resultLbl">GREEN</div></div>
+    <div class="game">
+        <div class="left">
+            <header>
+                <div class="title">ROYAL ROULETTE</div>
+                <div class="subtitle">♠ EUROPEAN · 0 – 36 ♦</div>
+            </header>
+            <div class="wheel-zone" id="wheelZone">
+                <div class="bulbs" id="bulbs"></div>
+                <canvas id="wheel"></canvas>
+                <div class="result-pop" id="resultPop"><div class="num" id="resultNum">0</div><div class="lbl" id="resultLbl">GREEN</div></div>
+            </div>
         </div>
 
-        <div class="panel">
+        <div class="panel right">
             <div class="wallet">
                 <div class="wbox" id="balBox"><div class="k">💰 내 칩</div><div class="v" id="balance">1,000</div></div>
                 <div class="wbox"><div class="k">🎲 이번 베팅</div><div class="v bet" id="totalBet">0</div></div>
+                <button class="icon-btn" id="settingsBtn" title="설정 · 기록">⚙</button>
             </div>
-            <button class="spin-btn" id="spinBtn">SPIN<span class="sub" id="spinSub">칩을 걸고 돌리세요</span></button>
-            <div class="chips" id="chips"></div>
-            <div class="tools">
-                <button class="tool" id="undoBtn">↩ 되돌리기</button>
-                <button class="tool" id="clearBtn">🧹 전부 취소</button>
-                <button class="tool" id="doubleBtn">✖2 두 배</button>
-                <button class="tool" id="rebetBtn">🔁 다시 걸기</button>
+
+            <div class="felt"><div class="board" id="board"></div></div>
+            <div class="paytable">
+                <span>숫자 <b>×35</b></span>
+                <span>12구간 · 세로줄 <b>×2.8</b></span>
+                <span>색 · 홀짝 · 반반 <b>×0.9</b></span>
+                <span class="dim">당첨 시 건 칩도 돌려받음 · 클릭=걸기 · 우클릭/길게=빼기</span>
+            </div>
+
+            <div class="controls">
+                <div class="chips" id="chips"></div>
+                <div class="tools">
+                    <button class="tool" id="undoBtn">↩ 되돌리기</button>
+                    <button class="tool" id="clearBtn">🧹 전부 취소</button>
+                    <button class="tool" id="doubleBtn">✖2 두 배</button>
+                    <button class="tool" id="rebetBtn">🔁 다시 걸기</button>
+                </div>
             </div>
             <button class="refill" id="refillBtn">🎁 칩이 다 떨어졌어요 — 1,000칩 받기</button>
-            <div class="hint">
-                테이블 클릭 = 베팅 (여러 곳·같은 곳 계속 가능)<br>
-                오른쪽 클릭 / 길게 누르기 = 칩 빼기
-            </div>
-            <button class="tool" id="settingsBtn" style="width:100%; margin-top:10px;">⚙ 설정 · 기록 보기</button>
+            <button class="spin-btn" id="spinBtn">SPIN<span class="sub" id="spinSub">칩을 걸고 돌리세요</span></button>
         </div>
     </div>
-
-    <div class="panel table-panel">
-        <h2>♣ TABLE <small>칩 위치에 마우스를 올리면 해당 숫자가 표시돼요</small></h2>
-        <div class="felt-scroll">
-            <div class="felt"><div class="board" id="board"></div></div>
-        </div>
-        <div class="paytable">
-            <span>숫자 하나 <b>35배</b></span>
-            <span>1st/2nd/3rd 12 · 2 to 1 <b>2배</b></span>
-            <span>빨강/검정 · 홀/짝 · 1-18/19-36 <b>1배</b></span>
-            <span>(당첨 시 건 칩도 돌려받아요 · 0은 숫자 베팅만 당첨)</span>
-        </div>
-    </div>
-
     <footer>재미로만 즐기는 가상 칩 게임이에요 · 실제 돈은 오가지 않습니다</footer>
 </div>
 
@@ -440,18 +483,18 @@ footer { text-align: center; margin-top: 26px; font-size: 12px; color: var(--mut
     const BETS = {};
     for (let n = 0; n <= 36; n++) BETS['n' + n] = { label: n + '번', mult: 35, covers: (x) => x === n };
     Object.assign(BETS, {
-        red:   { label: '빨강',     mult: 1, covers: (x) => colorOf(x) === 'red' },
-        black: { label: '검정',     mult: 1, covers: (x) => colorOf(x) === 'black' },
-        odd:   { label: '홀',       mult: 1, covers: (x) => x > 0 && x % 2 === 1 },
-        even:  { label: '짝',       mult: 1, covers: (x) => x > 0 && x % 2 === 0 },
-        low:   { label: '1-18',     mult: 1, covers: (x) => x >= 1 && x <= 18 },
-        high:  { label: '19-36',    mult: 1, covers: (x) => x >= 19 },
-        d1:    { label: '1st 12',   mult: 2, covers: (x) => x >= 1 && x <= 12 },
-        d2:    { label: '2nd 12',   mult: 2, covers: (x) => x >= 13 && x <= 24 },
-        d3:    { label: '3rd 12',   mult: 2, covers: (x) => x >= 25 },
-        c1:    { label: '1열 2to1', mult: 2, covers: (x) => x > 0 && x % 3 === 1 },
-        c2:    { label: '2열 2to1', mult: 2, covers: (x) => x > 0 && x % 3 === 2 },
-        c3:    { label: '3열 2to1', mult: 2, covers: (x) => x > 0 && x % 3 === 0 }
+        red:   { label: '빨강',     mult: 0.9, covers: (x) => colorOf(x) === 'red' },
+        black: { label: '검정',     mult: 0.9, covers: (x) => colorOf(x) === 'black' },
+        odd:   { label: '홀',       mult: 0.9, covers: (x) => x > 0 && x % 2 === 1 },
+        even:  { label: '짝',       mult: 0.9, covers: (x) => x > 0 && x % 2 === 0 },
+        low:   { label: '1-18',     mult: 0.9, covers: (x) => x >= 1 && x <= 18 },
+        high:  { label: '19-36',    mult: 0.9, covers: (x) => x >= 19 },
+        d1:    { label: '1st 12',   mult: 2.8, covers: (x) => x >= 1 && x <= 12 },
+        d2:    { label: '2nd 12',   mult: 2.8, covers: (x) => x >= 13 && x <= 24 },
+        d3:    { label: '3rd 12',   mult: 2.8, covers: (x) => x >= 25 },
+        c1:    { label: '1열 2to1', mult: 2.8, covers: (x) => x > 0 && x % 3 === 1 },
+        c2:    { label: '2열 2to1', mult: 2.8, covers: (x) => x > 0 && x % 3 === 2 },
+        c3:    { label: '3열 2to1', mult: 2.8, covers: (x) => x > 0 && x % 3 === 0 }
     });
 
     const CHIP_VALUES = [1, 5, 25, 100, 500, 1000];
@@ -755,7 +798,7 @@ footer { text-align: center; margin-top: 26px; font-size: 12px; color: var(--mut
         for (const k in state.bets) {
             const b = BETS[k];
             if (b.covers(n)) {
-                payout += state.bets[k] * (b.mult + 1);
+                payout += state.bets[k] + Math.round(state.bets[k] * b.mult);
                 wonKeys.push(k);
                 if (b.mult === 35) straightHit = true;
             }
@@ -919,7 +962,7 @@ footer { text-align: center; margin-top: 26px; font-size: 12px; color: var(--mut
                 const n = col * 3 + (3 - row);
                 add('n' + n, String(n), colorOf(n), col + 2, row + 1);
             }
-            add('c' + (3 - row), '2 to 1', 'out', 14, row + 1);
+            add('c' + (3 - row), '×2.8', 'out col', 14, row + 1);
         }
         add('d1', '1st 12', 'out', 2, 4, 4);
         add('d2', '2nd 12', 'out', 6, 4, 4);
