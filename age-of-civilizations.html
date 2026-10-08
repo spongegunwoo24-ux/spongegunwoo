@@ -108,6 +108,7 @@ input { font: inherit; }
 .slider { display: flex; align-items: center; gap: 10px; margin: 14px 0 6px; }
 .slider input[type=range] { flex: 1; accent-color: var(--accent); }
 .slider input[type=number] { width: 110px; padding: 7px; border-radius: 8px; border: 1px solid var(--line); background: rgba(255,255,255,.06); color: var(--text); text-align: right; }
+.srcs { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0 2px; }
 .quick { display: flex; gap: 6px; margin-bottom: 10px; }
 .quick button { flex: 1; padding: 6px; border-radius: 7px; background: rgba(255,255,255,.07); font-size: 12px; }
 .btns { display: flex; gap: 8px; margin-top: 14px; }
@@ -1002,6 +1003,24 @@ function tapAt(x, y) {
     cancelMode();
   }
   select(p);
+  if (p >= 0 && !uiMode) {
+    const o = S.prov[p].o;
+    if (o !== S.player && (o === -1 || atWar(S.player, o) || pendingWarTargets().includes(o))) {
+      const srcs = attackSources(p);
+      if (srcs.length) askMove(srcs[0].p, p, srcs[0].k, srcs);
+      else toast('이 지역과 붙어 있는 내 병력이 없다. (바다 건너면 항구가 필요)');
+    }
+  }
+}
+// 내 지역 중 to를 공격할 수 있는 곳 (병력 많은 순)
+function attackSources(to, extra) {
+  const ew = [...pendingWarTargets(), ...(extra || [])], r = [];
+  for (let p = 0; p < NP; p++) {
+    if (S.prov[p].o !== S.player || availableArmy(p) <= 0) continue;
+    const k = moveKind(S.player, p, to, ew);
+    if (k === 'attack' || k === 'navalAttack') r.push({ p, k });
+  }
+  return r.sort((a, b) => (a.k === b.k ? 0 : a.k === 'attack' ? -1 : 1) || availableArmy(b.p) - availableArmy(a.p));
 }
 function select(p) {
   selected = p; targets = new Map(); rebuildHighlight(); dirty = true;
@@ -1044,10 +1063,17 @@ function renderPanel() {
       <button class="act" id="aBuild" ${mp < 2 ? 'disabled' : ''}>🏗 건설 <small>MP2</small></button>
     </div>`;
     if (reserved(p) > 0) html += `<div class="hint">이번 턴 명령에 ${fmtN(reserved(p))}명이 배정됨</div>`;
-  } else if (o >= 0) {
-    html += `<div class="actions"><button class="act primary" id="aDip">🏛 ${esc(C[o].name)}와 외교</button></div>`;
   } else {
-    html += `<div class="hint">어느 나라에도 속하지 않은 중립 지역. 선전포고 없이 바로 공격해 점령할 수 있다.</div>`;
+    const warNow = o === -1 || atWar(pl, o) || pendingWarTargets().includes(o);
+    const block = o >= 0 && !warNow ? warBlock(pl, o) : '';
+    const srcs = block ? [] : attackSources(p, o >= 0 ? [o] : []);
+    html += `<div class="actions">
+      <button class="act danger" id="aAtk" ${srcs.length ? '' : 'disabled'}>⚔ ${warNow ? '공격' : '선전포고 후 공격'}</button>
+      ${o >= 0 ? `<button class="act" id="aDip">🏛 외교</button>` : ''}
+    </div>`;
+    if (block) html += `<div class="hint">${esc(block)}</div>`;
+    else if (!srcs.length) html += `<div class="hint">이 지역과 붙어 있는 내 병력이 없다. 바다 건너 공격하려면 해안 지역에 항구가 필요하다.</div>`;
+    else if (o === -1) html += `<div class="hint">중립 지역은 선전포고 없이 바로 공격할 수 있다.</div>`;
   }
   el.innerHTML = html; el.classList.remove('hidden');
   $('pClose').onclick = () => select(-1);
@@ -1056,6 +1082,12 @@ function renderPanel() {
   if ($('aDisband')) $('aDisband').onclick = () => askDisband(p);
   if ($('aBuild')) $('aBuild').onclick = () => askBuild(p);
   if ($('aDip')) $('aDip').onclick = () => openDiplomacy(o);
+  if ($('aAtk')) $('aAtk').onclick = () => {
+    const warNow = o === -1 || atWar(pl, o) || pendingWarTargets().includes(o);
+    const srcs = attackSources(p, o >= 0 ? [o] : []);
+    if (!srcs.length) return;
+    if (warNow) askMove(srcs[0].p, p, srcs[0].k, srcs); else askWarThenAttack(srcs[0].p, p, srcs[0].k, o);
+  };
 }
 
 // 선전포고가 가능한 상대인가 (안 되면 이유 문자열)
@@ -1090,9 +1122,9 @@ function openModal(html) { $('modalBox').innerHTML = josa(html); $('modal').clas
 function closeModal() { $('modal').classList.add('hidden'); }
 $('modal').addEventListener('pointerdown', e => { if (e.target.id === 'modal' && !$('modal').dataset.lock) closeModal(); });
 
-function amountModal({ title, sub, max, init, step, info, ok }, cb) {
+function amountModal({ title, sub, max, init, step, info, ok, extra, bind }, cb) {
   step = step || 100;
-  openModal(`<h2>${title}</h2><p>${sub || ''}</p>
+  openModal(`<h2>${title}</h2><p>${sub || ''}</p>${extra || ''}
     <div class="slider"><input type="range" id="amR" min="0" max="${max}" step="${step}" value="${init}"><input type="number" id="amN" min="0" max="${max}" step="${step}" value="${init}"></div>
     <div class="quick"><button data-f=".25">25%</button><button data-f=".5">50%</button><button data-f=".75">75%</button><button data-f="1">전부</button></div>
     <div id="amInfo" class="hint"></div>
@@ -1100,8 +1132,11 @@ function amountModal({ title, sub, max, init, step, info, ok }, cb) {
   const r = $('amR'), n = $('amN');
   const upd = v => { v = Math.max(0, Math.min(max, Math.round(+v || 0))); r.value = v; n.value = v; $('amInfo').innerHTML = info ? info(v) : ''; $('amOk').disabled = v <= 0; };
   r.oninput = () => upd(r.value); n.oninput = () => upd(n.value);
+  n.onkeydown = e => { if (e.key === 'Enter') $('amOk').click(); };
   document.querySelectorAll('.quick button').forEach(b => b.onclick = () => upd(Math.floor(max * +b.dataset.f / step) * step || max));
   $('amCancel').onclick = closeModal;
+  if (bind) bind();
+  setTimeout(() => { try { n.focus(); n.select(); } catch (e) {} }, 30);
   $('amOk').onclick = () => { const v = +n.value; closeModal(); if (v > 0) cb(v); };
   upd(init);
 }
@@ -1115,9 +1150,9 @@ function askWarThenAttack(from, to, kind, foe) {
     <p>${esc(C[foe].name)}과(와)는 아직 전쟁 중이 아니다. 선전포고하고 ${esc(P[to].name)}을(를) 공격할까?<br>상대의 동맹국도 함께 참전할 수 있다. (MP ${need})</p>
     <div class="btns"><button id="wNo">취소</button><button class="ok" id="wYes">선전포고 후 공격</button></div>`);
   $('wNo').onclick = closeModal;
-  $('wYes').onclick = () => { closeModal(); addOrder({ civ: S.player, type: 'dip', act: 'war', target: foe, gold: 0, mp: COST.dip }); askMove(from, to, kind); };
+  $('wYes').onclick = () => { closeModal(); addOrder({ civ: S.player, type: 'dip', act: 'war', target: foe, gold: 0, mp: COST.dip }); const srcs = attackSources(to); askMove(from, to, kind, srcs.length ? srcs : null); };
 }
-function askMove(from, to, kind) {
+function askMove(from, to, kind, alts) {
   const av = availableArmy(from), cost = COST[kind];
   if (mpLeft() < cost) { toast(`MP가 부족하다 (필요 ${cost})`); return; }
   const tgt = S.prov[to], vis = visible(to);
@@ -1128,6 +1163,8 @@ function askMove(from, to, kind) {
     max: av, init: av, step: 1,
     info: v => isAtk && vis ? `예상: 공격력 ${fmt(v * (kind === 'navalAttack' ? 0.8 : 1))} vs 방어력 ${fmt(defPower(to))} → ${v * (kind === 'navalAttack' ? 0.8 : 1) > defPower(to) * 1.15 ? '<b class="pos">유리</b>' : v * (kind === 'navalAttack' ? 0.8 : 1) > defPower(to) * 0.85 ? '<b style="color:var(--warn)">팽팽</b>' : '<b class="neg">불리</b>'}` : `MP ${cost} 사용`,
     ok: isAtk ? '공격 명령' : '이동 명령',
+    extra: alts && alts.length > 1 ? `<div class="lbl" style="margin-top:4px">출발 지역</div><div class="srcs">${alts.map((a, i) => `<button class="chip ${a.p === from ? 'on' : ''}" data-src="${i}">${esc(P[a.p].name)} · ${fmt(availableArmy(a.p))}${a.k === 'navalAttack' ? ' ⚓' : ''}</button>`).join('')}</div>` : '',
+    bind: () => document.querySelectorAll('[data-src]').forEach(b => b.onclick = () => { const a = alts[+b.dataset.src]; askMove(a.p, to, a.k, alts); }),
   }, v => addOrder({ civ: S.player, type: 'move', from, to, amt: v, mp: cost, kind }));
 }
 function askRecruit(p) {
@@ -1201,6 +1238,7 @@ function openDiplomacy(t) {
     let gold = 0;
     if (act === 'annex') { gold = annexCost(t); X.gold -= gold; }
     addOrder({ civ: pl, type: 'dip', act, target: t, gold, mp: cost });
+    if (act === 'war') { closeModal(); toast(`⚔ ${C[t].name}에 선전포고! 공격할 지역을 누르면 병력을 보낼 수 있다.`); return; }
     openDiplomacy(t);
   });
 }
