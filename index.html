@@ -1665,8 +1665,12 @@
 .pw-stat-value.pw-ok { color: #16a34a; }
 
 /* --- 캔버스 무대 --- */
+/* 판이 200×200 정사각형이라 무대도 정사각형으로 둔다.
+   가로로만 넓으면 좌우에 쓸모없는 여백만 생기고 정작 판은 작게 보인다. */
 .pw-stage {
-    position: relative; width: 100%; height: min(60vh, 540px); min-height: 280px;
+    /* min-height 는 두지 않는다. 폭이 좁을 때 그게 aspect-ratio 를 이겨서 판이 세로로 찌그러진다. */
+    position: relative; width: 100%; max-width: min(100%, 76vh); aspect-ratio: 1 / 1;
+    margin: 0 auto;
     background: var(--surface-tertiary); border: 1px solid var(--border-color);
     border-radius: 16px; overflow: hidden; touch-action: none; cursor: crosshair; user-select: none;
 }
@@ -1678,14 +1682,17 @@
     padding: 5px 9px; font-size: 11px; font-weight: 800; color: var(--text-secondary);
     pointer-events: none; box-shadow: 0 2px 8px rgba(15,23,42,.08);
 }
-.pw-stage-tools { position: absolute; right: 10px; top: 10px; display: flex; flex-direction: column; gap: 6px; }
-.pw-tool-btn {
-    width: 34px; height: 34px; border-radius: 10px; border: 1px solid var(--border-color);
-    background: var(--card-bg); color: var(--text-main); font-size: 15px; font-weight: 800;
-    display: flex; align-items: center; justify-content: center; cursor: pointer;
-    box-shadow: 0 2px 8px rgba(15,23,42,.08);
+
+/* --- 관리자 시작 배너 (게임이 안 돌고 있을 때만 맨 위에 뜬다) --- */
+.pw-admin-banner {
+    margin-bottom: 0 !important; border-color: var(--primary) !important;
+    background: var(--primary-soft);
+    display: flex; align-items: center; justify-content: space-between; gap: 14px; flex-wrap: wrap;
 }
-.pw-tool-btn:hover { background: var(--hover-bg); }
+.pw-banner-title { font-size: 15px; font-weight: 900; color: var(--text-main); }
+.pw-banner-sub { font-size: 12px; font-weight: 600; color: var(--text-secondary); margin-top: 3px; }
+.pw-admin-banner .auth-btn { width: auto; padding: 13px 34px; margin-top: 0; font-size: 15px; flex: 0 0 auto; }
+@media (max-width: 520px) { .pw-admin-banner .auth-btn { width: 100%; } }
 
 /* --- 팔레트 --- */
 .pw-palette { display: flex; flex-wrap: wrap; gap: 6px; }
@@ -1733,7 +1740,6 @@
 .pw-toast.show { opacity: 1; transform: translateX(-50%) translateY(-8px); }
 
 @media (max-width: 560px) {
-    .pw-stage { height: min(52vh, 420px); }
     .pw-swatch { width: 34px; height: 34px; }
 }
 
@@ -2656,18 +2662,23 @@
                         </div>
                     </div>
 
+                    <!-- 관리자 전용: 게임이 안 돌고 있을 때만 맨 위에 크게 뜬다 -->
+                    <div class="card pw-admin-banner" id="pw-admin-banner" style="display:none;">
+                        <div>
+                            <div class="pw-banner-title" id="pw-banner-title">아직 시작 전이에요</div>
+                            <div class="pw-banner-sub" id="pw-banner-sub">시작을 눌러야 반 친구들이 칠할 수 있어요.</div>
+                        </div>
+                        <button class="auth-btn" id="pw-banner-start">▶ 시작</button>
+                    </div>
+
                     <div class="card" style="margin-bottom: 0;">
                         <div class="pw-stage" id="pw-stage">
                             <canvas id="pw-canvas"></canvas>
                             <div class="pw-stage-hud" id="pw-stage-hud">선택된 칸 없음</div>
-                            <div class="pw-stage-tools">
-                                <button class="pw-tool-btn" id="pw-zoom-in" title="확대">＋</button>
-                                <button class="pw-tool-btn" id="pw-zoom-out" title="축소">－</button>
-                                <button class="pw-tool-btn" id="pw-zoom-fit" title="전체 보기">⤢</button>
-                            </div>
                         </div>
                         <p class="pw-hint" style="margin-top:10px;">
-                            드래그로 이동 · 휠/손가락 두 개로 확대 · 칸을 누르면 선택됩니다. (방향키로 한 칸씩 이동, Enter로 칠하기)
+                            칸을 누르면 선택 · 드래그로 이동 · 휠이나 손가락 두 개로 확대 · 빈 곳을 두 번 누르면 전체 보기
+                            <br>(방향키로 한 칸씩 이동, Enter로 칠하기)
                         </p>
                     </div>
 
@@ -14250,7 +14261,7 @@
         let scale = 2, panX = 0, panY = 0, fitted = false, rafPending = false;
 
         function stageSize() { return { w: stage.clientWidth || 1, h: stage.clientHeight || 1 }; }
-        function fitScale() { const { w, h } = stageSize(); return Math.min(w / SIZE, h / SIZE) * 0.94; }
+        function fitScale() { const { w, h } = stageSize(); return Math.min(w / SIZE, h / SIZE) * 0.99; }
         function minScale() { return Math.max(fitScale() * 0.6, 0.2); }
 
         function fitView() {
@@ -14345,9 +14356,6 @@
         }
 
         stage.addEventListener('pointerdown', (e) => {
-            // 확대/축소 버튼 위에서 시작한 입력까지 캔버스가 가로채면 안 된다.
-            // (setPointerCapture 를 걸어버리면 그 버튼의 click 이벤트 자체가 사라진다)
-            if (e.target && e.target.closest && e.target.closest('.pw-stage-tools')) return;
             stage.setPointerCapture(e.pointerId);
             pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
             if (pointers.size === 1) { dragMoved = false; lastPan = { x: e.clientX, y: e.clientY }; }
@@ -14403,9 +14411,9 @@
             zoomAt(e.clientX - r.left, e.clientY - r.top, Math.exp(-e.deltaY * 0.0015));
         }, { passive: false });
 
-        $('pw-zoom-in').onclick = () => { const { w, h } = stageSize(); zoomAt(w / 2, h / 2, 1.5); };
-        $('pw-zoom-out').onclick = () => { const { w, h } = stageSize(); zoomAt(w / 2, h / 2, 1 / 1.5); };
-        $('pw-zoom-fit').onclick = () => fitView();
+        // 확대/축소 버튼은 두지 않는다 - 휠/핀치로 충분하고, 버튼이 판을 가린다.
+        // 많이 확대해서 길을 잃었을 때 돌아올 방법만 더블클릭으로 남겨둔다.
+        stage.addEventListener('dblclick', (e) => { e.preventDefault(); fitView(); });
 
         // 방향키로 한 칸씩 이동, Enter로 칠하기 (정밀 작업용)
         document.addEventListener('keydown', (e) => {
@@ -14460,6 +14468,7 @@
 
         function renderStatus() {
             const st = gameEnded() ? 'ended' : cfg.status;
+            renderAdminBanner(st);
             const sEl = $('pw-status-text');
             sEl.textContent = STATUS_LABEL[st] || '준비 중';
             sEl.className = 'pw-stat-value' + (st === 'running' ? ' pw-ok' : (st === 'ended' ? ' pw-warn' : ''));
@@ -14469,6 +14478,23 @@
             $('pw-filled-text').textContent = filledCount.toLocaleString() + ' / ' + TOTAL.toLocaleString();
         }
 
+        // 관리자에게만, 그리고 게임이 안 돌고 있을 때만 보여준다
+        function renderAdminBanner(st) {
+            const el = $('pw-admin-banner');
+            if (!el) return;
+            const show = isPwAdmin && st !== 'running';
+            el.style.display = show ? 'flex' : 'none';
+            if (!show) return;
+            const IDLE = ['아직 시작 전이에요', '시작을 눌러야 반 친구들이 칠할 수 있어요.', '▶ 시작'];
+            const T = {
+                idle:   IDLE,
+                paused: ['일시정지 중이에요', '다시 시작하면 이어서 칠할 수 있어요.', '▶ 다시 시작'],
+                ended:  ['게임이 끝났어요', '다시 시작하면 지금 그림 위에 이어서 칠합니다.', '▶ 다시 시작']
+            }[st] || IDLE;
+            $('pw-banner-title').textContent = T[0];
+            $('pw-banner-sub').textContent = T[1];
+            $('pw-banner-start').textContent = T[2];
+        }
         function renderSelection() {
             $('pw-stage-hud').textContent = selX < 0 ? '선택된 칸 없음' : ('(' + selX + ', ' + selY + ')');
             renderPlaceButton();
@@ -14610,6 +14636,7 @@
 
         // ===== 관리자 =====
         function wireAdmin() {
+            $('pw-banner-start').onclick = () => $('pw-admin-start').click();
             $('pw-admin-start').onclick = async () => {
                 const cd = Math.max(0, Math.min(3600, parseInt($('pw-admin-cooldown').value, 10) || 0));
                 const mins = Math.max(0, parseInt($('pw-admin-duration').value, 10) || 0);
