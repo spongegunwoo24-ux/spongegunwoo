@@ -241,6 +241,9 @@ const RECRUIT_COST = 0.04;      // 병사 1명당 금
 const RECRUIT_RATE = 0.005;     // 한 턴에 인구의 0.5%까지 모집
 const UPKEEP = 1 / 1000;        // 병사 1000명당 1금
 const PACT_TURNS = 10;
+const AUTO_RATE = 0.0004;       // 자동 증원: 매 턴 지역 인구의 0.04%
+const AUTO_COST = 0.01;         // 자동 증원 병사 1명당 금 (직접 모집의 1/4)
+const AUTO_BUDGET = 0.4;        // 자동 증원에 국고의 최대 40%까지 사용
 const CAP_LOST_LIMIT = 3;
 
 // ============================================================
@@ -292,6 +295,13 @@ function statsOf(c) {
   if (civ(c).vassalOf >= 0) tribute = Math.max(0, income * 0.25);
   for (const v of vassalsOf(c)) { let inc = 0; for (let i = 0; i < NP; i++) if (S.prov[i].o === v) inc += S.prov[i].pop / 1e6 * P[i].econ * 4; tribute -= inc * 0.25; }
   return { provs, pop, army: armyN, income: Math.round(income), upkeep: Math.round(upkeep), tribute: Math.round(tribute), net: Math.round(income - upkeep - tribute) };
+}
+// 이번 턴 자동 증원 예상치: full=최대 인원, scale=국고로 감당 가능한 비율
+function autoGrowth(c, goldNow) {
+  let full = 0; for (let i = 0; i < NP; i++) if (S.prov[i].o === c) full += S.prov[i].pop * AUTO_RATE;
+  const gold = Math.max(0, goldNow == null ? civ(c).gold : goldNow);
+  const scale = full > 0 ? Math.min(1, gold * AUTO_BUDGET / (full * AUTO_COST)) : 0;
+  return { full: Math.round(full), scale, men: Math.round(full * scale), cost: Math.round(full * scale * AUTO_COST) };
 }
 function powerOf(c) { let s = 0; for (let i = 0; i < NP; i++) if (S.prov[i].o === c) s += S.prov[i].a; return s; }
 function maxMp(c) { const n = provsOf(c).length; return Math.min(30, 6 + Math.ceil(n * 1.5)); }
@@ -664,6 +674,13 @@ function endTurn() {
     const X = civ(c); if (!X.alive) continue;
     const st = statsOf(c);
     X.gold += st.net;
+    // 자동 증원: 가만히 있어도 각 지역 병력이 늘어난다. 국고에서 비용을 낸다.
+    const ag = autoGrowth(c);
+    if (ag.full > 0) {
+      for (const p of provsOf(c)) S.prov[p].a += Math.round(S.prov[p].pop * AUTO_RATE * ag.scale);
+      X.gold -= ag.cost;
+      if (c === pl && ag.scale < 1) addLog('info', `🪖 국고가 부족해 자동 증원이 ${Math.round(ag.scale * 100)}%만 이뤄졌다. (+${fmt(ag.men)})`);
+    }
     if (X.gold < 0) {
       for (const p of provsOf(c)) S.prov[p].a = Math.floor(S.prov[p].a * 0.9);
       if (c === pl) addLog('bad', '💸 국고가 바닥나 병력의 10%가 탈영했다.');
@@ -1264,7 +1281,7 @@ function renderTop() {
   $('top').innerHTML = `<span class="civchip">${civBadge(pl)}</span>
     <span class="stat">💰 ${fmtN(X.gold)} <small class="${st.net >= 0 ? 'pos' : 'neg'}">${st.net >= 0 ? '+' : ''}${fmtN(st.net)}</small></span>
     <span class="stat">👥 ${fmt(st.pop)}</span>
-    <span class="stat">⚔ ${fmt(st.army)}</span>
+    <span class="stat" title="매 턴 자동 증원 (국고에서 비용 지불)">⚔ ${fmt(st.army)} <small class="pos">+${fmt(autoGrowth(pl, X.gold + st.net).men)}/턴</small></span>
     <span class="stat">🗺 ${st.provs}</span>
     <span class="stat"><small>턴</small> ${S.turn}</span>
     ${X.capLost ? `<span class="stat neg">⚠ 수도 상실 ${X.capLost}/${CAP_LOST_LIMIT}</span>` : ''}
@@ -1381,6 +1398,7 @@ function rulesModal() {
     <h4>전투</h4><ul><li>공격 병력 vs 수비 병력 × (1 + 지형 + 요새 50% + 수도 25%), 약간의 운.</li><li>이기면 그 지역을 점령한다. 상륙 공격은 공격력 -20%.</li><li>중립 지역은 선전포고 없이 공격할 수 있다.</li></ul>
     <h4>수도</h4><ul><li>수도를 빼앗기고 ${CAP_LOST_LIMIT}턴 안에 되찾지 못하면 그 나라는 멸망하고, 남은 영토는 전부 수도를 가진 나라에 넘어간다.</li></ul>
     <h4>건물</h4><ul><li>🏰 요새: 방어 +50%</li><li>👁 감시탑: 주변 2칸의 병력이 보인다</li><li>⚓ 항구: 바다 건너 가까운 해안 지역으로 이동·상륙할 수 있다</li></ul>
+    <h4>자동 증원</h4><ul><li>가만히 있어도 매 턴 각 지역에 인구의 0.04%만큼 병력이 늘어난다.</li><li>비용은 1000명당 10금이고 국고에서 자동으로 빠진다. 국고의 40%까지만 쓰므로, 돈이 부족하면 그만큼 덜 늘어난다.</li></ul>
     <h4>경제</h4><ul><li>수입 = 인구 × 경제력. 병력 1000명당 매 턴 1금 유지비.</li><li>국고가 바닥나면 병력 10%가 탈영한다.</li></ul>
     <h4>외교</h4><ul><li>선전포고 · 평화 · 불가침(${PACT_TURNS}턴) · 동맹 · 동맹 파기 · 자금 지원 · 종속 요구 · 합병</li><li>공격받은 나라의 동맹국과 종속국은 자동으로 참전한다.</li><li>종속국은 수입의 25%를 종주국에 바치고, 5턴 뒤 합병할 수 있다.</li></ul>
     <h4>승리</h4><ul><li>다른 모든 나라를 멸망시키거나 종속국으로 만들면 승리.</li></ul>
