@@ -236,7 +236,7 @@ const flagOf = tag => tag && tag.length === 2 ? String.fromCodePoint(...[...tag]
 
 // 규칙 수치
 const COST = { move: 1, attack: 2, naval: 2, navalAttack: 3, recruit: 1, disband: 1, build: 2, dip: 1, dipBig: 2 };
-const BUILD = { 1: { key: 'fort', name: '요새', icon: '🏰', cost: 400, desc: '방어력 +50%' }, 2: { key: 'tower', name: '감시탑', icon: '👁', cost: 150, desc: '주변 2칸 병력 보임' }, 4: { key: 'port', name: '항구', icon: '⚓', cost: 250, desc: '바다 건너 해안으로 이동' } };
+const BUILD = { 1: { key: 'fort', name: '요새', icon: '🏰', cost: 400, desc: '방어력 +50%' }, 2: { key: 'tower', name: '감시탑', icon: '👁', cost: 150, desc: '주변 2칸 병력 보임' }, 4: { key: 'port', name: '항구', icon: '⚓', cost: 250, desc: '여기서 바다 건너 보내면 MP -1' } };
 const RECRUIT_COST = 0.04;      // 병사 1명당 금
 const RECRUIT_RATE = 0.005;     // 한 턴에 인구의 0.5%까지 모집
 const UPKEEP = 1 / 1000;        // 병사 1000명당 1금
@@ -343,10 +343,27 @@ function relationOf(a, b) {
 const REL_KO = { self: '우리나라', neutral: '중립 지역', war: '전쟁 중', vassal: '종속국', overlord: '종주국', ally: '동맹', pact: '불가침', peace: '평화' };
 
 // 이동 종류 판정: from의 소유자 c가 to로 갈 수 있는가
+// 거리 (정적 지도라 한 번 계산해서 저장): land = 육지로만, all = 바다 포함
+const distCache = { land: new Map(), all: new Map() };
+function distFrom(from, withSea) {
+  const m = withSea ? distCache.all : distCache.land;
+  if (m.has(from)) return m.get(from);
+  const d = new Int16Array(NP).fill(-1), q = [from]; d[from] = 0;
+  for (let k = 0; k < q.length; k++) { const x = q[k]; for (const y of withSea ? [...P[x].adj, ...P[x].sea] : P[x].adj) if (d[y] < 0) { d[y] = d[x] + 1; q.push(y); } }
+  m.set(from, d); return d;
+}
+// 플레이어 이동 MP: 기본 비용 + 2칸 멀어질 때마다 +1
+function moveCost(from, to, kind) { const d = distFrom(from, true)[to]; const port = (kind === 'naval' || kind === 'navalAttack') && (S.prov[from].b & 4) ? 1 : 0; return COST[kind] - port + Math.max(0, Math.floor((Math.max(1, d) - 1) / 2)); }
 function moveKind(c, from, to, extraWar) {
   if (S.prov[from].o !== c || from === to) return null;
   const isWar = d => d === -1 || atWar(c, d) || (extraWar && extraWar.includes(d));
   const o = S.prov[to].o;
+  if (c === S.player) { // 플레이어는 거리 제한 없이 어디든 보낼 수 있다
+    const byLand = distFrom(from, false)[to] >= 0;
+    if (o === c) return byLand ? 'move' : 'naval';
+    if (isWar(o)) return byLand ? 'attack' : 'navalAttack';
+    return null;
+  }
   if (P[from].adj.includes(to)) {
     if (o === c) return 'move';
     if (isWar(o)) return 'attack';
@@ -1071,8 +1088,6 @@ function tapAt(x, y) {
     if (p >= 0 && S.prov[p].o >= 0 && S.prov[p].o !== S.player) {
       const why = warBlock(S.player, S.prov[p].o);
       if (why) { toast(why); return; }
-      const from = uiMode.from;
-      if (!P[from].adj.includes(p)) { toast(P[from].coastal && P[from].sea.includes(p) ? '바다를 건너려면 출발 지역에 항구(⚓)가 있어야 한다.' : '붙어 있는 지역으로만 갈 수 있다.'); return; }
     }
     cancelMode();
   }
@@ -1082,7 +1097,7 @@ function tapAt(x, y) {
     if (o !== S.player && (o === -1 || atWar(S.player, o) || pendingWarTargets().includes(o))) {
       const srcs = attackSources(p);
       if (srcs.length) askMove(srcs[0].p, p, srcs[0].k, srcs);
-      else toast('이 지역과 붙어 있는 내 병력이 없다. (바다 건너면 항구가 필요)');
+      else toast('보낼 수 있는 병력이 없다.');
     }
   }
 }
@@ -1094,7 +1109,8 @@ function attackSources(to, extra) {
     const k = moveKind(S.player, p, to, ew);
     if (k === 'attack' || k === 'navalAttack') r.push({ p, k });
   }
-  return r.sort((a, b) => (a.k === b.k ? 0 : a.k === 'attack' ? -1 : 1) || availableArmy(b.p) - availableArmy(a.p));
+  const d = distFrom(to, true);
+  return r.sort((a, b) => d[a.p] - d[b.p] || availableArmy(b.p) - availableArmy(a.p));
 }
 function select(p) {
   selected = p; targets = new Map(); rebuildHighlight(); dirty = true;
@@ -1146,7 +1162,7 @@ function renderPanel() {
       ${o >= 0 ? `<button class="act" id="aDip">🏛 외교</button>` : ''}
     </div>`;
     if (block) html += `<div class="hint">${esc(block)}</div>`;
-    else if (!srcs.length) html += `<div class="hint">이 지역과 붙어 있는 내 병력이 없다. 바다 건너 공격하려면 해안 지역에 항구가 필요하다.</div>`;
+    else if (!srcs.length) html += `<div class="hint">보낼 수 있는 병력이 없다.</div>`;
     else if (o === -1) html += `<div class="hint">중립 지역은 선전포고 없이 바로 공격할 수 있다.</div>`;
   }
   el.innerHTML = html; el.classList.remove('hidden');
@@ -1176,7 +1192,7 @@ let needWar = new Map();
 function startMove(p) {
   const pl = S.player, ew = pendingWarTargets();
   targets = new Map(); needWar = new Map();
-  for (const t of [...P[p].adj, ...((S.prov[p].b & 4) ? P[p].sea : [])]) {
+  for (let t = 0; t < NP; t++) {
     const k = moveKind(pl, p, t, ew);
     if (k) { targets.set(t, k); continue; }
     const o = S.prov[t].o;
@@ -1218,8 +1234,8 @@ function addOrder(o) { S.orders.push(o); afterChange(); }
 function afterChange() { renderTop(); renderPanel(); renderDrawer(); dirty = true; save(); }
 
 function askWarThenAttack(from, to, kind, foe) {
-  const need = COST.dip + COST[kind];
-  if (mpLeft() < need) { toast(`MP가 부족하다 (선전포고 ${COST.dip} + 공격 ${COST[kind]})`); return; }
+  const need = COST.dip + moveCost(from, to, kind);
+  if (mpLeft() < need) { toast(`MP가 부족하다 (선전포고 ${COST.dip} + 공격 ${moveCost(from, to, kind)})`); return; }
   openModal(`<h2>⚔ 선전포고</h2><div class="sub" style="margin-bottom:6px">${civBadge(foe)}</div>
     <p>${esc(C[foe].name)}과(와)는 아직 전쟁 중이 아니다. 선전포고하고 ${esc(P[to].name)}을(를) 공격할까?<br>상대의 동맹국도 함께 참전할 수 있다. (MP ${need})</p>
     <div class="btns"><button id="wNo">취소</button><button class="ok" id="wYes">선전포고 후 공격</button></div>`);
@@ -1227,7 +1243,7 @@ function askWarThenAttack(from, to, kind, foe) {
   $('wYes').onclick = () => { closeModal(); addOrder({ civ: S.player, type: 'dip', act: 'war', target: foe, gold: 0, mp: COST.dip }); const srcs = attackSources(to); askMove(from, to, kind, srcs.length ? srcs : null); };
 }
 function askMove(from, to, kind, alts) {
-  const av = availableArmy(from), cost = COST[kind];
+  const av = availableArmy(from), cost = moveCost(from, to, kind);
   if (mpLeft() < cost) { toast(`MP가 부족하다 (필요 ${cost})`); return; }
   const tgt = S.prov[to], vis = visible(to);
   const isAtk = kind === 'attack' || kind === 'navalAttack';
@@ -1451,10 +1467,10 @@ $('menuBtn').onclick = () => {
 function rulesModal() {
   openModal(`<h2>📖 규칙</h2><div class="rules">
     <h4>기본</h4><ul><li>세계는 150개 지역(province)으로 나뉜다. 지도 위 숫자가 곧 군대다.</li><li>명령을 예약하고 [턴 종료]를 누르면 모든 나라가 한꺼번에 움직인다.</li><li>매 턴 MP(행동 포인트) 안에서만 명령할 수 있다. 영토가 넓을수록 MP가 많다.</li></ul>
-    <h4>명령</h4><ul><li>이동 MP1 / 공격 MP2 / 해상 이동 MP2 / 상륙 공격 MP3</li><li>모집 MP1: 인구를 병력으로 바꾼다. 1000명당 40금. 다음 턴에 합류.</li><li>해산 MP1 / 건설 MP2 / 외교 MP1~2</li></ul>
+    <h4>명령</h4><ul><li>이동 MP1 / 공격 MP2 / 바다 건너 이동 MP2 / 상륙 공격 MP3. 어디든 보낼 수 있고, 2칸 멀어질 때마다 MP +1</li><li>모집 MP1: 인구를 병력으로 바꾼다. 1000명당 40금. 다음 턴에 합류.</li><li>해산 MP1 / 건설 MP2 / 외교 MP1~2</li></ul>
     <h4>전투</h4><ul><li>공격 병력 vs 수비 병력 × (1 + 지형 + 요새 50% + 수도 25%), 약간의 운.</li><li>이기면 그 지역을 점령한다. 상륙 공격은 공격력 -20%.</li><li>중립 지역은 선전포고 없이 공격할 수 있다.</li></ul>
     <h4>수도</h4><ul><li>수도를 빼앗기고 ${CAP_LOST_LIMIT}턴 안에 되찾지 못하면 그 나라는 멸망하고, 남은 영토는 전부 수도를 가진 나라에 넘어간다.</li></ul>
-    <h4>건물</h4><ul><li>🏰 요새: 방어 +50%</li><li>👁 감시탑: 주변 2칸의 병력이 보인다</li><li>⚓ 항구: 바다 건너 가까운 해안 지역으로 이동·상륙할 수 있다</li></ul>
+    <h4>건물</h4><ul><li>🏰 요새: 방어 +50%</li><li>👁 감시탑: 주변 2칸의 병력이 보인다</li><li>⚓ 항구: 이 지역에서 바다 건너 병력을 보내면 MP -1</li></ul>
     <h4>강대국과 약소국</h4><ul>
       <li>군 전투력: 경제력이 높은 나라일수록 병사가 강하다. 고소득국 ×1.55, 중소득국 ×1.2, 저소득국 ×1.0</li>
       <li>본토 방어: 원래 우리 땅을 지킬 때 방어 +30%</li>
