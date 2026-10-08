@@ -1,0 +1,1372 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Age of Civilizations</title>
+<link rel="icon" href="./logo.png" type="image/png">
+<style>
+@import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css');
+:root {
+  --bg: #0f1a2b;
+  --sea: #1e3a5f;
+  --panel: rgba(16, 24, 38, 0.94);
+  --panel-solid: #121b2b;
+  --line: rgba(255, 255, 255, 0.10);
+  --text: #e9eef6;
+  --muted: #93a1b8;
+  --accent: #f2b33d;
+  --accent-ink: #1b1405;
+  --good: #4cc27a;
+  --bad: #ef5a5a;
+  --info: #5aa9ef;
+  --warn: #f2c94c;
+  --radius: 12px;
+}
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+html, body { margin: 0; height: 100%; overflow: hidden; background: var(--bg); color: var(--text);
+  font-family: Pretendard, -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif; font-size: 14px; }
+button { font: inherit; color: inherit; cursor: pointer; border: 0; background: none; }
+button:disabled { opacity: .4; cursor: not-allowed; }
+input { font: inherit; }
+#map { position: fixed; inset: 0; width: 100%; height: 100%; touch-action: none; display: block; cursor: grab; }
+#map.dragging { cursor: grabbing; }
+.hidden { display: none !important; }
+
+/* 상단 바 */
+#top { position: fixed; top: 0; left: 0; right: 0; display: flex; align-items: center; gap: 6px; padding: 8px 12px;
+  background: linear-gradient(180deg, rgba(10,16,28,.95), rgba(10,16,28,.80)); border-bottom: 1px solid var(--line);
+  overflow-x: auto; white-space: nowrap; scrollbar-width: none; z-index: 5; }
+#top::-webkit-scrollbar { display: none; }
+.civchip { display: inline-flex; align-items: center; gap: 8px; font-weight: 700; font-size: 15px; padding-right: 8px; }
+.sw { width: 14px; height: 14px; border-radius: 4px; display: inline-block; flex: none; box-shadow: inset 0 0 0 1px rgba(0,0,0,.35); }
+.flag { font-size: 18px; line-height: 1; }
+.stat { display: inline-flex; align-items: center; gap: 4px; padding: 4px 9px; border-radius: 999px; background: rgba(255,255,255,.06); font-variant-numeric: tabular-nums; }
+.stat small { color: var(--muted); font-size: 12px; }
+.pos { color: var(--good); } .neg { color: var(--bad); }
+
+/* 하단 바 */
+#bar { position: fixed; left: 0; right: 0; bottom: 0; display: flex; align-items: center; gap: 8px; padding: 8px 12px calc(8px + env(safe-area-inset-bottom));
+  background: linear-gradient(0deg, rgba(10,16,28,.96), rgba(10,16,28,.82)); border-top: 1px solid var(--line); z-index: 5; }
+.modes { display: flex; gap: 4px; overflow-x: auto; scrollbar-width: none; flex: 1; min-width: 0; }
+.modes::-webkit-scrollbar { display: none; }
+.chip { padding: 7px 11px; border-radius: 999px; background: rgba(255,255,255,.07); white-space: nowrap; font-size: 13px; }
+.chip.on { background: var(--text); color: #111; font-weight: 700; }
+.iconbtn { padding: 8px 11px; border-radius: 10px; background: rgba(255,255,255,.08); white-space: nowrap; position: relative; }
+.iconbtn .badge { position: absolute; top: -4px; right: -4px; background: var(--accent); color: var(--accent-ink); font-size: 11px; font-weight: 800; border-radius: 999px; padding: 1px 6px; }
+#endBtn { padding: 10px 18px; border-radius: 10px; background: var(--accent); color: var(--accent-ink); font-weight: 800; white-space: nowrap; }
+.mp { font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.mp small { color: var(--muted); font-weight: 500; }
+
+/* province 패널 */
+#panel { position: fixed; left: 12px; bottom: 70px; width: 340px; max-width: calc(100% - 24px); background: var(--panel); border: 1px solid var(--line);
+  border-radius: var(--radius); padding: 14px; z-index: 6; box-shadow: 0 10px 30px rgba(0,0,0,.4); backdrop-filter: blur(6px); }
+#panel h3 { margin: 0 0 2px; font-size: 17px; display: flex; align-items: center; gap: 6px; }
+#panel .sub { color: var(--muted); font-size: 13px; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+#panel .close { position: absolute; top: 8px; right: 10px; color: var(--muted); font-size: 18px; padding: 4px 8px; }
+.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin: 10px 0; }
+.kv { background: rgba(255,255,255,.05); border-radius: 8px; padding: 7px 9px; }
+.kv b { display: block; font-size: 15px; font-variant-numeric: tabular-nums; }
+.kv span { color: var(--muted); font-size: 12px; }
+.actions { display: flex; flex-wrap: wrap; gap: 6px; }
+.act { flex: 1 1 auto; padding: 9px 10px; border-radius: 9px; background: rgba(255,255,255,.09); font-weight: 600; font-size: 13px; }
+.act.primary { background: var(--accent); color: var(--accent-ink); }
+.act.danger { background: rgba(239,90,90,.18); color: #ffb3b3; }
+.act small { opacity: .7; font-weight: 500; }
+.tag { font-size: 11px; padding: 2px 7px; border-radius: 999px; background: rgba(255,255,255,.1); }
+.tag.war { background: rgba(239,90,90,.25); color: #ffb3b3; }
+.tag.ally { background: rgba(76,194,122,.25); color: #b5f0cb; }
+.tag.pact { background: rgba(242,201,76,.22); color: #f7e3a2; }
+.tag.vassal { background: rgba(90,169,239,.25); color: #bfe0ff; }
+.hint { margin-top: 8px; color: var(--muted); font-size: 12px; }
+
+/* 서랍 */
+#drawer { position: fixed; top: 52px; right: 12px; bottom: 70px; width: 340px; max-width: calc(100% - 24px); background: var(--panel); border: 1px solid var(--line);
+  border-radius: var(--radius); z-index: 7; display: flex; flex-direction: column; box-shadow: 0 10px 30px rgba(0,0,0,.4); }
+.tabs { display: flex; gap: 4px; padding: 8px; border-bottom: 1px solid var(--line); }
+.tabs button { flex: 1; padding: 8px; border-radius: 8px; font-weight: 600; color: var(--muted); }
+.tabs button.on { background: rgba(255,255,255,.1); color: var(--text); }
+.tabs .x { flex: none; }
+.dbody { overflow-y: auto; padding: 8px 10px 12px; flex: 1; }
+.row { display: flex; align-items: center; gap: 8px; padding: 8px; border-radius: 8px; }
+.row:hover { background: rgba(255,255,255,.05); }
+.row .grow { flex: 1; min-width: 0; }
+.row .grow div { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.row .meta { color: var(--muted); font-size: 12px; }
+.log { font-size: 13px; padding: 6px 8px; border-left: 3px solid transparent; border-radius: 4px; cursor: default; }
+.log.click { cursor: pointer; }
+.log.click:hover { background: rgba(255,255,255,.05); }
+.log .t { color: var(--muted); font-size: 11px; margin-right: 4px; }
+.log.war { border-color: var(--bad); } .log.good { border-color: var(--good); } .log.bad { border-color: #ff8a3d; } .log.dip { border-color: var(--info); } .log.info { border-color: #6b778c; }
+.empty { color: var(--muted); text-align: center; padding: 30px 10px; }
+
+/* 모달 */
+#modal { position: fixed; inset: 0; background: rgba(0,0,0,.55); z-index: 20; display: flex; align-items: center; justify-content: center; padding: 16px; }
+#modal .box { background: var(--panel-solid); border: 1px solid var(--line); border-radius: 14px; width: 420px; max-width: 100%; max-height: 90vh; overflow-y: auto; padding: 18px; box-shadow: 0 20px 50px rgba(0,0,0,.5); }
+#modal h2 { margin: 0 0 6px; font-size: 19px; display: flex; align-items: center; gap: 8px; }
+#modal p { color: var(--muted); margin: 6px 0 12px; line-height: 1.5; }
+.slider { display: flex; align-items: center; gap: 10px; margin: 14px 0 6px; }
+.slider input[type=range] { flex: 1; accent-color: var(--accent); }
+.slider input[type=number] { width: 110px; padding: 7px; border-radius: 8px; border: 1px solid var(--line); background: rgba(255,255,255,.06); color: var(--text); text-align: right; }
+.quick { display: flex; gap: 6px; margin-bottom: 10px; }
+.quick button { flex: 1; padding: 6px; border-radius: 7px; background: rgba(255,255,255,.07); font-size: 12px; }
+.btns { display: flex; gap: 8px; margin-top: 14px; }
+.btns button { flex: 1; padding: 11px; border-radius: 10px; background: rgba(255,255,255,.09); font-weight: 700; }
+.btns .ok { background: var(--accent); color: var(--accent-ink); }
+.diplist { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 12px; }
+.diplist button { padding: 11px 8px; border-radius: 10px; background: rgba(255,255,255,.08); text-align: left; }
+.diplist button b { display: block; font-size: 14px; }
+.diplist button span { color: var(--muted); font-size: 11.5px; }
+.diplist button.war { background: rgba(239,90,90,.16); }
+.rules { font-size: 13px; line-height: 1.6; color: #cfd8e6; }
+.rules h4 { margin: 14px 0 4px; color: var(--text); }
+.rules ul { margin: 0; padding-left: 18px; }
+
+/* 시작 화면 */
+#start { position: fixed; left: 16px; top: 16px; bottom: 16px; width: 380px; max-width: calc(100% - 32px); background: var(--panel); border: 1px solid var(--line);
+  border-radius: 16px; z-index: 15; display: flex; flex-direction: column; box-shadow: 0 20px 50px rgba(0,0,0,.5); }
+#start header { padding: 18px 18px 8px; }
+#start h1 { margin: 0; font-size: 22px; letter-spacing: .5px; }
+#start h1 span { color: var(--accent); }
+#start .lead { color: var(--muted); font-size: 13px; margin-top: 4px; }
+#start .search { margin: 8px 18px; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--line); background: rgba(255,255,255,.06); color: var(--text); }
+#civList { flex: 1; overflow-y: auto; padding: 0 10px; min-height: 120px; }
+#civList .row { cursor: pointer; }
+#civList .row.on { background: rgba(242,179,61,.16); box-shadow: inset 0 0 0 1px rgba(242,179,61,.5); }
+#start footer { padding: 12px 18px 18px; border-top: 1px solid var(--line); }
+.seg { display: flex; background: rgba(255,255,255,.06); border-radius: 9px; padding: 3px; gap: 3px; margin: 4px 0 10px; }
+.seg button { flex: 1; padding: 6px; border-radius: 7px; font-size: 13px; color: var(--muted); }
+.seg button.on { background: rgba(255,255,255,.14); color: var(--text); font-weight: 700; }
+.lbl { font-size: 12px; color: var(--muted); }
+#startBtn { width: 100%; padding: 13px; border-radius: 11px; background: var(--accent); color: var(--accent-ink); font-weight: 800; font-size: 15px; }
+#contBtn { width: 100%; padding: 10px; border-radius: 11px; background: rgba(255,255,255,.08); margin-top: 8px; font-weight: 600; }
+#pick { font-weight: 700; margin-bottom: 8px; display: flex; align-items: center; gap: 8px; min-height: 22px; }
+
+#toast { position: fixed; left: 50%; top: 60px; transform: translateX(-50%); background: rgba(10,16,28,.95); border: 1px solid var(--line); padding: 10px 16px; border-radius: 10px;
+  z-index: 30; font-weight: 600; pointer-events: none; transition: opacity .3s; max-width: calc(100% - 32px); text-align: center; }
+#modeHint { position: fixed; left: 50%; top: 58px; transform: translateX(-50%); background: var(--accent); color: var(--accent-ink); padding: 8px 14px; border-radius: 999px; font-weight: 700; z-index: 6; display: flex; gap: 10px; align-items: center; white-space: nowrap; }
+#modeHint button { background: rgba(0,0,0,.15); padding: 3px 10px; border-radius: 999px; font-weight: 700; }
+
+@media (max-width: 720px) {
+  #panel { left: 8px; right: 8px; width: auto; max-width: none; bottom: 64px; padding: 12px; }
+  #drawer { left: 8px; right: 8px; width: auto; top: auto; height: 60vh; bottom: 64px; }
+  #start { left: 8px; right: 8px; top: auto; bottom: 8px; height: 62vh; width: auto; max-width: none; }
+  #bar { gap: 6px; padding: 6px 8px calc(6px + env(safe-area-inset-bottom)); }
+  .iconbtn { padding: 8px 9px; }
+  .iconbtn .lab { display: none; }
+  #endBtn { padding: 10px 12px; }
+  .stat { padding: 3px 7px; font-size: 13px; }
+}
+</style>
+</head>
+<body>
+<canvas id="map"></canvas>
+
+<div id="top" class="hidden"></div>
+<div id="modeHint" class="hidden"><span id="modeHintText"></span><button id="modeCancel">취소</button></div>
+
+<section id="panel" class="hidden"></section>
+
+<aside id="drawer" class="hidden">
+  <div class="tabs">
+    <button data-tab="orders">명령</button>
+    <button data-tab="news">소식</button>
+    <button data-tab="nations">국가</button>
+    <button class="x" id="drawerClose">✕</button>
+  </div>
+  <div class="dbody" id="drawerBody"></div>
+</aside>
+
+<div id="bar" class="hidden">
+  <div class="modes" id="modes"></div>
+  <button class="iconbtn" data-open="orders">📜<span class="lab"> 명령</span><span class="badge hidden" id="ordBadge"></span></button>
+  <button class="iconbtn" data-open="news">📰<span class="lab"> 소식</span><span class="badge hidden" id="newsBadge"></span></button>
+  <button class="iconbtn" data-open="nations">🏛<span class="lab"> 국가</span></button>
+  <button class="iconbtn" id="menuBtn">☰</button>
+  <span class="mp" id="mpBox"></span>
+  <button id="endBtn">턴 종료 ▶</button>
+</div>
+
+<div id="start">
+  <header>
+    <h1>AGE OF <span>CIVILIZATIONS</span></h1>
+    <div class="lead">나라를 하나 골라 세계를 내 색으로 칠해라. 지도에서 나라를 눌러도 선택된다.</div>
+  </header>
+  <input class="search" id="search" placeholder="나라 검색…">
+  <div id="civList"></div>
+  <footer>
+    <div id="pick"></div>
+    <div class="lbl">전장의 안개 (Fog of War)</div>
+    <div class="seg" id="fogSeg"><button data-v="0">OFF</button><button data-v="1" class="on">STANDARD</button><button data-v="2">FULL</button></div>
+    <div class="lbl">AI 공격성</div>
+    <div class="seg" id="aggrSeg"><button data-v="0">평화</button><button data-v="1" class="on">보통</button><button data-v="2">호전적</button></div>
+    <button id="startBtn" disabled>게임 시작</button>
+    <button id="contBtn" class="hidden">이어하기</button>
+  </footer>
+</div>
+
+<div id="modal" class="hidden"><div class="box" id="modalBox"></div></div>
+<div id="toast" style="opacity:0"></div>
+
+<script>
+const MAP = {"W":720,"H":280,"CELL":0.5,"LAT0":84,"grid":"0.rm,3f.1,0.3,3f.3,0.2,3f.p,0.gy,2a.1,0.2,2a.5,0.2,2a.h,0.2,2a.6,0.10,3f.5,0.3,3f.13,0.gg,2a.5,0.3,2a.15,0.c,3f.3,0.2,3f.1,0.4,3f.5,0.4,3f.2,0.1,3f.12,0.gc,2a.1i,0.7,3f.5,0.1,3f.1v,0.2,3f.5,0.9,3f.6,0.3z,t.2,0.bi,2a.4,0.6,2a.6,0.2,2a.d,0.1,2a.p,0.9,3f.26,0.2,3f.h,0.3s,t.5,0.22,r.2,0.9e,2a.8,0.5,2a.3,0.1,2a.c,0.4,2a.k,0.6,3f.2u,0.3e,t.2,0.1,t.1,0.1,t.5,0.6,t.6,0.4,t.5,0.2,t.3,0.1l,r.a,0.98,2a.e,0.1,2a.2,0.2,2a.5,0.2,2a.q,0.6,3f.2n,0.1,3f.5,0.1z,10.1,0.1,10.2,0.3,10.1,0.2,10.3,0.17,t.4,0.6,t.4,0.2,t.1,0.1,t.2,0.1,t.2,0.1v,r.a,0.9a,2a.i,0.2,2a.8,0.2,2a.f,0.1,2a.3,0.d,3f.2i,0.2,3f.2,0.1l,10.7,0.1,10.1,0.2,10.4,0.2,10.2,0.2,10.b,0.3n,r.2,0.2,r.c,0.8l,2c.5,0.l,2a.f,0.1,2a.i,0.k,3f.2l,0.1o,10.1,0.1,10.7,0.1,10.6,0.8,10.2,0.3x,r.9,0.5,r.3,0.8j,2c.7,0.3,2c.3,0.7,2a.c,0.1,2a.p,0.9,3f.2q,0.1r,10.1,0.2,10.j,0.4e,r.9,0.8j,2c.4,0.3,2c.5,0.7,2a.3,0.1,2a.1,0.1,2a.1,0.2,2a.o,0.6,3f.2u,0.4,3f.1,0.1s,10.1,0.4,10.7,0.4,10.3,0.4a,r.7,0.6,r.1,0.7q,2c.1,0.2,2c.6,0.f,2c.3,0.a,2c.5,0.b,2a.4,0.1,2a.f,0.f,3f.2u,0.3,3e.1,0.1v,10.5,0.6,10.7,0.bz,2c.8,0.k,2c.2,0.s,2a.1,0.6,2a.a,0.1,2a.2,0.n,3f.2r,0.1,3e.1,0.1u,10.6,0.3z,p.1,0.o,r.8,0.7g,2c.9,0.3,2c.2,0.8,2c.2,0.n,2d.8,0.5,2a.p,0.h,3f.2m,0.1,3f.1,0.23,10.2,0.2q,t.6,0.1s,r.c,0.2c,r.1,0.4w,2c.7,0.6,2c.4,0.1,2c.1,0.6,2c.4,0.9,2c.2,0.1,2d.2,0.1,2d.6,0.9,2a.8,0.g,2a.2,0.m,3f.9,0.1,3f.1,0.2,3f.21,3e.b,0.3,3e.1,0.4f,t.2,0.2,t.a,0.1j,r.3,0.5,r.q,0.1,r.1,0.73,2c.2,0.2,2c.b,0.5,2c.7,0.6,2d.9,0.c,2a.6,0.a,2a.6,0.18,3f.15,3e.12,0.4c,t.c,0.1k,r.14,0.1,r.2,0.17,r.1,0.3,r.6,0.1,r.7,0.5g,2c.n,0.2,2c.3,0.7,2d.4,0.4,29.5,0.2,2a.q,0.17,3f.h,3e.1m,0.1,3e.1,0.1,3e.2,0.46,t.8,0.1j,p.4,r.1a,0.1b,r.b,0.1,r.4,0.2,r.5,0.1,r.1,0.5d,2c.7,0.v,29.3,0.3,2a.h,0.1,2a.6,0.1a,3e.20,0.1,3e.2,0.47,t.8,0.1g,p.1,0.1,p.9,r.15,0.1h,r.2,0.5c,29.9,0.3,29.2,0.3e,3e.21,0.46,t.7,0.1k,p.c,r.z,0.4,r.2,0.1j,r.1,0.5a,29.g,0.k,29.2,0.8,2d.8,0.4,29.9,0.6,29.5,0.8,29.1,0.1d,3e.1p,0.1,3e.9,0.45,t.7,0.1i,p.1,0.1,p.3,0.1,p.b,r.v,0.2,r.2,0.1,r.2,0.2,r.1,0.1j,r.4,0.55,29.g,0.2,29.3,0.c,29.1,0.3,29.3,0.8,2d.5,0.5,29.8,0.5,29.6,0.2,29.8,0.1,29.8,0.16,3e.1m,0.2,3e.4,0.4a,t.5,0.s,n.3,0.i,p.b,0.1,p.f,r.o,0.4,r.l,0.a,r.a,0.s,r.2,0.53,29.d,0.1,29.7,0.2,29.4,0.3,29.2,0.2,29.5,0.6,2d.2,0.2,2d.7,0.3,29.3,0.2,29.2,0.5,29.6,0.2,29.a,0.1d,3e.2,0.1,3e.1k,0.1,3e.8,0.45,t.6,0.r,n.7,0.5,n.1,0.7,p.1,0.2,p.s,r.11,0.1,r.v,0.o,r.2,0.55,29.c,0.3,29.j,0.1,29.6,0.8,2d.9,0.3,29.2,0.8,29.7,0.3,29.8,0.2,29.4,0.1,29.5,0.13,3e.1r,0.2,3e.2,0.45,t.6,0.q,n.8,0.5,n.1,0.5,p.4,0.4,p.q,r.1u,0.1,r.2,0.j,r.a,0.2,r.8,0.4t,29.8,0.3,29.m,0.1,29.6,0.a,2d.5,0.3,29.3,0.8,29.8,0.1,29.l,0.2,29.1,0.10,3e.4,0.1,3e.1q,0.43,t.8,0.q,n.8,0.2,n.4,0.1,p.b,0.2,p.1,0.1,p.o,r.1w,0.6,r.1,0.d,r.b,0.2,r.6,0.1q,o.5,0.15,7.2,0.1t,29.3,0.a,29.p,0.g,29.7,0.9,29.6,0.2,29.r,0.y,3e.1,0.1,3e.1j,0.2,3e.6,0.44,t.1,0.1,t.5,0.m,n.b,0.2,n.5,0.4,p.9,0.1,p.q,r.1v,0.5,r.b,0.1,r.r,0.1j,o.2,0.14,7.1,0.1,7.d,0.1x,29.s,0.f,29.8,0.7,29.10,0.1,29.3,0.t,3e.3,0.3,3e.1b,0.1,3e.4,0.3,3e.5,0.2h,10.1,0.2,10.2,0.1,10.1,0.1,10.2,0.1,10.2,0.1e,t.6,0.k,n.a,0.3,n.3,p.f,0.1,p.q,r.3i,0.26,7.r,0.15,29.1,0.n,29.5,0.1,29.m,0.a,29.a,0.a,29.f,0.1,29.i,0.2,29.1,0.r,3e.2,0.1,3e.1g,0.2,3e.3,0.2l,10.2,0.1,10.3,0.1,10.b,0.1j,n.2,0.f,n.b,0.3,n.2,p.f,0.1,p.s,r.3i,0.22,7.17,0.j,29.3,0.1,29.7,0.3,29.1,0.3,29.3,0.9,29.t,0.1,29.2,0.5,29.2,0.4,29.6,0.e,29.3,0.7,29.2,0.5,29.i,0.1,29.1,0.o,3e.6,0.1,3e.1,0.1,3e.1i,0.2c,10.2,0.1,10.c,1t.5,10.2,0.1,10.2,0.1,s.3,0.1h,n.6,0.9,n.b,0.2,n.3,p.19,r.3h,0.g,o.3,0.2,o.c,0.14,7.19,29.5,0.5,29.7,0.1,29.q,0.a,29.e,0.1,29.9,0.7,29.5,0.3,29.1,0.1,29.5,0.3,29.1,0.7,29.8,0.5,29.1,0.2,29.1,0.3,29.i,0.v,3e.1g,0.2c,10.8,1t.1,10.9,1t.6,10.1,s.a,0.1,s.1,0.q,n.3,0.l,n.9,0.6,n.9,0.3,n.1,p.1a,r.3r,o.7,0.5,o.h,0.1,o.2,0.q,7.1e,29.1h,0.2,29.9,0.4,29.3,0.7,29.1,0.6,29.6,0.4,29.6,0.1,29.4,0.6,29.7,0.a,29.1,0.3,29.c,0.z,3g.7,3e.17,0.29,10.4,0.2,10.6,e.2,1t.2,10.5,1t.7,s.i,0.m,n.1,0.8,n.2,0.8,n.3,0.2,n.d,0.4,n.8,0.3,p.5,0.1,p.15,r.3i,0.1,r.1,o.15,0.n,7.1e,29.1g,0.d,29.2,0.2,29.3,0.d,29.4,0.4,29.c,0.3,29.1,0.1,29.7,0.c,29.3,0.3,29.d,0.1,29.1,0.r,3g.1,0.1,3g.g,3e.r,0.2f,10.1,0.1,10.1,0.2,10.4,e.a,1t.b,s.l,0.a,n.4,0.9,n.6,0.1,n.1,0.1,n.10,0.3,p.6,0.1,p.15,r.3e,o.1e,0.m,7.1b,29.1h,0.5,29.5,0.3,29.b,0.3,29.3,0.1,29.2,0.2,29.2,0.1,29.f,0.3,29.9,0.9,29.5,0.5,29.g,0.m,3g.1,0.2,3g.1,0.1,3g.n,3e.d,0.2o,10.3,e.e,1t.d,s.l,0.7,n.3,0.7,n.1c,0.4,p.1b,r.39,o.1k,0.m,7.1a,29.1u,0.1,29.14,0.1,29.b,0.9,29.1,0.9,29.i,0.i,3g.z,3e.6,0.2q,10.2,e.e,1t.c,s.n,0.6,n.3,0.5,n.1c,0.4,p.1e,r.34,o.1o,0.2,o.5,0.i,7.17,29.1u,0.1,29.1a,0.1,29.4,0.i,29.n,0.h,3g.12,0.2n,10.5,e.g,1t.a,s.8,0.2,s.e,0.7,n.1d,0.2,n.3,0.3,n.1,p.1f,r.2z,o.1k,0.1,o.i,0.8,7.4,0.6,7.14,29.32,0.2,29.1,0.k,29.e,0.2,29.8,0.i,3g.v,0.1,3g.4,0.p,44.2,0.b,44.3,0.1k,10.1,0.1,10.3,e.g,1t.c,s.9,0.6,s.6,0.4,s.3,0.1,n.1n,p.1g,r.2v,o.1n,0.2,o.g,0.6,7.1h,29.2u,0.2,29.5,0.1,29.3,0.m,29.b,0.5,29.6,0.j,3g.3,0.1,3g.r,0.s,44.4,0.2,44.c,0.1i,10.4,e.g,0.4,1t.b,s.a,0.b,s.8,n.1m,p.1g,r.2r,o.1r,0.7,o.7,0.c,7.1f,29.2z,0.3,29.4,0.d,29.l,0.4,29.3,0.m,3g.p,0.z,44.i,0.1h,10.3,e.e,0.8,1t.8,s.a,0.b,s.9,n.1l,p.1h,r.2o,o.1t,0.b,o.3,0.d,7.9,0.2,7.14,29.2z,0.2,29.8,0.9,29.6,0.1,29.g,0.1,29.1,0.r,3g.1,0.3,3g.j,0.x,44.1,0.2,44.h,0.1f,10.5,e.e,0.7,1t.b,s.a,0.3,s.5,0.2,s.9,n.1l,p.1i,r.2k,o.1m,0.1,o.2,0.1,o.4,0.14,7.14,29.2y,0.3,29.a,0.9,29.1,0.7,29.f,0.s,3g.k,0.1,3g.1,0.11,44.d,0.1g,10.7,e.e,0.6,1t.d,s.b,0.4,s.e,n.1k,p.1i,r.2h,o.1w,0.15,7.14,29.2p,0.1,29.4,0.6,29.6,0.3,29.4,0.g,29.g,0.q,3g.m,0.14,44.6,0.1g,10.1,0.1,10.6,e.g,0.5,1t.e,s.u,n.1k,p.1i,r.2e,o.1z,0.m,7.4,0.c,7.17,29.2t,0.a,29.1,0.d,29.2,0.c,29.7,0.2,29.4,0.s,3g.k,0.2q,10.8,e.e,0.6,1t.i,s.s,n.1j,p.1k,r.2a,o.23,0.w,7.1c,29.2p,0.i,29.3,0.m,29.1,0.2,29.5,0.3,29.1,0.t,3g.h,0.2q,10.a,e.c,0.6,1t.l,s.r,n.1j,p.1k,r.28,o.21,0.1,o.4,0.u,7.1d,29.2o,0.j,29.1,0.6,29.1,0.3,29.6,0.1,29.3,0.9,29.5,0.x,3g.e,0.1z,44.1,0.o,10.e,e.a,0.8,1t.j,s.s,n.1j,p.1k,r.26,o.1b,0.2,o.o,0.10,7.1e,29.2n,0.r,29.1,0.3,29.c,0.19,3g.e,0.2n,10.e,e.b,0.8,1t.h,s.v,n.1i,p.1l,r.23,o.12,0.6,o.5,0.2,o.k,0.15,7.t,0.2,7.i,29.2m,0.x,29.c,0.1a,3g.c,0.2n,10.g,e.8,0.9,1t.f,s.x,n.1i,p.1l,r.21,o.12,0.7,o.3,0.5,o.h,0.19,7.1,0.2,7.n,0.1,7.6,0.4,7.b,29.2l,0.y,29.g,0.17,3g.1,0.3,3g.7,0.2n,10.f,e.a,0.8,1t.d,s.z,n.1i,p.1l,r.1z,o.13,0.8,o.1,0.5,o.h,0.17,7.3,0.2,7.o,0.2,7.9,0.5,7.b,29.2h,0.y,29.g,0.2,29.1,0.6,29.1,0.12,3g.2,0.1,3g.2,0.2b,a.1,0.c,10.f,e.c,0.2,1t.1,0.4,1t.7,0.7,s.x,n.1h,p.1m,r.1x,o.13,0.e,o.7,0.2,o.1,0.6,o.1,0.1j,7.i,0.2,7.4,0.i,7.2,0.1,7.2,29.2f,0.z,29.g,0.8,29.3,0.3u,10.1,0.1,10.c,e.e,0.j,s.y,n.1h,p.1m,r.1v,o.14,0.d,o.5,0.1x,7.g,0.4,7.2,0.o,7.3,29.2,9.3,29.28,0.y,29.h,0.8,29.4,0.3t,10.1,0.1,10.9,0.1,10.2,e.d,0.a,3v.9,s.z,n.1h,p.1n,r.1t,o.h,0.7,o.1,0.b,o.6,0.a,o.6,0.1y,7.1,0.4,7.1,0.1,7.2,0.1,7.7,0.v,7.3,0.1,9.4,29.27,0.1,29.1,0.u,29.h,0.1,29.2,0.4,29.7,0.3t,10.8,0.3,e.c,0.d,3v.8,s.10,n.1h,p.1n,r.1r,o.i,0.z,o.6,0.2,o.1,0.25,7.7,0.2,7.2,0.w,9.2,0.1,9.2,29.29,0.v,29.t,0.34,a.1,0.2,a.4,0.k,10.4,0.6,e.a,0.b,3v.1,0.4,3v.6,s.11,n.1g,p.1n,r.1q,o.g,0.10,o.7,0.29,7.4,0.3,7.3,0.x,9.1,0.2,9.1,0.1,9.1,29.29,0.v,29.u,0.35,a.3,0.v,e.a,0.4,e.1,0.b,3v.6,s.11,n.1g,p.1n,r.1o,o.h,0.y,o.c,0.25,7.4,0.4,7.3,0.y,9.2,0.1,9.1,0.1,9.2,29.28,0.w,29.t,0.33,a.9,0.n,3n.2,0.3,e.9,0.3,e.1,0.6,3v.3,0.3,3v.7,s.10,n.1g,p.1n,r.1n,o.g,0.10,o.c,0.24,7.3,0.19,9.2,0.3,8.1,29.2f,0.o,29.u,0.33,a.7,0.m,3n.4,0.4,e.9,0.8,3v.e,s.10,n.1g,p.1n,r.1m,o.g,0.z,o.e,0.21,7.4,0.1b,9.1,0.2,8.1,0.1,8.4,29.2d,0.h,29.2,0.4,29.u,0.34,a.6,0.l,3n.6,0.4,e.6,0.a,3v.e,s.10,n.1f,p.1o,r.1l,o.g,0.10,o.f,0.1x,7.4,0.1h,8.2,0.2,8.3,29.2f,0.j,29.x,0.30,a.1,0.2,a.6,0.k,3n.4,0.4,3n.1,0.1,e.2,0.e,3v.j,s.v,n.1f,p.1p,r.1j,o.f,0.11,o.d,0.1y,7.2,0.2,7.1,0.1i,8.7,29.2l,0.b,29.z,0.1,29.1,0.2w,44.1,0.4,a.7,0.k,3n.2,0.1,3n.5,0.4,3n.1,0.c,s.1,3v.j,s.u,n.19,1f.3,n.1,1f.1,n.1,p.1p,r.1i,o.e,0.13,o.d,0.1v,7.3,0.1o,8.1,0.5,29.2o,0.5,29.17,0.2r,44.2,a.4,0.4,a.4,0.k,1s.3,0.2,3n.2,0.b,u.2,0.3,s.6,3v.g,s.u,n.16,1f.8,n.1,p.1p,r.1h,o.e,0.4,o.1,0.z,o.d,0.b,o.1,0.3g,29.2n,0.6,29.16,0.2p,44.4,a.5,0.4,a.6,0.j,1s.4,0.2,1s.2,0.6,u.f,3v.g,s.t,n.10,1g.5,1f.9,n.1,p.1,1f.1,p.7,1f.1,p.1f,r.1g,o.i,0.3,o.1,0.1,o.1,0.5,o.1,0.q,o.8,0.1u,7.1,0.1v,29.1,0.4,29.2p,0.6,29.12,0.2,29.5,0.2l,44.8,0.6,a.6,0.h,1s.b,0.1,u.i,3v.i,s.r,n.u,1g.b,1f.e,p.2,1f.5,p.1e,r.1f,o.k,0.2,o.4,0.4,o.1,0.q,o.8,0.1r,7.1,0.1z,29.1,0.5,29.1,0.1,29.2l,0.6,29.1a,0.2l,44.7,0.3,a.a,0.a,3n.3,1s.f,u.j,3v.h,s.q,q.2,n.u,1g.a,1f.n,p.1c,r.12,24.7,r.5,o.t,0.1,o.2,0.q,o.8,0.3s,29.1,0.4,29.1,0.1,29.2l,0.2,29.1,0.3,29.1a,0.2l,44.7,0.4,a.b,0.6,3n.5,1s.f,u.j,3v.f,s.o,q.8,n.r,1g.b,1f.o,p.1b,r.10,24.c,r.1,o.u,0.1,o.3,0.p,o.5,0.1i,7.1,0.2d,29.1,0.7,29.2j,0.7,29.1a,0.2i,44.8,0.4,a.c,0.6,3n.5,1s.f,u.h,3v.h,s.2,b.3,s.g,q.d,n.p,1g.a,1f.q,p.1a,r.11,24.c,o.x,0.r,o.4,0.1c,7.2,0.2p,29.2n,0.3,29.19,0.2l,44.3,0.7,a.c,0.6,3n.4,1s.h,u.i,3v.1,b.6,3v.7,b.8,s.b,q.j,n.m,1g.b,1f.r,p.12,16.3,p.4,r.11,24.c,o.t,0.2,o.3,0.q,o.3,0.45,29.2n,0.1,29.16,0.3,29.2,0.2y,a.9,0.3,3n.6,1s.i,u.h,b.l,s.9,q.n,1g.7,n.g,1g.9,1f.r,p.2,1f.1,p.y,16.8,r.10,24.e,o.r,0.3,o.3,0.q,o.2,0.44,29.2,0.2,29.3r,0.4,29.2,0.2v,a.7,0.5,18.3,3n.6,1s.g,3n.3,u.h,b.n,s.3,q.o,1g.c,n.2,1g.6,n.4,1g.a,1f.w,p.1,1f.3,p.g,16.1,p.b,16.9,r.y,24.g,o.q,0.3,o.3,0.p,o.1,0.47,29.3g,0.5,29.1,0.2,29.4,0.5,29.2,0.2u,a.1,0.2,a.1,0.a,18.5,3n.4,1s.d,3n.8,u.1,3n.1,u.c,b.s,q.k,1g.1,q.1,1g.z,1f.11,p.c,16.8,p.7,16.a,r.3,17.5,r.e,17.1,r.a,24.g,o.q,0.3,o.4,0.m,o.2,0.4a,29.4,0.2,29.36,0.6,29.2,0.a,29.2,0.1,29.1,0.35,18.9,3n.3,1s.c,3n.c,u.9,b.x,q.f,1g.12,1f.12,p.9,16.f,p.1,16.c,17.9,r.a,17.7,24.1,r.3,24.i,o.q,0.3,o.4,0.50,29.4,0.2,29.32,0.a,29.2,0.8,29.5,0.1,29.3,0.2w,18.g,1s.d,3n.i,u.1,b.z,q.e,1g.12,1f.16,p.2,16.v,17.c,r.3,17.b,24.q,o.m,0.3,o.2,0.2,o.1,0.51,29.3,0.2,5.17,6.d,29.1f,0.2,2b.7,0.c,29.9,0.2t,18.1,0.3,18.j,1s.c,3n.h,b.y,q.e,1g.13,1f.15,22.3,16.v,17.p,24.t,o.j,0.4,o.2,0.55,5.1,0.3,5.16,6.j,29.7,4.1,29.11,0.1,2b.9,0.b,29.b,0.2q,18.o,1s.b,3n.j,b.8,3m.3,b.o,q.e,1g.12,1f.13,22.6,16.u,17.p,24.u,o.6,24.1,o.b,0.4,o.1,0.56,5.3,0.1,5.16,6.l,4.8,29.y,0.1,2b.9,0.b,29.a,0.2,29.2,0.2q,18.m,1s.b,3n.i,3m.e,b.j,q.j,1g.10,1f.13,22.9,16.r,17.r,24.1,17.3,24.o,o.3,24.4,o.a,0.5,o.1,0.57,5.18,6.m,4.b,29.w,4.1,2b.1,4.1,2b.6,0.j,29.1,0.2,29.2,0.2u,18.i,3n.t,3m.g,b.i,0.1,q.j,1g.z,1f.13,22.a,16.q,17.w,24.t,o.a,0.6,o.2,0.56,5.17,6.o,4.b,29.u,4.4,2b.6,0.1,2b.1,0.6,2b.1,0.e,29.1,0.2u,18.h,3n.8,3.4,3n.h,3m.i,b.e,0.3,q.l,1g.2,0.6,1g.q,1f.y,22.g,16.p,17.x,24.s,o.9,0.7,o.3,0.56,5.16,6.o,4.d,29.m,0.1,29.5,4.4,2b.7,0.2,2b.2,0.2,2b.3,0.3a,18.e,3n.1,18.1,3n.2,3.1,3n.1,3.9,3n.e,3m.h,b.3,0.2,b.8,0.6,q.l,0.8,1g.p,1f.y,22.h,16.p,17.q,24.z,o.8,0.8,o.1,0.57,5.16,6.p,4.e,29.q,4.5,2b.a,0.3,2b.1,0.1,2b.1,0.3a,18.g,3.c,0.1,3n.d,3m.h,b.3,0.6,q.4,0.6,q.k,0.a,1g.p,1f.y,22.g,16.q,17.p,24.z,o.8,0.o,o.1,0.4s,5.16,6.p,4.g,29.g,0.1,29.5,4.8,2b.3,0.4,2b.6,0.3c,18.g,3.a,0.3,3n.c,3m.i,b.1,3m.1,0.7,q.7,0.1,q.l,0.8,1g.b,3l.4,1g.d,1f.w,22.1,1f.1,22.h,16.p,17.m,24.y,o.1,24.2,o.8,0.9,1h.2,0.b,o.1,0.4v,5.15,6.q,4.g,29.e,4.h,0.3,2b.5,0.3g,18.g,3.b,0.5,3n.8,3m.k,0.9,q.2,0.6,q.j,0.8,1g.a,3l.9,1g.a,1f.u,22.r,16.j,17.g,24.13,o.b,0.b,1h.2,0.8,o.1,0.4x,5.15,6.q,4.g,29.d,4.e,0.6,2b.3,0.3i,18.h,3.3,0.2,3.6,0.5,3n.7,3m.k,0.l,q.g,0.7,1g.b,3l.a,1g.9,1f.u,22.u,16.g,17.g,24.13,o.a,0.b,1h.4,0.3,1h.1,0.51,5.14,6.r,4.h,29.b,4.d,0.8,2b.2,0.3j,18.i,0.6,3.5,0.6,3n.5,3m.k,0.m,q.g,0.7,1g.a,3l.b,1g.8,1f.u,22.u,16.g,17.h,24.12,o.9,0.c,1h.7,0.51,5.15,6.r,4.g,29.7,4.h,0.3f,h.f,18.a,0.4,18.2,0.8,3.7,0.6,3n.2,3m.k,0.p,3z.2,q.c,0.8,1g.9,3l.j,1f.u,22.v,16.f,17.f,26.4,24.10,o.2,0.1,o.4,0.e,1h.8,0.50,5.14,6.s,4.g,29.7,4.g,0.3g,h.i,18.1,h.1,18.4,0.e,3.1,0.1,3.6,0.8,3m.k,0.r,3z.5,q.7,0.a,1g.7,3l.k,1f.b,3k.2,1f.2,3k.b,1f.2,22.z,16.c,17.e,26.7,24.x,o.2,0.3,o.1,0.d,1h.8,0.53,5.14,6.s,4.f,29.4,4.k,0.3h,h.n,0.b,18.2,0.4,3.6,0.9,3m.i,0.r,3z.8,q.5,0.9,1g.2,3l.2,1g.3,3l.k,1f.a,3k.i,1f.1,22.14,25.3,16.3,17.6,26.h,24.s,11.3,0.j,1h.1,0.4,1h.2,0.55,5.12,6.u,4.e,29.1,4.o,0.3f,45.5,h.j,0.b,18.2,0.6,3.7,0.7,3m.e,c.3,0.9,c.6,0.c,3z.b,q.3,0.8,3l.1,0.2,3l.2,1g.2,3l.l,1f.7,3k.i,22.16,25.6,26.3,17.1,26.m,24.o,11.4,0.k,1h.1,0.5b,5.12,6.u,4.y,0.3l,45.4,h.h,0.n,3.6,0.6,3m.e,c.5,0.5,c.b,0.8,c.4,3z.9,q.1,3z.2,0.b,3l.o,1f.5,3k.j,22.17,25.6,26.s,24.j,11.6,0.n,1h.1,0.59,5.12,6.u,4.y,0.3l,45.3,h.g,0.e,3.3,0.a,3.6,0.4,3m.9,0.1,3m.1,0.2,c.3,0.5,c.r,3z.c,0.7,3l.1,0.2,3l.o,3k.3,1f.1,3k.g,22.1a,25.8,26.t,24.6,0.2,24.7,11.8,0.l,1h.3,0.58,5.12,6.v,4.w,0.3m,45.4,h.f,0.g,3.2,0.b,3.4,0.2,3.1,0.2,3m.6,0.1,3m.3,0.4,c.y,3z.c,0.6,3l.s,3k.g,22.1d,25.a,26.u,24.3,0.3,24.5,11.8,0.n,1h.4,0.58,5.11,6.v,4.w,0.3m,45.4,h.e,0.5,h.2,0.a,3.2,0.d,3.1,0.6,3m.7,0.6,c.11,3z.a,0.8,3l.q,3k.f,22.1d,25.c,26.u,0.4,24.4,0.2,11.6,0.p,1h.4,0.58,5.10,6.w,4.r,0.1,4.1,0.1,4.1,0.3m,45.5,h.d,0.i,3.2,0.d,3.2,0.7,3m.6,0.5,3m.1,c.z,1j.2,3z.4,1j.2,3z.3,0.8,3l.r,3k.d,22.1e,25.c,26.t,0.5,24.1,0.7,11.4,0.p,1h.4,0.59,5.z,6.w,4.r,0.1,4.2,0.2n,3a.1,0.z,45.5,h.e,0.w,3.1,0.9,3m.4,0.8,c.z,1j.7,3z.2,0.a,3l.q,3k.d,22.1d,25.e,26.p,0.g,11.5,0.n,1h.4,0.5b,5.y,6.w,4.q,0.2,4.2,0.3o,45.4,h.d,0.w,3.2,0.a,3m.1,0.2,3m.3,0.4,c.10,1j.9,0.a,3l.5,1j.1,3l.k,3k.7,2w.2,3k.7,22.19,25.g,26.p,0.e,11.4,i.3,0.m,1h.3,0.5e,5.v,6.x,4.r,0.1,4.1,0.2s,3a.1,0.w,45.3,h.d,0.r,3.5,0.b,3m.1,0.1,3m.3,0.7,3m.1,c.z,1j.9,0.a,3l.2,1j.6,3l.i,3k.7,2w.2,3k.7,22.19,25.g,26.r,0.3,26.1,0.b,i.5,0.k,1h.4,0.5d,5.w,6.x,4.r,0.3r,45.3,h.b,0.n,41.1,0.7,3.3,0.d,3m.3,0.9,c.t,3x.1,1i.2,c.3,1j.b,0.7,1j.7,1k.4,3l.c,2w.3,3k.3,2w.1,3k.1,2w.4,3k.3,2w.1,3k.1,2w.1,22.19,25.i,26.q,0.2,26.5,0.9,i.5,0.i,1h.5,0.5e,5.v,6.x,4.s,0.3v,h.5,0.2,h.1,0.b,2u.4,0.1,2u.6,41.5,0.7,3.1,0.p,c.6,0.2,c.6,0.1,c.1,0.1,c.1,3x.1,c.1,3x.2,c.2,3x.5,1i.6,1j.c,0.4,1j.8,1k.6,3l.9,2w.e,3k.1,2w.1,z.6,22.16,25.k,26.u,0.9,i.7,0.e,1h.8,0.5f,5.u,6.y,4.s,0.3w,h.1,0.c,2u.g,41.4,0.12,c.1,0.5,c.3,0.4,c.1,3x.a,1i.8,1j.m,1k.9,3l.7,2w.e,z.9,22.15,25.k,26.s,0.c,i.6,0.7,1h.1,0.5,1h.9,0.5g,5.t,6.y,4.t,0.3v,15.1,0.a,2u.i,41.5,0.6,41.1,0.17,3x.b,1i.a,1j.j,1k.b,3l.3,2w.h,z.a,22.13,25.m,26.q,0.d,i.6,0.d,1h.a,0.5g,5.s,6.z,4.q,0.3x,15.3,0.1,15.1,0.4,2u.k,41.5,0.p,3m.4,0.1,3m.1,0.d,3x.2,0.4,3x.a,1i.a,1j.k,1k.a,2w.l,z.b,3k.1,1p.1,22.z,25.o,26.o,0.e,i.6,0.6,1h.d,0.2,1h.1,0.5i,5.r,6.z,4.q,0.3w,15.9,2u.k,41.7,0.16,3x.2,0.5,3x.a,1i.9,1j.k,1k.b,2w.k,z.b,1p.3,22.z,25.o,26.n,0.f,i.1,0.a,1h.5,0.1,1h.3,0.2,1h.2,0.5o,5.o,6.10,4.n,0.3z,15.a,2u.i,41.5,0.1f,3x.a,1i.a,1j.j,1k.b,2w.l,z.6,1p.a,22.w,25.q,26.p,0.h,1h.1,0.3,1h.3,0.2,1h.6,0.5v,5.l,6.10,4.l,0.3z,15.c,2u.i,41.7,0.1d,3x.8,1i.c,1j.j,1k.b,2w.j,z.8,1p.a,22.w,25.q,26.p,0.i,1h.1,0.1,1h.1,0.3,1h.4,0.2,1h.1,0.5x,5.k,6.10,4.k,0.3y,15.e,2u.i,41.7,0.1c,3x.8,1i.e,1j.h,1k.c,2w.j,z.8,1p.a,22.v,25.s,26.o,0.b,i.1,0.6,1h.5,0.1,1h.1,0.63,5.j,6.11,4.j,0.3i,3a.1,0.f,15.f,2u.k,41.6,1c.5,0.e,1d.3,0.p,3x.8,1i.f,1j.f,1k.d,2w.i,z.a,1p.9,22.v,25.s,26.p,0.f,1h.1,0.2,1h.4,0.66,1a.6,5.c,6.11,4.i,0.3y,15.g,2u.l,41.4,1c.9,0.9,1d.6,0.o,3x.9,1i.g,1j.d,1k.e,2w.h,z.c,1p.6,22.v,25.u,26.p,0.i,1h.2,0.68,1a.8,5.9,1a.3,6.y,4.h,0.3z,15.c,2u.p,41.3,1c.a,0.9,1d.a,0.j,3x.7,l.6,1i.e,1j.b,1k.f,2w.e,z.1,2w.1,z.b,1p.8,22.v,25.u,26.q,0.f,1h.4,0.68,1a.3,0.4,1a.e,6.x,4.g,0.3z,15.c,2u.r,41.1,1c.d,0.7,1d.a,1x.5,0.5,1x.5,0.3,3x.6,l.9,1i.c,1j.b,1k.i,2w.b,y.1,z.d,1p.9,22.t,25.v,23.2,26.n,0.6t,1a.3,0.3,1a.g,6.v,4.g,0.3z,15.c,2v.5,2u.m,41.1,1c.g,0.4,1d.a,1x.j,3x.6,l.a,1i.b,1j.a,1k.h,2w.a,y.4,z.b,1p.c,22.r,25.v,23.8,26.h,0.6t,1a.3,0.3,1a.h,6.s,0.1,6.1,0.2,4.1,0.4,4.9,0.40,15.9,2v.e,2u.f,1c.h,1d.d,1x.k,3x.6,l.b,1i.b,1j.8,1k.h,2w.b,y.5,z.a,1p.e,22.1,42.1,22.m,25.v,23.e,26.a,0.1,26.1,0.6u,1a.3,0.3,1a.g,6.4,1a.2,6.d,0.1,6.1,0.2,6.7,0.8,4.1,0.3,4.5,0.3y,15.7,2v.o,2u.8,1c.h,1d.e,1x.k,3x.3,l.f,1i.6,3p.3,0.4,1j.4,1k.h,2w.a,y.7,z.8,1p.e,42.5,22.k,25.v,23.j,26.8,0.6u,1a.4,0.2,1a.g,6.2,1a.4,6.c,0.8,6.2,0.1,6.1,0.c,4.4,0.3x,15.5,2v.y,2u.2,1c.f,1d.f,1x.f,0.1,1x.3,0.1,l.1,3x.1,l.h,1i.4,3p.3,0.5,1j.3,1k.j,y.i,z.5,1p.e,42.7,22.i,25.6,1q.1,25.o,23.q,26.2,0.6v,1a.3,0.2,1a.n,6.a,0.q,4.4,0.3h,h.1,0.d,15.5,2v.11,1c.f,1d.f,1x.j,0.1,l.p,3p.2,0.5,1j.2,1k.j,y.j,z.3,1p.f,42.9,22.g,25.3,1q.5,25.n,23.r,0.6u,1a.1,0.2,1a.2,0.3,1a.n,6.6,0.t,4.4,0.3j,h.1,0.a,15.6,2v.11,1c.f,1d.f,1x.g,0.1,1x.2,l.s,0.6,1k.n,y.h,z.1,1p.i,42.9,22.9,42.1,22.3,25.2,1q.9,2e.1,25.j,23.r,0.g,1h.1,0.6f,1a.1,0.1,1a.3,0.4,1a.l,6.5,0.t,4.5,0.3r,15.9,2v.11,1c.e,1d.g,1x.h,0.4,l.p,m.2,0.6,1k.m,y.e,1p.1,y.1,1p.m,1q.1,42.b,1q.2,42.5,1q.b,2e.2,25.j,23.q,0.6y,1a.5,0.3,1a.m,6.4,0.u,4.5,0.3p,15.9,3a.1,2v.11,1c.e,1d.g,1x.i,0.4,l.n,m.4,0.7,1k.k,y.d,1p.p,1q.5,42.7,1q.2,42.6,1q.8,2e.5,25.h,23.r,0.71,1a.3,0.3,1a.l,19.1,6.3,0.v,4.4,0.3p,15.4,3a.7,2v.10,1c.e,1d.g,1x.e,1w.4,0.4,l.m,m.6,0.7,1k.3,0.1,1k.1,0.2,1k.c,y.d,1p.o,1q.7,42.6,1q.3,42.1,1q.b,2e.6,25.h,23.p,0.h,1h.1,0.6m,1a.2,0.4,1a.j,19.3,6.2,0.v,4.4,0.3n,15.6,3a.9,2v.x,1c.e,1d.h,1x.9,1w.9,0.5,l.k,m.7,0.1,3p.1,0.c,1k.a,y.g,1p.n,1q.e,2k.1,1q.c,2e.7,25.g,23.q,0.g,1h.1,0.6o,1a.1,0.4,1a.i,19.7,0.v,4.3,0.3n,15.5,3a.c,2v.v,1c.e,1d.h,1x.3,1w.g,0.5,l.i,m.8,0.2,3p.1,0.9,3p.1,0.2,1k.8,y.h,1p.m,1q.f,2k.3,1q.a,2e.7,25.g,23.q,0.75,1a.2,0.5,1a.f,19.7,0.x,4.1,0.3n,15.5,3a.f,2v.u,1c.d,1d.h,1w.k,0.4,l.h,m.a,0.1,3p.1,0.8,3p.2,0.9,1k.1,y.2,0.1,y.1,0.6,y.9,1r.7,1p.d,1q.g,2k.2,1q.9,2e.7,25.g,23.r,0.75,1a.3,0.5,1a.d,19.8,0.12,43.1,0.3i,15.5,3a.g,2v.t,1c.c,1d.i,1w.k,0.4,l.g,m.c,3p.1,0.6,3p.4,0.l,y.8,1r.j,1q.f,2k.8,1q.5,2e.6,25.h,23.p,0.5,3t.2,0.71,1a.3,0.5,1a.b,19.9,0.13,43.1,0.3g,15.5,3a.j,2v.u,1c.9,1d.i,1w.l,0.4,l.e,m.e,3p.1,0.5,3p.5,0.l,y.2,1r.2,y.1,1r.1,y.1,1r.j,1q.g,2k.7,1q.5,2e.6,25.g,23.p,0.5,3t.2,0.74,1a.2,0.5,1a.9,19.a,0.4j,15.4,3a.m,2v.u,1c.8,1d.i,1w.l,0.6,l.b,m.g,3p.c,0.k,1r.q,1q.f,2k.5,1q.5,2e.b,25.d,23.o,0.5,3t.3,0.75,1a.1,0.6,1a.7,19.a,0.4k,15.4,3a.o,2v.r,2x.3,1c.5,2x.1,34.1,1d.h,1w.l,0.6,l.a,m.i,3p.d,0.j,1r.p,1q.f,2k.6,1q.1,2k.1,1q.2,2e.b,25.c,1.1,23.m,0.7,3t.3,0.7d,1a.5,19.b,0.s,43.9,0.a,43.1,0.37,15.5,3a.p,2v.o,2x.7,1c.1,2x.3,34.3,1d.f,1w.m,0.6,l.8,m.m,3p.b,0.m,1r.l,1q.g,2k.3,0.1,2k.3,1q.1,2e.d,25.9,1.6,23.g,0.a,3t.2,0.7f,1a.3,19.c,0.r,43.2,0.3,43.7,0.3g,15.4,3a.s,2v.l,2x.c,34.5,1d.d,1w.n,0.5,l.7,m.q,3p.9,0.i,1r.6,0.1,1r.h,1q.g,2k.4,0.2,2k.1,1q.1,2e.c,25.5,3t.1,1.9,23.e,0.e,3t.1,0.7f,1a.2,19.e,0.t,43.1,0.5,43.5,0.3d,15.5,3a.t,2v.i,2x.d,34.8,1d.b,f.2,g.m,0.4,l.6,m.r,3p.8,0.k,1r.5,0.1,1r.i,1q.f,2k.1,0.5,2k.1,2e.f,25.3,3t.2,1.9,23.a,0.7y,19.f,0.f,19.6,0.h,43.4,0.3b,31.1,3a.z,2v.e,2x.f,34.a,1d.9,f.3,g.l,0.4,l.6,m.r,3p.7,0.m,1r.4,0.1,1r.i,1q.b,0.a,2e.h,3t.1,25.2,3t.2,1.9,0.5,23.1,0.56,7.1,0.2t,19.h,0.d,19.7,0.i,43.4,0.3b,31.2,3a.x,2v.d,2x.g,34.c,1d.7,f.3,g.l,0.5,l.4,m.r,3p.7,0.o,1r.1,0.4,1r.h,1q.b,0.b,2e.g,3t.8,1.4,0.7,23.1,0.80,19.h,0.d,19.6,0.k,43.7,0.38,31.2,3a.x,2x.1,2v.9,2x.h,34.f,1d.5,f.4,g.k,0.6,l.2,m.s,3p.6,0.1,3p.1,0.s,1r.h,1q.a,0.d,2e.d,d.2,3t.8,1.4,0.5f,7.2,0.2r,19.i,0.c,19.6,0.f,a.1,0.c,46.3,0.1,46.2,0.30,31.5,3a.v,2x.3,2v.6,2x.i,34.h,1d.1,f.6,g.l,0.7,m.q,3p.7,0.u,1r.i,1q.7,0.h,2e.a,d.4,3t.8,1.3,0.7,27.3,0.56,7.1,0.2t,19.i,0.a,19.7,0.t,46.8,0.2x,31.6,3a.u,2x.3,2v.4,2x.k,34.i,f.7,g.k,0.7,m.n,3p.b,0.u,1r.e,1o.5,1q.5,0.h,2e.9,d.6,3t.6,1.4,0.5,27.4,0.83,19.g,0.9,19.8,0.u,46.8,0.2x,31.7,3a.r,2x.r,34.j,f.7,g.k,0.7,m.i,3o.2,3p.c,0.w,1r.a,1o.a,1q.3,0.j,2e.7,d.7,3t.8,1.1,0.6,27.4,0.85,19.h,0.1,19.b,3s.1,0.j,43.4,0.5,46.6,0.1,46.1,0.2,46.1,0.3,4.3,0.2r,31.8,3a.p,3c.2,2x.q,34.j,f.8,g.l,0.6,m.e,3o.6,3p.a,0.x,1r.7,1o.e,1q.1,0.l,2e.6,d.7,3t.4,d.2,3t.3,1.1,0.t,v.4,0.7k,19.l,3s.6,0.1a,4.1,0.2p,31.a,3a.l,3c.4,2x.q,34.j,f.8,g.l,0.7,m.c,3o.8,3p.7,0.z,1r.3,1o.i,0.m,2e.6,d.7,3t.1,d.6,3t.2,1.2,0.s,v.3,0.7m,19.j,3s.6,0.41,31.b,3a.i,3c.7,2x.o,34.k,f.9,g.i,3q.3,0.7,m.1,3o.6,m.3,3o.9,3p.6,0.10,1o.j,0.o,2e.7,d.e,3t.2,1.2,0.r,v.4,0.7o,19.h,3s.5,0.40,31.e,3a.f,3c.9,2x.n,34.k,f.9,g.h,3q.4,0.7,m.1,3o.j,3p.2,0.14,1o.i,0.o,2e.3,0.1,2e.1,0.1,2e.2,d.c,3t.4,1.2,0.q,v.4,0.7q,19.7,0.1,19.8,3s.4,0.1h,18.2,0.2h,31.f,3a.c,3c.b,2x.n,34.k,f.9,g.h,3q.4,0.8,3o.j,0.16,1o.f,0.q,2e.4,0.3,2e.3,d.c,3t.4,1.2,0.p,v.3,0.7u,19.2,0.5,19.3,3s.7,0.1,3s.8,0.3r,31.g,3a.a,3c.d,2x.l,34.l,f.a,g.f,3q.6,0.6,3o.j,0.17,1o.e,0.y,2e.2,d.e,3t.3,1.3,0.n,v.3,0.83,19.2,3s.g,0.3c,31.1,0.d,31.j,3a.6,3c.f,2x.l,34.j,f.c,g.f,3q.6,0.6,3o.i,0.19,1o.c,0.10,d.f,3t.4,1.3,0.m,v.3,0.84,19.1,3s.h,0.3o,31.l,3a.4,3c.h,2x.k,34.i,f.e,g.e,3q.9,0.4,3o.d,0.1d,1o.c,0.10,2e.1,d.e,3t.4,1.3,0.o,v.1,0.85,3s.i,0.3o,31.k,35.4,3c.i,2x.j,34.i,f.e,g.e,1u.8,3q.2,0.3,3o.c,0.1f,1o.b,0.10,2e.1,d.9,3t.9,1.3,0.n,v.2,0.2,v.1,0.86,3s.d,0.3q,31.i,35.5,3c.i,2x.2,12.2,2x.e,34.i,f.f,g.e,1u.9,3q.2,0.1,3o.1,0.1,3o.8,0.1i,1o.b,0.10,2e.2,d.7,3t.a,1.3,0.m,v.1,0.1,v.1,0.1,v.1,0.1,v.3,0.85,3s.2,0.1,3s.8,0.1b,3w.1,0.2d,31.i,35.6,3c.i,12.5,2x.2,13.1,2x.4,13.4,2x.1,13.3,34.g,f.g,g.c,1u.b,3q.2,0.1,3o.5,0.1m,1o.c,0.10,2e.1,d.2,0.2,d.3,3t.a,1.4,0.m,v.2,0.4,v.1,0.89,3s.8,0.3p,31.h,35.8,3c.h,12.7,13.d,34.g,f.g,g.c,1u.c,3q.2,0.1,3o.2,0.1p,1o.a,0.p,1q.1,0.b,2e.1,d.2,0.2,d.3,3t.a,1.4,0.n,v.1,0.8f,3s.7,0.n,20.2,0.31,31.f,35.9,3c.g,12.8,13.e,34.g,f.g,g.a,1u.d,3q.3,0.1r,1o.a,0.11,2e.2,d.1,0.5,3t.9,1.4,0.o,v.1,0.3,v.2,0.1,v.2,0.88,3s.6,0.m,20.2,0.34,31.d,35.9,3c.g,12.8,13.e,34.f,39.1,f.g,g.4,2z.1,g.4,1u.e,3q.2,0.f,3q.1,0.1d,1o.9,0.p,1q.1,0.b,2e.2,d.1,0.6,3t.7,1.5,0.q,v.1,0.5,v.1,0.89,3s.4,0.k,20.4,0.3,2.4,0.2x,31.d,35.b,3c.f,12.9,13.c,34.e,39.4,f.f,g.4,2z.1,g.4,1u.e,3q.3,0.a,3q.5,0.1e,1o.8,0.11,2e.2,0.7,3t.6,1.6,0.q,v.2,0.1,v.1,0.1,v.2,0.8a,3s.4,0.g,20.6,2.8,0.e,3w.1,0.2l,31.9,35.c,3c.g,12.8,13.b,34.e,39.5,f.g,g.2,2z.2,g.3,1u.e,1v.2,3q.3,0.3,3q.b,0.1e,1o.8,0.10,2e.2,d.1,0.7,3t.4,1.6,0.s,v.1,0.1,v.1,0.8d,3s.5,0.g,20.5,2.2,0.1,2.b,0.3,2.4,0.2,3w.1,0.2l,31.8,35.d,3c.f,12.a,13.a,37.2,34.b,39.7,f.3,39.2,f.a,g.1,2z.5,g.1,1u.e,1v.3,3q.g,0.1e,1o.7,0.12,d.1,0.b,1.4,0.p,v.1,0.7,v.2,0.8d,3s.1,0.1,3s.3,0.f,20.5,2.2,0.2,2.j,0.2o,31.5,35.f,3c.e,12.a,13.9,37.6,34.6,39.9,f.3,39.3,f.6,2z.2,f.1,2z.6,1u.e,1v.4,3q.g,0.1f,1o.5,0.2,42.1,0.10,d.1,0.c,1.3,0.o,v.1,0.7,v.1,0.2,v.1,0.8f,3s.3,0.5,3s.4,0.4,20.5,2.3,0.2,2.k,0.2n,31.5,35.f,3c.d,12.b,13.9,37.8,34.3,39.a,f.2,39.5,2z.e,1u.d,1v.6,3q.e,0.1g,1o.6,0.1,42.2,0.z,d.3,0.a,1.2,0.o,v.1,0.9,v.1,0.4,v.1,0.8d,3s.8,0.2,3s.2,0.2,20.8,2.n,0.2o,31.3,35.g,3c.c,12.d,13.7,37.b,39.b,f.1,39.6,2z.e,1u.c,1v.9,3q.c,0.1g,1o.3,0.4,42.2,0.y,d.4,0.z,v.1,0.e,v.3,0.8f,3s.3,0.4,3s.2,20.a,2.p,3w.1,0.2l,31.2,35.i,3c.b,12.d,13.6,37.c,39.i,2z.c,1u.d,1v.d,3q.8,0.1i,1o.2,0.4,42.3,0.y,d.4,0.19,v.7,0.8g,3s.3,0.3,3s.2,20.a,2.o,3w.3,0.2l,35.j,3c.b,12.e,13.5,37.c,39.i,2z.d,1u.b,1v.h,3q.5,0.1o,42.3,0.z,d.2,0.18,v.3,0.1,v.5,0.8h,3s.1,0.5,20.c,2.n,3w.4,0.2l,35.i,3c.c,12.d,13.5,37.d,39.h,2z.e,1u.9,1v.h,3q.5,0.1p,42.4,0.z,d.2,0.x,1b.1,0.9,v.1,0.3,v.3,0.1,v.1,0.8o,20.f,2.i,3w.6,0.2l,35.i,3c.b,12.d,13.1,37.2,13.1,37.e,39.g,2z.g,1u.8,1v.g,3q.5,0.1q,42.4,0.10,d.3,0.u,1b.2,0.d,v.3,0.8q,20.g,2.3,20.1,2.d,3w.7,0.2m,35.g,3c.9,0.5,12.a,37.i,39.g,2z.h,1u.6,1v.g,3q.6,0.1q,42.3,0.11,1b.2,d.2,0.s,1b.3,0.d,v.3,0.8q,20.k,2.d,3w.e,0.2g,35.f,3c.5,0.a,12.8,37.j,39.g,2z.h,1u.5,1v.g,3q.7,0.2v,1b.4,0.r,1b.5,0.d,v.1,0.8q,20.j,2.e,3w.1,2g.1,3w.b,18.4,0.2e,35.c,0.1,35.2,3c.2,0.d,12.7,37.k,39.d,1z.1,39.1,2z.h,1e.2,1u.2,1v.g,3q.7,0.2l,1m.4,0.7,1b.5,0.p,1b.8,0.92,21.4,20.f,2.e,2g.2,3w.b,18.5,0.2f,35.4,0.o,12.6,37.l,1z.3,39.6,1z.8,2z.e,1e.3,1u.1,1v.e,3q.9,0.2n,1m.5,0.5,1b.6,0.m,3t.1,1b.7,0.94,21.h,20.2,2.6,2g.1,2.6,2g.4,3w.a,18.6,0.3d,37.j,1z.7,39.1,1z.f,2z.8,1e.6,1v.7,1e.1,1v.3,3q.b,0.2o,1m.5,0.4,1b.6,0.l,1b.1,3t.1,1b.2,1l.3,1b.1,0.96,21.j,2.6,2g.a,3w.b,18.4,2g.1,2h.1,0.3b,37.1,0.1,37.i,1z.o,2z.7,1e.8,1v.4,1e.3,3q.c,0.2q,1m.5,0.4,1b.5,0.9,1l.1,0.a,1b.4,1l.4,0.96,21.k,2.7,2g.8,3w.c,18.3,2g.2,2h.1,0.3e,37.h,1z.p,2z.7,1e.e,3q.b,0.2s,1m.5,0.4,1b.4,0.j,1b.5,1l.4,0.95,21.l,2.7,2g.8,3w.c,18.3,2g.2,2h.1,0.3e,30.5,37.c,1z.p,2z.8,1e.c,3q.b,0.2q,1m.1,0.3,1m.5,0.3,1b.4,0.g,1b.7,1l.6,0.93,21.n,2.7,2g.7,3w.8,2g.3,18.1,2g.1,18.1,2g.3,2h.2,0.3d,30.b,37.5,1z.q,2z.1,38.7,1e.c,3q.9,0.2x,1m.5,0.3,1b.4,0.e,1b.8,1l.6,0.k,1l.1,0.8h,21.m,2g.2,2.6,2g.9,3w.4,2g.c,2h.3,0.3b,30.h,1z.q,38.8,1e.c,3q.8,0.2z,1m.6,0.3,1b.2,0.b,1b.1,0.2,1b.7,1l.7,0.j,1l.1,0.8i,3y.1,21.h,2g.6,2.4,2g.c,3w.1,2g.e,2h.3,0.3b,30.h,1z.p,38.9,1e.c,3q.6,0.2y,1m.1,0.3,1m.7,0.2,3t.1,0.a,1l.2,1b.4,1l.d,0.5,1l.1,0.6,1l.1,0.5,1l.2,0.8f,3y.5,21.h,2g.y,2h.3,0.3c,30.h,1z.o,38.9,1e.d,3q.5,0.30,1m.1,0.2,1m.7,0.d,1l.i,0.4,1l.9,0.6,1l.2,0.8f,3y.6,21.1,3y.1,21.c,2g.10,2h.3,0.1,2h.1,0.3a,30.h,1z.o,38.8,1e.e,3q.4,0.35,1m.6,0.1,1m.1,0.b,1l.h,0.k,1l.1,0.7t,3y.2,0.k,3y.a,w.1,21.a,2g.10,2h.1,0.2,2h.4,0.38,30.g,1z.o,38.9,1e.e,3q.3,0.37,1m.7,0.b,1l.h,0.4,1l.1,0.f,1l.1,0.6,1n.1,0.7m,3y.1,0.l,3y.a,w.2,21.a,2g.z,2h.7,0.1,2h.2,0.34,30.h,1z.o,38.9,1e.e,3q.2,0.38,1m.7,0.c,1l.g,0.4,1l.1,0.6,1l.1,0.7,1l.3,0.6,1n.5,0.3,1n.1,0.7y,3y.b,w.4,21.8,2g.z,2h.6,0.1,2h.5,0.32,30.g,1z.p,38.a,1e.e,3q.1,0.35,1m.1,0.3,1m.8,0.b,1l.e,0.5,1l.2,0.1,1l.3,0.h,1n.6,0.82,3y.a,w.5,21.8,2g.z,2h.5,0.1,2h.9,0.30,30.e,1y.4,1z.l,38.d,1e.c,0.3a,1m.8,0.2,1m.1,0.8,1l.d,0.6,1l.5,0.5,1l.1,0.a,1n.1,0.3,1n.4,0.4,1n.2,0.1,1n.2,0.7t,3y.a,w.6,21.2,w.1,21.4,2g.y,2h.g,0.30,30.d,1y.b,1z.f,38.e,1e.a,0.39,1m.1,0.2,1m.8,0.a,1l.d,0.5,1l.6,0.l,1n.1,0.7,1n.6,0.7t,3y.6,w.e,21.1,2g.y,2h.k,0.2x,30.c,1y.h,1z.9,38.g,1e.6,0.3f,1m.a,0.2,1m.1,0.4,1l.d,0.5,1l.3,0.1,1l.2,0.k,1n.1,0.1,1n.3,0.3,1n.a,3u.1,0.7p,3y.4,w.f,21.1,2g.z,2h.q,0.2s,30.b,1y.n,1z.3,38.h,1e.5,0.3f,1m.9,0.c,1l.2,0.1,1l.5,0.6,1l.3,0.1,1l.3,0.7,1l.2,0.3,1l.4,0.4,1n.5,0.1,1n.b,3u.3,0.i,3u.1,0.72,w.2,3y.3,w.g,21.1,2g.z,2h.s,0.2r,30.a,1y.q,38.g,33.2,1e.4,0.3g,1m.8,0.h,1l.2,0.1,1l.1,0.6,1l.2,0.1,1l.3,0.8,1l.1,0.7,1l.1,0.4,1n.1,0.1,1n.e,3u.6,0.7i,w.1,3y.4,w.f,2g.1,w.1,2g.z,2h.t,0.2r,30.8,1y.s,38.d,33.5,1e.2,0.3i,1m.7,0.r,1l.2,0.2,1l.3,0.o,1n.c,3u.8,0.d,3u.1,0.1,3u.1,0.6z,w.4,3y.1,w.d,2g.14,2h.u,0.2r,30.1,2t.1,1y.3,30.1,1y.t,38.a,33.9,0.3l,1m.5,0.r,1l.2,0.2,1l.1,0.t,1n.9,3u.9,0.c,3u.2,0.71,w.g,2g.14,2i.1,2h.y,0.2n,2t.1,1y.y,38.8,33.b,0.1,33.1,0.3k,1m.4,0.r,1l.2,0.4,1l.1,0.t,1n.7,3u.a,0.a,3u.2,0.72,w.g,2g.12,2i.4,2h.y,0.2m,1y.z,38.5,33.e,0.3p,1m.1,0.1h,1n.1,0.2,1n.1,0.7,1n.6,3u.b,0.4,3u.6,0.6,3u.1,0.6w,w.g,2g.11,2i.5,2h.y,0.2n,2t.8,1y.q,38.3,33.h,0.3p,1m.4,0.1g,1n.1,0.8,1n.5,3u.d,0.4,3u.2,0.9,3u.1,0.6x,w.d,2g.10,2i.8,2h.x,0.2n,2t.9,1y.q,33.j,0.3o,1m.6,0.4,1m.2,0.19,1n.1,0.9,1n.4,3u.c,0.h,3u.1,0.6x,w.c,2g.z,2i.a,2h.w,0.2o,2t.8,1y.5,2t.2,1y.k,33.i,0.3q,1m.c,0.1g,1n.5,3u.c,0.k,3u.1,0.6u,w.b,2g.y,2i.c,2h.w,0.2o,2t.9,1y.4,2t.5,1y.h,33.i,0.3t,1m.1,0.2,1m.a,0.n,1l.1,0.9,1n.1,0.d,1n.6,3u.6,0.2,3u.5,0.i,3u.1,0.3,3u.1,0.6s,w.b,2g.w,2i.e,2h.v,0.2p,2t.h,1y.h,33.i,0.3z,1m.9,0.f,1l.4,0.p,1n.3,0.2,1n.2,3u.5,0.5,3u.4,0.i,3u.2,0.6u,w.c,2g.u,2i.g,2h.u,0.2p,2t.h,1y.e,33.l,0.47,1m.1,0.1,1m.1,0.1,1m.3,0.3,1l.4,0.6,3u.4,0.r,1n.1,3u.5,0.6,3u.4,0.o,3u.1,0.6p,w.b,2g.s,2i.i,2h.t,0.2p,2t.i,1y.d,36.1,33.l,0.4p,3u.1,1l.1,3u.1,0.y,3u.1,0.8,3u.4,0.2,3u.1,0.l,3u.1,0.6o,w.9,x.3,2g.3,x.1,2g.m,2i.k,2h.r,0.2q,2t.i,1y.d,36.2,33.k,0.4g,1l.2,0.6,1l.3,0.19,3u.5,0.k,3u.2,0.6q,w.6,x.9,2g.7,3h.3,2g.a,2i.m,2h.r,0.2r,2t.i,1y.c,36.3,33.k,0.4n,1l.1,0.1e,3u.4,0.7a,w.4,x.b,2g.5,3h.5,2g.9,2i.o,2h.o,0.2t,2t.i,1y.c,36.4,33.f,3d.5,0.4l,1l.1,0.25,3u.1,0.6o,w.1,x.f,3h.8,2g.7,2i.r,2h.n,0.2u,2t.k,36.1,1y.1,36.1,1y.6,36.5,33.9,3d.a,0.51,2l.1,0.1,2l.1,0.j,2l.2,0.7s,x.g,3h.8,2g.5,2i.s,2j.5,2h.h,0.2v,2t.k,36.3,1y.6,36.5,33.4,3d.f,0.5,3d.1,0.4t,2l.2,0.3,2l.2,0.h,2l.2,0.7s,x.g,3h.9,2g.2,2i.t,2j.d,2h.9,0.2v,2s.5,2t.g,36.7,1y.3,36.1,1y.1,36.3,3d.i,0.h,3r.1,0.4j,2l.1,0.1,2l.8,0.1,2l.1,0.9,2l.3,0.7t,x.f,3h.c,2i.s,2j.l,2h.1,0.2u,2s.e,2t.8,36.9,1y.3,36.3,3d.i,0.h,3r.1,0.4i,2l.c,0.b,2l.3,0.7s,x.f,3h.e,2i.q,2j.k,0.2v,2s.j,36.e,1y.2,36.3,3d.i,0.h,3r.2,0.4g,2l.c,0.b,2l.4,0.2g,3u.1,0.5c,x.e,3h.h,2i.n,2j.k,0.2v,2s.j,36.j,3d.i,0.f,3r.4,0.4g,2l.d,0.a,2l.4,0.7t,x.e,3h.h,2i.m,2j.l,0.2v,2s.j,36.j,3d.i,0.f,3r.4,0.48,2l.3,0.4,2l.d,0.1,2l.1,0.9,2l.4,0.7t,x.d,3h.h,3j.1,2i.m,2j.l,0.2u,2s.k,36.j,3d.j,0.d,3r.5,0.46,2l.6,0.3,2l.c,0.c,2l.7,0.7s,x.c,3h.f,3j.2,2i.m,2j.l,0.2u,2s.k,36.j,3d.i,0.d,3r.7,0.45,2l.6,0.1,2l.f,0.b,2l.8,0.16,3u.1,0.6l,x.a,3h.f,3j.4,2i.k,2j.m,0.2u,2s.k,36.j,3d.i,0.c,3r.6,0.1,3r.1,0.44,2l.o,0.a,2l.8,0.7u,x.9,3h.c,3j.6,2i.k,2j.m,0.2u,2s.k,36.j,3d.h,0.9,3r.b,0.43,2l.1,0.1,2l.q,0.8,2l.8,0.19,3u.1,0.m,3u.1,0.5z,x.7,3h.b,3j.a,2i.h,2j.m,0.2u,2s.l,36.h,2y.3,3d.e,0.a,3r.a,0.42,2m.1,0.1,2l.u,0.5,2l.9,0.19,3u.1,0.k,3u.1,0.63,x.4,3h.a,3j.c,2i.h,2j.m,0.2t,32.4,2s.j,36.f,2y.5,3d.a,0.c,3r.b,0.41,2m.2,2l.w,0.4,2l.a,0.3l,18.1,0.4c,x.2,28.1,3h.9,3j.f,2i.e,2j.n,0.2t,32.f,2s.8,3b.2,36.c,2y.8,3d.6,0.e,3r.b,0.41,2m.3,2l.19,0.1r,3u.2,0.66,x.1,28.2,3h.6,3j.h,2i.e,2j.m,0.2v,32.g,3b.b,36.7,2y.c,3d.4,0.e,3r.b,0.41,2m.4,2l.19,0.7y,28.3,3h.5,3j.i,2i.e,2j.m,0.2w,32.f,3b.d,36.4,2y.f,3d.1,0.f,3r.a,0.41,2m.6,2l.18,0.7y,28.4,3h.2,3j.j,2i.d,2f.2,2j.m,0.2w,32.f,3b.f,36.1,2y.f,0.i,3r.9,0.41,2m.6,2l.18,2n.1,0.7y,28.3,3h.1,3j.k,2i.9,2f.7,2j.k,0.2y,32.e,3b.g,2y.d,0.k,3r.9,0.3z,2m.9,2l.15,2n.4,0.7x,28.3,3j.k,3i.1,2i.5,2f.c,2j.i,0.2z,32.e,3b.g,2y.d,0.k,3r.8,0.i,3r.1,0.3e,2m.d,2l.13,2n.7,0.7v,28.3,3j.j,3i.2,2i.1,2f.h,2j.h,0.30,32.d,3b.g,2y.e,0.i,3r.9,0.3s,2m.j,2l.11,2n.9,0.v,18.1,0.4,18.1,0.y,3u.1,0.5u,28.4,3j.h,3i.3,2f.k,2j.e,0.31,32.e,3b.f,2y.e,0.h,3r.a,0.e,18.1,0.3c,2m.l,2l.y,2n.b,0.w,18.1,0.6x,28.4,3j.g,3i.4,2f.l,2j.d,0.32,32.d,3b.f,2y.f,0.g,3r.9,0.3q,2m.n,2l.x,2n.d,0.w,18.2,0.6v,28.4,3j.3,2p.4,3j.1,2p.3,3j.4,3i.7,2f.k,2j.b,0.34,32.c,3b.f,2y.2,j.2,2y.b,0.g,3r.9,0.3p,2m.p,2l.u,2n.f,0.y,18.1,0.6t,28.5,3j.2,2p.a,3j.2,3i.b,2f.j,2j.8,0.35,32.c,3b.f,j.7,2y.8,0.g,3r.9,0.3n,2m.s,2l.s,2n.j,0.7p,28.7,2p.b,3i.c,2f.k,2j.2,0.3a,32.c,3b.e,j.8,2y.8,0.g,3r.8,0.3p,2m.s,2l.p,2n.l,0.7p,28.6,2p.d,3i.b,2f.k,0.3c,32.c,3b.d,j.9,2y.8,0.g,3r.8,0.3o,2m.u,2l.n,2n.n,0.7o,28.5,2p.h,3i.a,2f.f,0.3f,32.c,3b.d,j.a,2y.7,0.g,3r.8,0.3o,2m.v,2l.k,2n.q,0.7n,28.4,2p.j,3i.9,2f.e,0.3g,32.c,3b.b,j.c,2y.6,0.i,3r.6,0.3p,2m.w,2l.i,2n.s,0.1,2n.1,0.7k,28.4,2p.m,3i.6,2f.d,0.3i,32.a,k.1,32.1,3b.9,j.d,2y.3,0.m,3r.3,0.3s,2m.v,2l.g,2n.u,0.1,2n.1,0.7k,28.4,2p.l,3i.7,2p.1,2f.b,0.3j,32.a,k.1,32.1,3b.4,j.3,3b.2,j.d,2y.1,0.4j,2m.w,2l.e,2n.w,0.7l,28.4,2p.l,3i.7,2p.2,2f.a,0.3j,32.a,k.2,3b.3,k.2,j.f,2y.4,0.4g,2m.1,0.1,2m.x,2l.b,2n.y,0.7k,28.5,2p.k,3i.7,2p.2,2f.b,0.3j,32.a,k.1,32.1,3b.2,k.4,j.e,2y.4,0.4h,2m.z,2l.8,2n.10,0.7k,28.4,2p.l,3i.6,2p.3,2f.b,0.3k,32.9,k.8,j.f,2y.1,j.2,0.4i,2m.z,2l.6,2n.11,0.7k,28.4,2p.s,2f.d,0.3k,32.9,k.9,j.g,0.4j,2m.10,2l.3,2n.14,0.7j,28.3,2p.s,2f.e,0.3l,32.2,k.1,32.5,k.a,j.f,0.4k,2m.10,2n.16,0.7i,28.4,2p.r,2f.e,0.3n,k.2,32.4,k.c,j.5,2y.2,j.6,0.4l,2m.10,2n.16,0.7i,28.3,2p.r,2f.e,0.3p,k.i,j.3,2y.4,j.4,0.4n,2m.z,2n.16,0.7i,28.3,2p.q,2f.e,0.3q,k.i,j.2,2y.4,j.4,0.4o,2m.z,2n.16,0.7i,28.3,2p.p,2f.1,40.1,2f.a,0.1,2f.2,0.3r,k.i,j.2,2y.2,j.5,0.4o,2m.z,2n.15,0.7j,28.2,2p.p,40.4,2f.9,0.3u,k.j,j.7,0.4p,2m.z,2n.15,0.7j,28.2,2r.4,2p.l,40.6,2f.7,0.3v,k.j,j.5,0.4r,2m.x,2n.16,0.7j,28.2,2r.c,2p.d,40.7,2f.5,0.3w,k.k,j.3,0.4s,2m.r,0.6,2n.16,0.7j,28.2,2r.j,2p.6,40.9,2f.3,0.3x,k.k,j.1,0.4t,2m.o,0.c,2n.12,0.7k,28.3,2r.o,40.a,2f.1,0.3x,k.k,0.4v,2m.j,0.i,2n.10,0.7l,28.3,2r.n,40.a,2f.2,0.3x,k.j,0.4w,2m.h,0.l,2n.6,0.1,2n.r,0.7l,28.4,2r.n,40.a,0.40,k.f,0.4y,2m.h,0.n,2n.4,0.1,2n.s,0.7l,28.4,2r.n,0.1,40.9,0.41,k.6,0.56,2m.9,0.w,2n.2,0.2,2n.r,0.7m,28.3,2r.p,0.3,40.4,0.44,k.1,0.5c,2m.5,0.y,2n.1,0.3,2n.1,0.1,2n.p,0.7l,28.4,2r.q,0.aw,2n.o,0.19,14.2,0.6b,28.4,2r.q,0.as,2n.2,0.3,2n.m,0.1b,14.2,0.69,28.5,2r.r,0.ax,2n.l,0.1d,14.1,0.68,28.4,2r.t,0.ax,2n.k,0.1d,14.1,0.1,14.1,0.65,28.5,2r.s,0.ay,2n.k,0.1d,14.3,0.65,28.5,2r.r,0.b0,2n.i,0.1f,14.3,0.2,14.2,0.60,28.5,2r.q,0.b3,2n.6,0.1,2n.5,0.1i,14.8,0.60,28.5,2r.n,0.d0,14.7,0.62,28.3,2r.i,0.d5,14.6,0.63,28.4,2q.1,2r.i,0.d5,14.5,0.63,28.3,2q.6,2r.d,0.d7,14.3,0.63,28.4,2q.9,2r.a,0.bi,2o.1,0.1o,14.3,0.63,28.4,2q.d,2r.1,0.bn,2o.8,0.1b,14.2,0.1,14.5,0.65,28.1,0.1,28.1,2q.e,0.bo,2o.7,0.1a,14.6,0.67,28.1,0.1,28.2,2q.h,0.bm,2o.5,0.1b,14.5,0.68,28.1,0.1,28.2,2q.e,0.2,2q.1,0.bm,2o.5,0.1a,14.5,0.68,28.2,0.1,28.2,2q.e,0.bq,2o.2,0.1a,14.5,0.m,14.1,0.5q,28.2,2q.d,0.d1,14.8,0.6c,28.2,2q.d,0.cz,14.7,0.6c,28.1,0.1,28.4,2q.c,0.cy,14.7,0.6e,28.5,2q.9,0.d0,14.8,0.6f,28.3,2q.9,0.d1,14.7,0.6d,28.2,0.1,28.3,2q.9,0.d2,14.5,0.6e,28.6,2q.a,0.jl,28.5,2q.c,0.jj,28.1,0.1,28.2,2q.d,0.ji,28.5,2q.c,0.jj,28.5,2q.b,0.jk,28.4,2q.b,0.7l,3r.1,0.1,3r.1,0.bw,28.4,2q.b,0.jl,28.1,0.1,28.2,2q.a,0.jn,28.5,2q.7,0.jo,28.1,0.1,28.3,2q.7,0.jq,28.4,2q.6,0.i,40.4,0.j2,28.1,0.1,28.9,0.1,28.1,0.h,40.1,0.j8,28.1,0.1,28.3,0.1,28.4,0.jr,28.2,0.1,28.1,0.1,28.4,0.jq,28.2,0.1,28.2,0.2,28.3,2q.2,0.js,28.1,0.3,28.2,2q.3,0.1o,a.1,0.i4,28.1,0.1,28.2,2q.7,0.1,2q.1,0.1j,a.1,0.i6,28.1,0.1,28.2,0.xq","provs":[["하노이",570,125,[74,76,136],[78,12,85,46,56,57,30],0,99000000,"f",1,224],["카라카스",227,153,[71,139,87,72],[43,149,3,135,146,88],1,28000000,"m",1,584],["로마",383,81,[130,43],[144,129,101,47,16,48,11,40,68],2,59000000,"p",1,258],["워싱턴",195,90,[80,5,82],[149,146,43,1,44,139,71,135,9],3,196487321,"p",1,1884],["미국 남부",132,84,[80,5,45],[7],3,27937430,"m",0,2388],["미국 남동부",164,91,[4,80,3,45,44],[146,135],3,84254512,"p",0,2402],["미국 북서부 1",53,39,[80],[8,23,7],3,25074254,"f",0,2166],["미국 북서부 2",94,57,[80],[8,6,4],3,597347,"f",0,38],["미국 북서부 3",89,50,[80],[6,7],3,649135,"f",0,44],["런던",355,61,[147],[43,130,146,149,35,16,63,44,135,148,71,13,3],4,68000000,"p",1,272],["키이우",422,69,[27,138,29,25,130,129],[11,142],5,37000000,"f",1,578],["앙카라",430,89,[129,142,54,140,53],[25,10,68,48,2,144,47,130],6,85000000,"p",1,650],["방콕",562,137,[85,136,46],[57,0,61,56,91,59,145],7,72000000,"h",1,346],["스톡홀름",393,41,[35,64],[130,63,29,138,27,9,43],8,10000000,"f",1,620],["수단 남서부",412,139,[48,67,15,111,116,106],[],9,31981289,"p",0,522],["하르툼",425,133,[14,67,133,65,106],[20,21,131,68],9,16018711,"d",1,736],["마드리드",352,87,[43,148,40],[101,117,2,9,108,147,144,47],10,48000000,"p",1,426],["서울",615,94,[36],[52,77,75,23,74,136],11,51000000,"h",1,80],["프리토리아",417,220,[105,118,19],[120,134],12,44502646,"p",1,402],["남아공 남서부",404,229,[109,118,18],[105],12,17497354,"p",0,492],["사우디아라비아 북서부",442,114,[140,53,132,68,21],[67,15,54,55,133,131,33],13,8359250,"d",0,662],["리야드",455,124,[20,132,131],[54,55,15,133,67,33,68],13,27640750,"d",1,704],["러시아 서부",478,45,[24,27,50,51,25],[28,35],14,18939190,"f",0,3644],["러시아 동부",667,45,[26,75],[52,36,6,17],14,22034950,"f",0,4058],["러시아 중부",534,44,[26,22,50,41,73],[28],14,24506430,"f",0,4748],["러시아 남서부",446,72,[27,22,51,10,142],[11,129,128,54],14,9294638,"p",0,760],["러시아 북동부",600,38,[24,23,75,41,42],[],14,36466398,"f",0,7954],["모스크바",433,48,[35,64,22,138,29,25,10],[13,130,63,28],14,32700759,"f",1,2000],["러시아 북부",474,18,[],[22,24,27],14,57635,"t",0,278],["바르샤바",398,63,[27,138,63,130,10],[13,64,35],15,37000000,"p",1,330],["마닐라",605,145,[],[46,136,56,74,78,77,0,58,52,137],16,117000000,"p",1,184],["페루 북서부",208,179,[72,141,87,32],[135,71,79],17,10297853,"m",0,476],["리마",214,194,[31,87,124,79],[141],17,23702147,"m",1,374],["파키스탄 남서부",493,113,[34,103,55,60,62],[132,59,21,54,20],18,14146915,"d",0,338],["이슬라마바드",504,102,[103,127,73,60,33],[],18,225853085,"h",1,308],["오슬로",390,30,[64,27,13],[130,63,9,29,43,147,22,138],19,5500000,"t",1,698],["평양",614,87,[75,17],[23,77,52,74,136],20,26000000,"p",1,96],["아부자",372,150,[104,119,38,114],[107,112,100,69],21,181854033,"p",1,350],["나이지리아 북동부",381,146,[104,111,37,114],[],21,43145967,"p",0,250],["웰링턴",704,253,[],[],22,5200000,"p",1,236],["라바트",345,104,[16,101,102,117,108],[148,144,43,2],23,37000000,"d",1,438],["몽골 북서부",554,73,[24,26,42,73,76,77],[],24,922886,"p",0,786],["울란바토르",579,74,[26,41,75,77],[],24,2477114,"p",1,696],["파리",362,78,[130,63,2,16,139,87],[9,88,134,3,144,137,101,147,1,149,148,35,47,71,40,129,94,13,146],25,68000000,"h",1,580],["멕시코시티",163,129,[5,45,135],[146,9,3,149,141],26,95960718,"p",1,682],["멕시코 북서부",145,112,[4,5,44],[],26,32039282,"p",0,724],["쿠알라룸푸르",587,162,[12,136,56],[57,30,0,85,61,74,78,58],27,34000000,"f",1,216],["트리폴리",387,111,[144,101,48,102,104],[2,129,43,68,130,16,11],28,4778130,"d",1,500],["리비아 남동부",402,115,[68,47,67,111,14],[129,11,144,2,140,130],28,2221870,"d",0,684],["나이로비",435,166,[106,65,66,133,115,110],[120,134],29,55000000,"p",1,386],["아스타나",507,71,[22,51,24,73,128,127],[],30,17001770,"p",1,1548],["카자흐스탄 남서부",475,71,[22,50,25,128],[142,54],30,2998230,"h",0,1090],["도쿄",637,95,[],[23,17,36,136,77,74,75,30],31,124000000,"h",1,314],["바그다드",447,101,[140,11,54,20,132],[],32,45000000,"p",1,340],["테헤란",460,98,[11,142,128,55,53],[132,20,21,25,51,33],33,63317213,"m",1,574],["이란 남동부",475,106,[54,128,103,33],[132,20,21,62,131],33,25682787,"m",0,668],["인도네시아 북부",590,169,[46,137],[58,57,30,136,92,93,0,12,78,85],34,74659104,"f",0,542],["자카르타",567,173,[],[46,136,56,12,85,137,61,0,93,92,145,58],34,164059952,"f",1,398],["인도네시아 남동부",636,175,[137],[56,92,30,57,94,46,93],34,38280944,"f",0,278],["인도 남부",515,138,[62,61],[145,91,85,33,132,12],35,385550189,"p",0,478],["뉴델리",512,110,[73,127,34,145,33,61,62],[],35,433788399,"m",1,566],["인도 동부",532,119,[76,85,145,60,73,91,62,59],[12,57,46],35,291325991,"f",0,638],["인도 서부",511,124,[33,60,61,59],[55,132],35,319335421,"h",0,550],["베를린",380,65,[130,29,43],[13,35,9,27,138,64],36,84000000,"p",1,376],["헬싱키",412,39,[35,13,27],[138,29,130,63],37,5500000,"f",1,494],["아디스아바바",435,147,[15,133,66,106,49],[],38,104740764,"p",1,406],["에티오피아 남동부",443,154,[65,133,49],[],38,21259236,"h",0,326],["이집트 남동부",420,119,[68,48,14,15],[20,21,133,131],39,28112718,"d",0,354],["카이로",418,110,[48,140,20,67],[129,11,15,47,21,133,144,2],39,83887282,"d",1,370],["킨샤사",406,180,[107,70,115,100,110,113],[99,109,114,37],40,82836490,"h",1,822],["콩고민주공화국 북동부",408,165,[116,114,106,107,115,69],[],40,19163510,"f",0,708],["보고타",213,154,[1,135,72],[149,141,146,3,139,43,9,31],41,35443607,"m",1,314],["콜롬비아 남동부",214,164,[71,1,87,141,31],[135],41,16556393,"m",0,436],["중국 서부 1",534,91,[50,24,41,76,127,103,34,60,145,61],[],42,56482237,"d",0,2552],["중국 남동부",585,115,[76,77,0],[78,136,52,30,17,75,36,46],42,175652980,"p",0,836],["중국 북동부",606,75,[26,23,42,77,36],[17,52,74,136],42,130364343,"f",0,1336],["중국 서부 2",563,104,[73,41,77,74,61,85,0,136],[],42,309282963,"p",0,1556],["베이징",586,94,[42,75,76,41,74],[36,17,136,52,30],42,733229504,"p",1,1300],["중국 남부",579,129,[],[74,0,30,136,56,46],42,4987974,"p",0,22],["산티아고",215,243,[124,32,126,96,98,97],[143,31],43,19000000,"m",1,606],["오타와",160,49,[6,8,7,4,5,3],[81,82,83,84,122,123,121],44,38544071,"f",1,11914],["캐나다 북동부",198,9,[],[122,80,84,83],44,29626,"t",0,1076],["캐나다 남동부",227,74,[3],[80],44,408924,"p",0,166],["캐나다 북서부 1",142,15,[],[84,80,81],44,10562,"t",0,266],["캐나다 북서부 2",162,22,[],[83,81,80],44,6817,"t",0,130],["네피도",552,125,[76,61,91,136,12],[0,57,46,59,56],45,54000000,"p",1,458],["브라질 남부",256,218,[89,90,125,96,143],[98],46,21464178,"p",0,704],["브라질 북서부",235,175,[139,1,88,43,72,31,89,32,124],[],46,36810330,"f",0,1826],["브라질 북동부",271,180,[87,89,90],[43,139,1],46,41720486,"p",0,1246],["브라질 서부",250,194,[88,87,90,124,126,86,125],[],46,34450571,"p",0,1050],["브라질리아",270,202,[89,88,86],[],46,81554435,"p",1,844],["다카",539,120,[61,85],[59,12],47,172000000,"p",1,92],["호주 북부",629,206,[93,94],[137,58,56,57],48,4744344,"d",0,1716],["호주 서부",604,221,[92,94],[56,137,57,58],48,4418927,"d",0,1694],["캔버라",647,227,[92,93],[95,137,43,58],48,16063022,"d",1,2110],["호주 남동부",653,252,[],[94],48,773708,"h",0,56],["아르헨티나 북동부",233,223,[126,79,125,86,143,98],[],49,14380078,"p",0,832],["아르헨티나 남서부",220,260,[98,79],[143],49,7502837,"p",0,554],["부에노스아이레스",230,240,[79,96,143,97],[86],49,24117085,"f",1,850],["앙골라 남서부",394,198,[100,113,109,118],[69,107],50,8581860,"p",0,408],["루안다",395,188,[69,107,113,99],[109,114,37],50,27418140,"p",1,426],["알제",367,101,[144,40,102,47],[16,2,43,129,130],51,40178464,"h",1,556],["알제리 남서부",364,116,[40,101,47,117,104],[],51,4821536,"d",0,1160],["카불",491,100,[127,128,34,73,55,33],[],52,42000000,"f",1,504],["니제르",378,132,[102,47,111,117,119,37,38],[],-1,50383688,"d",0,770],["모잠비크·짐바브웨",423,211,[113,120,118,18],[134,19,110],-1,50948994,"h",0,404],["남수단",422,154,[15,14,65,116,70,49,115],[],-1,43877321,"h",0,392],["콩고·가봉",386,169,[114,70,69,100],[37,99,119,109,112],-1,23366465,"f",0,406],["모리타니",334,139,[117,40,112],[16,119],-1,79839990,"p",0,568],["나미비아",393,212,[99,118,19],[100,69,107],-1,5066073,"d",0,554],["탄자니아 1",429,184,[115,49,69,113,120],[133,134,105],-1,99618280,"h",0,484],["차드",396,136,[48,104,14,38,116,114],[],-1,38337837,"d",0,822],["코트디부아르",346,150,[108,117,119],[37,114,107],-1,98149358,"p",0,490],["잠비아",414,197,[110,69,100,120,99,105,118],[],-1,40725167,"h",0,470],["카메룬",388,156,[38,111,116,37,70,107],[119,112,100,69],-1,54651858,"p",0,460],["탄자니아 2",424,172,[106,49,70,110,69],[],-1,170653595,"h",0,368],["중앙아프리카",404,152,[14,111,106,114,70],[],-1,12302140,"h",0,370],["모리타니·말리",345,126,[102,40,108,104,119,112],[16,148],-1,31623808,"d",0,1020],["보츠와나",407,211,[99,113,109,105,18,19],[],-1,7330178,"p",0,440],["말리",359,144,[117,104,112,37],[114,107,108],-1,164751774,"h",0,654],["모잠비크",432,196,[110,113,105],[134,49,133,18],-1,81768823,"f",0,456],["그린란드 1",284,23,[122,123],[147,80],-1,40831,"t",0,1938],["그린란드 2",274,9,[121],[81,80,123,147],-1,55831,"t",0,2650],["그린란드 3",268,37,[121],[80,122,147],-1,15338,"f",0,728],["볼리비아 1",227,197,[87,32,89,126,79],[],-1,12852459,"m",0,392],["파라과이",245,216,[89,126,86,96],[],-1,10226950,"p",0,206],["볼리비아 2",234,206,[89,124,125,79,96],[],-1,14920591,"p",0,416],["키르기스스탄",504,87,[50,73,128,103,34,60],[],-1,48511340,"m",0,364],["투르크메니스탄·우즈베키스탄",480,87,[51,50,127,54,55,103],[142,25],-1,69288660,"d",0,702],["루마니아",407,80,[10,130,11],[2,48,68,25,140,144,47,142,101,43],-1,106910916,"p",0,608],["헝가리",390,71,[63,43,29,10,129,2],[13,9,35,27,138,64,144,47,48,11,101],-1,177160513,"f",0,556],["예멘",457,135,[21,132],[133,15,20,67,55],-1,64490323,"d",0,294],["오만",472,122,[53,20,21,131],[54,55,33,133,62,59],-1,50509677,"d",0,308],["소말리아",455,150,[15,65,66,49],[131,21,20,110,132,67,120,68],-1,46400000,"p",0,522],["마다가스카르",453,207,[],[43,120,105,110,18,49],-1,63400000,"p",0,406],["니카라과",187,140,[44,71],[72,146,141,9,31,149,1,3,5],-1,102600000,"p",0,354],["라오스·캄보디아",571,139,[0,76,85,12,46],[57,74,30,77,56,52,78,17,75,36],-1,106900000,"p",0,312],["파푸아뉴기니",647,179,[58,56],[92,43,57,93,94,30],-1,27000000,"f",0,344],["벨라루스",413,57,[27,29,10],[64,13,130,63,35],-1,30000000,"f",0,426],["가이아나·수리남",244,158,[1,87,43],[88,3,71,149],-1,6360000,"f",0,238],["시리아",435,99,[53,11,20,68],[129,48],-1,113000000,"p",0,252],["에콰도르",202,170,[72,31],[71,135,32,44],-1,36000000,"m",0,170],["아제르바이잔·조지아",450,86,[25,11,54],[128,51,10,129],-1,33000000,"m",0,160],["우루과이",247,234,[86,96,98],[97,79],-1,7600000,"p",0,150],["튀니지",379,98,[101,47],[2,43,16,129,48,130,40,11,68],-1,25000000,"p",0,124],["네팔",525,110,[73,60,61],[59,57,12],-1,105600000,"p",0,180],["쿠바",200,123,[],[149,9,3,44,135,71,5,1,43],-1,28400000,"h",0,92],["아이슬란드",328,37,[9],[121,43,16,148,123,122,35],-1,11588571,"f",0,234],["포르투갈",343,89,[16],[40,43,147,117,9],-1,18604651,"h",0,80],["도미니카공화국·아이티",217,130,[],[146,3,71,9,1,43,135,139,44],-1,46000000,"p",0,58]],"civs":[["VN","베트남","#bc4e4e",0,0.8],["VE","베네수엘라","#70d28c",1,1.6],["IT","이탈리아","#55d355",2,3],["US","미국","#386dd6",3,3],["GB","영국","#cf7786",9,3],["UA","우크라이나","#d05d9b",10,0.8],["TR","튀르키예","#65d241",11,1.6],["TH","태국","#6d68e3",12,1.6],["SE","스웨덴","#cd8865",13,3],["SD","수단","#4acf9d",15,0.8],["ES","스페인","#d770e1",16,3],["KR","대한민국","#3d7fd9",17,3],["ZA","남아공","#528fcb",18,1.6],["SA","사우디아라비아","#de788d",21,3],["RU","러시아","#6f9c8f",27,1.6],["PL","폴란드","#845bc8",29,3],["PH","필리핀","#ca9c3f",30,0.8],["PE","페루","#64ddd8",32,1.6],["PK","파키스탄","#c563ac",34,0.8],["NO","노르웨이","#82c748",35,3],["KP","북한","#da6c6c",36,0.8],["NG","나이지리아","#dc6250",37,0.8],["NZ","뉴질랜드","#50c380",39,3],["MA","모로코","#d87491",40,0.8],["MN","몽골","#d9d959",42,1.6],["FR","프랑스","#596ac0",43,3],["MX","멕시코","#d57ba0",44,1.6],["MY","말레이시아","#6fd661",46,1.6],["LY","리비아","#5e45d9",47,1.6],["KE","케냐","#d3a882",49,0.8],["KZ","카자흐스탄","#69b8d3",50,1.6],["JP","일본","#d54d91",52,3],["IQ","이라크","#30d985",53,1.6],["IR","이란","#7194d1",54,1.6],["ID","인도네시아","#d25660",57,0.8],["IN","인도","#d57a39",60,0.8],["DE","독일","#cea378",63,3],["FI","핀란드","#5eadcf",64,3],["ET","에티오피아","#4295d1",65,0.8],["EG","이집트","#e2ab69",68,0.8],["CD","콩고민주공화국","#87cc66",69,0.8],["CO","콜롬비아","#4b50ce",71,1.6],["CN","중국","#e3c25a",77,1.6],["CL","칠레","#6e88c9",79,3],["CA","캐나다","#b753ca",80,3],["MM","미얀마","#9edd78",85,0.8],["BR","브라질","#88df5d",90,1.6],["BD","방글라데시","#5cc785",91,0.8],["AU","호주","#40c941",94,3],["AR","아르헨티나","#9c65dc",98,1.6],["AO","앙골라","#c49d64",100,0.8],["DZ","알제리","#49c5b7",101,1.6],["AF","아프가니스탄","#d96e6d",103,0.8]]};
+</script>
+<script>
+(() => {
+'use strict';
+
+// ============================================================
+//  정적 데이터
+// ============================================================
+const W = MAP.W, H = MAP.H, S = 4, WW = W * S, HH = H * S;
+const grid = new Int16Array(W * H);
+{ let i = 0; for (const t of MAP.grid.split(',')) { const [a, b] = t.split('.'); const v = parseInt(a, 36) - 1, n = parseInt(b, 36); grid.fill(v, i, i + n); i += n; } }
+const TER = { p: 'plains', h: 'hills', f: 'forest', m: 'mountain', d: 'desert', t: 'tundra' };
+const TER_KO = { plains: '평원', hills: '구릉', forest: '숲', mountain: '산악', desert: '사막', tundra: '툰드라' };
+const TER_DEF = { plains: 0, hills: 0.25, forest: 0.2, mountain: 0.5, desert: 0, tundra: 0.1 };
+const TER_COL = { plains: '#a9c46c', hills: '#c7b16f', forest: '#4f8a4a', mountain: '#8f7d6b', desert: '#e3cf8f', tundra: '#dfe6ea' };
+const P = MAP.provs.map((r, id) => ({ id, name: r[0], lx: r[1], ly: r[2], adj: r[3], sea: r[4], owner0: r[5], pop0: r[6], ter: TER[r[7]], cap0: !!r[8], cells: r[9] }));
+const C = MAP.civs.map((r, id) => ({ id, tag: r[0], name: r[1], color: r[2], cap0: r[3], econ: r[4] }));
+const NP = P.length, NC = C.length;
+P.forEach(p => { p.econ = p.owner0 >= 0 ? C[p.owner0].econ : 0.7; p.coastal = p.sea.length > 0; });
+const cellsOf = P.map(() => []);
+for (let i = 0; i < grid.length; i++) if (grid[i] >= 0) cellsOf[grid[i]].push(i);
+const flagOf = tag => tag && tag.length === 2 ? String.fromCodePoint(...[...tag].map(c => 127397 + c.charCodeAt(0))) : '🏳';
+
+// 규칙 수치
+const COST = { move: 1, attack: 2, naval: 2, navalAttack: 3, recruit: 1, disband: 1, build: 2, dip: 1, dipBig: 2 };
+const BUILD = { 1: { key: 'fort', name: '요새', icon: '🏰', cost: 400, desc: '방어력 +50%' }, 2: { key: 'tower', name: '감시탑', icon: '👁', cost: 150, desc: '주변 2칸 병력 보임' }, 4: { key: 'port', name: '항구', icon: '⚓', cost: 250, desc: '바다 건너 해안으로 이동' } };
+const RECRUIT_COST = 0.04;      // 병사 1명당 금
+const RECRUIT_RATE = 0.005;     // 한 턴에 인구의 0.5%까지 모집
+const UPKEEP = 1 / 1000;        // 병사 1000명당 1금
+const PACT_TURNS = 10;
+const CAP_LOST_LIMIT = 3;
+
+// ============================================================
+//  상태
+// ============================================================
+let S = null;
+const rand = Math.random;
+const civ = c => S.civ[c];
+const own = p => S.prov[p].o;
+const army = p => S.prov[p].a;
+const atWar = (a, b) => a >= 0 && b >= 0 && a !== b && S.civ[a].war.includes(b);
+const allied = (a, b) => a >= 0 && b >= 0 && S.civ[a].ally.includes(b);
+const pactLeft = (a, b) => (a >= 0 && b >= 0 && S.civ[a].pact[b]) || 0;
+const vassalsOf = c => S.civ.map((x, i) => i).filter(i => S.civ[i].alive && S.civ[i].vassalOf === c);
+const isCapitalProv = p => S.civ.some(x => x.alive && x.cap === p);
+const capitalOwnerOf = p => S.civ.findIndex(x => x.alive && x.cap === p);
+
+function newGame(player, fog, aggr) {
+  S = { v: 2, turn: 1, player, fog, aggr, orders: [], log: [], props: [], battles: [], explored: [], seenLog: 0, over: false,
+    prov: P.map(p => ({ o: p.owner0, a: 0, pop: p.pop0, b: 0 })),
+    civ: C.map(c => ({ alive: true, gold: 0, cap: c.cap0, capLost: 0, mp: 0, war: [], ally: [], pact: {}, vassalOf: -1, vassalSince: 0, warSince: {} })) };
+  for (const p of P) {
+    const sp = S.prov[p.id];
+    if (p.owner0 >= 0) sp.a = Math.round(p.pop0 * 0.002 / 100) * 100 + 1000;
+    else sp.a = Math.round((p.pop0 * 0.0012 + 3000) / 100) * 100;
+    if (p.cap0) { sp.b |= 1; if (p.coastal) sp.b |= 4; }
+  }
+  // 내륙 수도인 나라: 가장 인구 많은 해안 지역에 항구
+  for (const c of C) {
+    if (P[c.cap0].coastal) continue;
+    const cs = P.filter(p => p.owner0 === c.id && p.coastal).sort((a, b) => b.pop0 - a.pop0);
+    if (cs.length) S.prov[cs[0].id].b |= 4;
+  }
+  for (const c of C) { const st = statsOf(c.id); civ(c.id).gold = Math.round(Math.max(300, (st.income - st.upkeep) * 4)); civ(c.id).mp = maxMp(c.id); }
+  S.explored = new Array(NP).fill(0);
+  addLog('info', `${C[player].name}의 지도자로 취임했다. 세계를 정복하라!`);
+  updateExplored();
+}
+
+// ============================================================
+//  계산 도우미
+// ============================================================
+function provsOf(c) { const r = []; for (let i = 0; i < NP; i++) if (S.prov[i].o === c) r.push(i); return r; }
+function statsOf(c) {
+  let provs = 0, pop = 0, armyN = 0, income = 0;
+  for (let i = 0; i < NP; i++) { const sp = S.prov[i]; if (sp.o !== c) continue; provs++; pop += sp.pop; armyN += sp.a; income += sp.pop / 1e6 * P[i].econ * 4; }
+  const upkeep = armyN * UPKEEP;
+  let tribute = 0;
+  if (civ(c).vassalOf >= 0) tribute = Math.max(0, income * 0.25);
+  for (const v of vassalsOf(c)) { let inc = 0; for (let i = 0; i < NP; i++) if (S.prov[i].o === v) inc += S.prov[i].pop / 1e6 * P[i].econ * 4; tribute -= inc * 0.25; }
+  return { provs, pop, army: armyN, income: Math.round(income), upkeep: Math.round(upkeep), tribute: Math.round(tribute), net: Math.round(income - upkeep - tribute) };
+}
+function powerOf(c) { let s = 0; for (let i = 0; i < NP; i++) if (S.prov[i].o === c) s += S.prov[i].a; return s; }
+function maxMp(c) { const n = provsOf(c).length; return Math.min(30, 6 + Math.ceil(n * 1.5)); }
+function defBonus(p) { let b = TER_DEF[P[p].ter]; if (S.prov[p].b & 1) b += 0.5; if (isCapitalProv(p)) b += 0.25; return b; }
+function defPower(p) { return S.prov[p].a * (1 + defBonus(p)); }
+function maxRecruit(p, gold) { return Math.max(0, Math.min(Math.floor(S.prov[p].pop * RECRUIT_RATE / 100) * 100, Math.floor(gold / RECRUIT_COST / 100) * 100)); }
+function relationOf(a, b) {
+  if (a === b) return 'self';
+  if (b < 0) return 'neutral';
+  if (atWar(a, b)) return 'war';
+  if (civ(b).vassalOf === a) return 'vassal';
+  if (civ(a).vassalOf === b) return 'overlord';
+  if (allied(a, b)) return 'ally';
+  if (pactLeft(a, b)) return 'pact';
+  return 'peace';
+}
+const REL_KO = { self: '우리나라', neutral: '중립 지역', war: '전쟁 중', vassal: '종속국', overlord: '종주국', ally: '동맹', pact: '불가침', peace: '평화' };
+
+// 이동 종류 판정: from의 소유자 c가 to로 갈 수 있는가
+function moveKind(c, from, to, extraWar) {
+  if (S.prov[from].o !== c || from === to) return null;
+  const isWar = d => d === -1 || atWar(c, d) || (extraWar && extraWar.includes(d));
+  const o = S.prov[to].o;
+  if (P[from].adj.includes(to)) {
+    if (o === c) return 'move';
+    if (isWar(o)) return 'attack';
+    return null;
+  }
+  if ((S.prov[from].b & 4) && P[from].sea.includes(to)) {
+    if (o === c) return 'naval';
+    if (isWar(o)) return 'navalAttack';
+  }
+  return null;
+}
+const KIND_KO = { move: '이동', attack: '공격', naval: '해상 이동', navalAttack: '상륙 공격' };
+
+// ============================================================
+//  로그 / 제안
+// ============================================================
+function addLog(kind, msg, p) { S.log.push({ t: S.turn, k: kind, m: msg, p: p == null ? -1 : p }); if (S.log.length > 400) S.log.splice(0, S.log.length - 400); }
+const involvesPlayer = (...cs) => cs.includes(S.player);
+const nm = c => c < 0 ? '중립 세력' : C[c].name;
+
+// ============================================================
+//  외교 실행
+// ============================================================
+function setWar(a, b) {
+  if (a === b || a < 0 || b < 0 || atWar(a, b)) return false;
+  const A = civ(a), B = civ(b);
+  A.war.push(b); B.war.push(a); A.warSince[b] = S.turn; B.warSince[a] = S.turn;
+  A.ally = A.ally.filter(x => x !== b); B.ally = B.ally.filter(x => x !== a);
+  delete A.pact[b]; delete B.pact[a];
+  return true;
+}
+function endWar(a, b) {
+  civ(a).war = civ(a).war.filter(x => x !== b); civ(b).war = civ(b).war.filter(x => x !== a);
+}
+function declareWar(a, b) {
+  if (!setWar(a, b)) return;
+  addLog('war', `⚔ ${nm(a)}이(가) ${nm(b)}에 선전포고했다.`, civ(b).cap);
+  if (b === S.player) toast(`⚔ ${nm(a)}이(가) 우리에게 선전포고했다!`);
+  const helpers = new Set([...civ(b).ally, ...vassalsOf(b)]);
+  if (civ(b).vassalOf >= 0) helpers.add(civ(b).vassalOf);
+  for (const h of helpers) {
+    if (h === a || !civ(h).alive || allied(h, a) || civ(h).vassalOf === a || civ(a).vassalOf === h || pactLeft(h, a)) continue;
+    if (setWar(h, a)) addLog('war', `${nm(h)}이(가) ${nm(b)}을(를) 돕기 위해 ${nm(a)}과(와) 전쟁에 돌입했다.`, civ(h).cap);
+  }
+  for (const v of vassalsOf(a)) if (v !== b && !allied(v, b)) setWar(v, b);
+}
+function makePeace(a, b) {
+  const sideA = [a, ...vassalsOf(a)], sideB = [b, ...vassalsOf(b)];
+  for (const x of sideA) for (const y of sideB) endWar(x, y);
+  addLog('dip', `🕊 ${nm(a)}과(와) ${nm(b)}이(가) 평화 협정을 맺었다.`, civ(b).cap);
+}
+function makePact(a, b) { civ(a).pact[b] = PACT_TURNS; civ(b).pact[a] = PACT_TURNS; addLog('dip', `🤝 ${nm(a)}과(와) ${nm(b)}이(가) ${PACT_TURNS}턴 불가침 조약을 맺었다.`); }
+function makeAlliance(a, b) { if (!allied(a, b)) { civ(a).ally.push(b); civ(b).ally.push(a); } addLog('dip', `🛡 ${nm(a)}과(와) ${nm(b)}이(가) 동맹을 맺었다.`); }
+function breakAlliance(a, b) { civ(a).ally = civ(a).ally.filter(x => x !== b); civ(b).ally = civ(b).ally.filter(x => x !== a); addLog('dip', `${nm(a)}이(가) ${nm(b)}과(와)의 동맹을 파기했다.`); }
+function makeVassal(over, v) {
+  makePeace(over, v);
+  const V = civ(v);
+  for (const x of [...V.ally]) breakAllianceQuiet(v, x);
+  for (const vv of vassalsOf(v)) civ(vv).vassalOf = over;
+  V.vassalOf = over; V.vassalSince = S.turn;
+  for (const e of civ(over).war) if (e !== v) setWar(v, e);
+  for (const e of [...V.war]) if (allied(over, e) || civ(e).vassalOf === over) endWar(v, e);
+  addLog('dip', `👑 ${nm(v)}이(가) ${nm(over)}의 종속국이 되었다.`, V.cap);
+}
+function breakAllianceQuiet(a, b) { civ(a).ally = civ(a).ally.filter(x => x !== b); civ(b).ally = civ(b).ally.filter(x => x !== a); }
+function annex(over, v) {
+  for (let i = 0; i < NP; i++) if (S.prov[i].o === v) S.prov[i].o = over;
+  civ(over).gold += Math.max(0, civ(v).gold);
+  eliminate(v, -1, true);
+  addLog('good', `🗺 ${nm(over)}이(가) ${nm(v)}을(를) 합병했다.`, civ(over).cap);
+}
+function eliminate(c, heir, quiet) {
+  const X = civ(c);
+  for (let i = 0; i < NP; i++) if (S.prov[i].o === c) { if (heir >= 0) { S.prov[i].o = heir; S.prov[i].a = Math.round(S.prov[i].a * 0.5); } else S.prov[i].o = -1; }
+  X.alive = false; X.war = []; X.ally = []; X.pact = {};
+  for (const Y of S.civ) { Y.war = Y.war.filter(x => x !== c); Y.ally = Y.ally.filter(x => x !== c); delete Y.pact[c]; if (Y.vassalOf === c) Y.vassalOf = -1; }
+  S.orders = S.orders.filter(o => o.civ !== c);
+  if (!quiet) addLog(involvesPlayer(c, heir) ? (c === S.player ? 'bad' : 'good') : 'war', `☠ ${nm(c)}이(가) 멸망했다.${heir >= 0 ? ` 모든 영토가 ${nm(heir)}에 넘어갔다.` : ''}`, X.cap);
+}
+
+// AI가 제안을 받아들이는가
+function aiAccept(type, from, to) {
+  const r = powerOf(from) / Math.max(1, powerOf(to));
+  if (type === 'peace') {
+    const len = S.turn - (civ(to).warSince[from] || S.turn);
+    if (len < 2) return false;
+    if (r > 1.2) return rand() < 0.75;      // 상대가 더 셈 → 받아들임
+    if (r > 0.7) return rand() < 0.45;
+    return rand() < 0.12;
+  }
+  if (type === 'pact') return !atWar(from, to) && rand() < (r > 0.8 ? 0.7 : 0.35);
+  if (type === 'ally') {
+    if (atWar(from, to) || civ(to).ally.length >= 3) return false;
+    const common = civ(from).war.some(e => civ(to).war.includes(e));
+    return rand() < (common ? 0.75 : r > 1 ? 0.4 : 0.2);
+  }
+  if (type === 'vassal') {
+    if (!atWar(from, to)) return false;
+    const capHeld = S.prov[civ(to).cap].o === from;
+    return capHeld ? rand() < 0.8 : r > 3 ? rand() < 0.6 : false;
+  }
+  return false;
+}
+
+// ============================================================
+//  전투
+// ============================================================
+function battle(att, def, bonus, attMul) {
+  if (def <= 0) return { win: true, a: att, d: 0 };
+  const aP = att * (attMul || 1) * (0.85 + rand() * 0.3);
+  const dP = def * (1 + bonus) * (0.85 + rand() * 0.3);
+  if (aP > dP) return { win: true, a: Math.max(1, Math.round(att * (1 - 0.7 * dP / aP))), d: 0 };
+  return { win: false, a: 0, d: Math.max(def > 0 ? 1 : 0, Math.round(def * (1 - 0.7 * aP / dP))) };
+}
+
+// ============================================================
+//  명령 실행
+// ============================================================
+function execMove(o) {
+  const c = o.civ, sp = S.prov[o.from];
+  if (sp.o !== c) return;
+  const kind = moveKind(c, o.from, o.to);
+  if (!kind) { if (c === S.player) addLog('info', `명령 취소: ${P[o.from].name} → ${P[o.to].name} (더 이상 갈 수 없음)`, o.to); return; }
+  const amt = Math.min(o.amt, sp.a);
+  if (amt <= 0) return;
+  sp.a -= amt;
+  const tp = S.prov[o.to];
+  if (kind === 'move' || kind === 'naval') { tp.a += amt; return; }
+  const defender = tp.o;
+  const res = battle(amt, tp.a, defBonus(o.to), kind === 'navalAttack' ? 0.8 : 1);
+  S.battles.push({ p: o.to, att: c, def: defender, win: res.win });
+  const wasCap = capitalOwnerOf(o.to);
+  if (res.win) {
+    tp.o = c; tp.a = res.a;
+    if (involvesPlayer(c, defender)) addLog(c === S.player ? 'good' : 'bad', `${c === S.player ? '✅' : '❌'} ${nm(c)}이(가) ${P[o.to].name}을(를) 점령했다. (공격 ${fmt(amt)} → 생존 ${fmt(res.a)})`, o.to);
+    if (wasCap >= 0 && wasCap !== c) addLog(involvesPlayer(c, wasCap) ? (c === S.player ? 'good' : 'bad') : 'war', `🏛 ${nm(wasCap)}의 수도 ${P[o.to].name}이(가) ${nm(c)}에 함락됐다! ${CAP_LOST_LIMIT}턴 안에 되찾지 못하면 멸망한다.`, o.to);
+  } else {
+    tp.a = res.d;
+    if (involvesPlayer(c, defender)) addLog(c === S.player ? 'bad' : 'good', `🛡 ${P[o.to].name} 전투: ${nm(c)}의 공격 ${fmt(amt)} 격퇴됨 (수비 ${fmt(res.d)} 생존)`, o.to);
+  }
+}
+function execEconomy(o) {
+  const c = o.civ, sp = S.prov[o.p], X = civ(c);
+  if (sp.o !== c) { X.gold += o.gold || 0; return; }
+  if (o.type === 'recruit') { const n = Math.min(o.amt, Math.floor(sp.pop * RECRUIT_RATE * 1.5)); sp.a += n; sp.pop -= n; X.gold += Math.round((o.amt - n) * RECRUIT_COST); }
+  else if (o.type === 'disband') { const n = Math.min(o.amt, sp.a); sp.a -= n; sp.pop += Math.round(n * 0.5); }
+  else if (o.type === 'build') { if (sp.b & o.bld) X.gold += o.gold; else sp.b |= o.bld; }
+}
+function execDip(o) {
+  const c = o.civ, t = o.target;
+  if (!civ(c).alive || !civ(t).alive) { civ(c).gold += o.gold || 0; return; }
+  const ai = t !== S.player;
+  switch (o.act) {
+    case 'war': if (!pactLeft(c, t) && !allied(c, t)) declareWar(c, t); break;
+    case 'peace':
+      if (!atWar(c, t)) break;
+      if (ai ? aiAccept('peace', c, t) : false) makePeace(c, t);
+      else if (c === S.player) addLog('dip', `${nm(t)}이(가) 평화 제안을 거절했다.`);
+      break;
+    case 'pact':
+      if (atWar(c, t)) break;
+      if (aiAccept('pact', c, t)) makePact(c, t); else if (c === S.player) addLog('dip', `${nm(t)}이(가) 불가침 조약을 거절했다.`);
+      break;
+    case 'ally':
+      if (aiAccept('ally', c, t)) makeAlliance(c, t); else if (c === S.player) addLog('dip', `${nm(t)}이(가) 동맹 제안을 거절했다.`);
+      break;
+    case 'kick': if (allied(c, t)) breakAlliance(c, t); break;
+    case 'support': civ(t).gold += o.gold; addLog('dip', `💰 ${nm(c)}이(가) ${nm(t)}에 ${fmt(o.gold)}금을 지원했다.`); break;
+    case 'vassal':
+      if (aiAccept('vassal', c, t)) makeVassal(c, t); else if (c === S.player) addLog('dip', `${nm(t)}이(가) 종속 요구를 거부했다.`);
+      break;
+    case 'annex': if (civ(t).vassalOf === c) annex(c, t); else civ(c).gold += o.gold; break;
+  }
+}
+
+// ============================================================
+//  AI
+// ============================================================
+function distField(c) {
+  const d = new Int16Array(NP).fill(-1), q = [];
+  for (let i = 0; i < NP; i++) { const o = S.prov[i].o; if (o !== c && (o === -1 || atWar(c, o))) { d[i] = 0; q.push(i); } }
+  for (let k = 0; k < q.length; k++) {
+    const x = q[k];
+    for (const y of P[x].adj) if (d[y] < 0 && S.prov[y].o === c) { d[y] = d[x] + 1; q.push(y); }
+    for (const y of P[x].sea) if (d[y] < 0 && S.prov[y].o === c && (S.prov[y].b & 4) && P[y].sea.includes(x)) { d[y] = d[x] + 1; q.push(y); }
+  }
+  return d;
+}
+function landNeighbors(c) {
+  const s = new Set();
+  for (let i = 0; i < NP; i++) if (S.prov[i].o === c) {
+    for (const j of P[i].adj) { const o = S.prov[j].o; if (o >= 0 && o !== c) s.add(o); }
+    if (S.prov[i].b & 4) for (const j of P[i].sea) { const o = S.prov[j].o; if (o >= 0 && o !== c) s.add(o); }
+  }
+  return [...s];
+}
+function aiTurn(c) {
+  const X = civ(c), orders = [];
+  let mp = X.mp;
+  const my = provsOf(c); if (!my.length) return orders;
+  const pw = powerOf(c);
+
+  // --- 외교 ---
+  if (X.vassalOf < 0) {
+    for (const e of [...X.war]) {
+      const len = S.turn - (X.warSince[e] || S.turn); if (len < 3) continue;
+      const r = pw / Math.max(1, powerOf(e));
+      const want = r < 0.6 ? 0.25 : r < 1 ? 0.08 : 0.03;
+      if (rand() < want) {
+        if (e === S.player) queueProposal('peace', c);
+        else if (civ(e).vassalOf < 0 && aiAccept('peace', c, e)) makePeace(c, e);
+      } else if (r > 3 && rand() < 0.12) {
+        if (e === S.player) queueProposal('vassal', c);
+        else if (civ(e).vassalOf < 0 && aiAccept('vassal', c, e)) makeVassal(c, e);
+      }
+    }
+    const aggr = [0.006, 0.02, 0.05][S.aggr];
+    if (X.war.length < (S.aggr === 2 ? 2 : 1) && rand() < aggr) {
+      let best = -1, br = 0;
+      for (const d of landNeighbors(c)) {
+        if (!civ(d).alive || allied(c, d) || pactLeft(c, d) || civ(d).vassalOf === c || X.vassalOf === d || atWar(c, d)) continue;
+        if (civ(d).vassalOf >= 0 && civ(d).vassalOf === X.vassalOf) continue;
+        const r = pw / Math.max(1, powerOf(d)) * (0.8 + rand() * 0.4) * (d === S.player ? 0.9 : 1);
+        if (r > br) { br = r; best = d; }
+      }
+      if (best >= 0 && br >= 1.4) declareWar(c, best);
+    }
+    if (rand() < 0.01) {
+      const ns = landNeighbors(c).filter(d => !atWar(c, d) && !allied(c, d) && civ(d).vassalOf < 0);
+      if (ns.length) {
+        const d = ns[Math.floor(rand() * ns.length)];
+        if (d === S.player) { if (rand() < 0.4) queueProposal(rand() < 0.5 ? 'ally' : 'pact', c); }
+        else if (aiAccept('ally', c, d)) makeAlliance(c, d);
+      }
+    }
+    for (const v of vassalsOf(c)) if (v !== S.player && S.turn - civ(v).vassalSince >= 15 && rand() < 0.08) annex(c, v);
+  }
+
+  // --- 경제 ---
+  const st = statsOf(c);
+  if (X.gold < 0 || (st.net < 0 && X.gold < -st.net * 3)) {
+    const big = my.slice().sort((a, b) => S.prov[b].a - S.prov[a].a)[0];
+    const n = Math.floor(S.prov[big].a * 0.2 / 100) * 100;
+    if (n > 0 && mp >= 1) { orders.push({ civ: c, type: 'disband', p: big, amt: n }); mp--; }
+  }
+  const dist = distField(c);
+  let budget = X.gold - Math.max(0, st.upkeep) * 2;
+  if (budget > 100 && mp >= 1) {
+    let spots = my.filter(p => dist[p] === 1).sort((a, b) => S.prov[b].pop - S.prov[a].pop).slice(0, 2);
+    if (!spots.length) spots = [X.cap].filter(p => S.prov[p].o === c);
+    for (const p of spots) {
+      if (mp < 1) break;
+      const n = maxRecruit(p, budget * 0.6 / spots.length);
+      if (n >= 500) { const g = Math.ceil(n * RECRUIT_COST); X.gold -= g; budget -= g; orders.push({ civ: c, type: 'recruit', p, amt: n, gold: g }); mp--; }
+    }
+  }
+  if (X.gold > 1500 && mp >= 2 && rand() < 0.08) {
+    let p = -1, b = 0;
+    if (S.prov[X.cap].o === c && !(S.prov[X.cap].b & 1)) { p = X.cap; b = 1; }
+    else { const f = my.filter(q => dist[q] === 1 && !(S.prov[q].b & 1)); if (f.length) { p = f[0]; b = 1; } }
+    if (p < 0) { const f = my.filter(q => P[q].coastal && !(S.prov[q].b & 4)); if (f.length) { p = f[Math.floor(rand() * f.length)]; b = 4; } }
+    if (p >= 0) { X.gold -= BUILD[b].cost; orders.push({ civ: c, type: 'build', p, bld: b, gold: BUILD[b].cost }); mp -= 2; }
+  }
+
+  // --- 이동 ---
+  const units = my.filter(p => S.prov[p].a > 0).sort((a, b) => S.prov[b].a - S.prov[a].a);
+  for (const u of units) {
+    if (mp < 1) break;
+    const amt = S.prov[u].a;
+    let best = -1, bs = Infinity, bk = null;
+    const cand = [...P[u].adj, ...((S.prov[u].b & 4) ? P[u].sea : [])];
+    for (const t of cand) {
+      const k = moveKind(c, u, t);
+      if (k !== 'attack' && k !== 'navalAttack') continue;
+      const def = defPower(t) * (k === 'navalAttack' ? 1.25 : 1);
+      const score = def / (isCapitalProv(t) ? 2.5 : 1) / (S.prov[t].o === -1 ? 1.3 : 1) + (k === 'navalAttack' ? 2000 : 0);
+      if (score < bs) { bs = score; best = t; bk = k; }
+    }
+    if (best >= 0) {
+      const need = defPower(best) * (bk === 'navalAttack' ? 1.25 : 1) * 1.3 + 50;
+      const cost = COST[bk];
+      if (amt > need && mp >= cost) {
+        const threatened = P[u].adj.some(j => S.prov[j].o >= 0 && atWar(c, S.prov[j].o) && j !== best);
+        const send = Math.floor(amt * (threatened ? 0.75 : 0.95));
+        orders.push({ civ: c, type: 'move', from: u, to: best, amt: send }); mp -= cost; continue;
+      }
+      if (dist[u] === 1) continue; // 전선에서 버팀
+    }
+    if (dist[u] > 1) {
+      let nx = -1, nk = null;
+      for (const t of P[u].adj) if (dist[t] === dist[u] - 1 && S.prov[t].o === c) { nx = t; nk = 'move'; break; }
+      if (nx < 0 && (S.prov[u].b & 4) && dist[u] <= 8) for (const t of P[u].sea) if (dist[t] === dist[u] - 1 && S.prov[t].o === c) { nx = t; nk = 'naval'; break; }
+      if (nx >= 0 && mp >= COST[nk]) {
+        if (nk === 'naval' && amt < Math.max(3000, pw * 0.2)) continue;
+        const border = P[u].adj.some(j => S.prov[j].o >= 0 && S.prov[j].o !== c);
+        const send = Math.floor(amt * (border ? 0.6 : 0.9));
+        if (send > 0) { orders.push({ civ: c, type: 'move', from: u, to: nx, amt: send }); mp -= COST[nk]; }
+      }
+    }
+  }
+  return orders;
+}
+function queueProposal(type, from) { if (!S.props.some(p => p.type === type && p.from === from)) S.props.push({ type, from }); }
+
+// ============================================================
+//  턴 진행
+// ============================================================
+function endTurn() {
+  if (S.over) return;
+  const pl = S.player;
+  S.battles = [];
+  const alive = S.civ.map((x, i) => i).filter(i => S.civ[i].alive);
+  // 1) AI 결정
+  const aiOrders = [];
+  for (const c of alive) if (c !== pl) aiOrders.push(...aiTurn(c));
+  const all = [...S.orders, ...aiOrders];
+  // 2) 외교
+  for (const o of all) if (o.type === 'dip') execDip(o);
+  // 3) 모집/해산/건설
+  for (const o of all) if (o.type === 'recruit' || o.type === 'disband' || o.type === 'build') execEconomy(o);
+  // 4) 이동 (국가 순서는 매 턴 무작위)
+  const order = alive.slice(); for (let i = order.length - 1; i > 0; i--) { const j = Math.floor(rand() * (i + 1)); [order[i], order[j]] = [order[j], order[i]]; }
+  const byCiv = new Map(); for (const o of all) if (o.type === 'move') { if (!byCiv.has(o.civ)) byCiv.set(o.civ, []); byCiv.get(o.civ).push(o); }
+  for (const c of order) for (const o of byCiv.get(c) || []) if (civ(c).alive) execMove(o);
+  S.orders = [];
+  // 5) 수도 / 멸망
+  for (const c of alive) {
+    const X = civ(c); if (!X.alive) continue;
+    const holder = S.prov[X.cap].o;
+    const n = provsOf(c).length;
+    if (holder !== c) {
+      X.capLost++;
+      if (X.capLost >= CAP_LOST_LIMIT || n === 0) eliminate(c, holder >= 0 && civ(holder).alive ? holder : -1);
+      else if (c === pl) addLog('bad', `⚠ 수도를 잃은 지 ${X.capLost}턴. ${CAP_LOST_LIMIT - X.capLost}턴 안에 되찾아야 한다!`, X.cap);
+    } else X.capLost = 0;
+  }
+  // 6) 경제, 인구, 조약
+  for (let c = 0; c < NC; c++) {
+    const X = civ(c); if (!X.alive) continue;
+    const st = statsOf(c);
+    X.gold += st.net;
+    if (X.gold < 0) {
+      for (const p of provsOf(c)) S.prov[p].a = Math.floor(S.prov[p].a * 0.9);
+      if (c === pl) addLog('bad', '💸 국고가 바닥나 병력의 10%가 탈영했다.');
+      X.gold = 0;
+    }
+    for (const k of Object.keys(X.pact)) { X.pact[k]--; if (X.pact[k] <= 0) delete X.pact[k]; }
+  }
+  for (const sp of S.prov) sp.pop = Math.round(sp.pop * 1.002);
+  S.turn++;
+  for (let c = 0; c < NC; c++) if (civ(c).alive) civ(c).mp = maxMp(c);
+  updateExplored();
+  // 7) 승패
+  if (!civ(pl).alive) { S.over = true; save(); gameOverModal(false); return; }
+  const rivals = S.civ.map((x, i) => i).filter(i => S.civ[i].alive && i !== pl && S.civ[i].vassalOf !== pl);
+  if (!rivals.length && !S.wonShown) { S.wonShown = true; save(); gameOverModal(true); }
+  save();
+}
+
+// ============================================================
+//  시야 (Fog of War)
+// ============================================================
+let visCache = null;
+function computeVisible() {
+  const pl = S.player, v = new Uint8Array(NP);
+  if (S.fog === 0) { v.fill(1); return v; }
+  const friends = new Set([pl]);
+  if (S.fog === 1) { for (const a of civ(pl).ally) friends.add(a); for (const x of vassalsOf(pl)) friends.add(x); if (civ(pl).vassalOf >= 0) friends.add(civ(pl).vassalOf); }
+  for (let i = 0; i < NP; i++) {
+    if (!friends.has(S.prov[i].o)) continue;
+    v[i] = 1; for (const j of P[i].adj) v[j] = 1;
+    if (S.prov[i].b & 4) for (const j of P[i].sea) v[j] = 1;
+    if (S.prov[i].b & 2) for (const j of P[i].adj) { v[j] = 1; for (const k of P[j].adj) v[k] = 1; }
+  }
+  return v;
+}
+function updateExplored() { visCache = computeVisible(); for (let i = 0; i < NP; i++) if (visCache[i]) S.explored[i] = 1; }
+const visible = p => !visCache || visCache[p] === 1;
+
+// ============================================================
+//  저장
+// ============================================================
+const SAVE_KEY = 'aoc1-save-v2';
+function save() { try { localStorage.setItem(SAVE_KEY, JSON.stringify(S)); } catch (e) { /* 저장 불가 환경 */ } }
+function loadSave() { try { const t = localStorage.getItem(SAVE_KEY); if (!t) return null; const s = JSON.parse(t); return s && s.v === 2 && s.prov.length === NP ? s : null; } catch (e) { return null; } }
+
+// ============================================================
+//  렌더링
+// ============================================================
+const canvas = document.getElementById('map');
+const ctx = canvas.getContext('2d');
+const base = document.createElement('canvas'); base.width = WW; base.height = HH;
+const bctx = base.getContext('2d');
+const hl = document.createElement('canvas'); hl.width = W; hl.height = H;
+const hctx = hl.getContext('2d');
+let dpr = 1, vw = 0, vh = 0;
+const cam = { x: 0, y: 0, z: 1 };
+let mapMode = 'political';
+let dirty = true;
+const MODES = [['political', '정치'], ['army', '병력'], ['population', '인구'], ['terrain', '지형'], ['diplomacy', '외교']];
+
+function hex(c) { const n = parseInt(c.slice(1), 16); return [(n >> 16) & 255, (n >> 8) & 255, n & 255]; }
+function pack(r, g, b) { return (255 << 24) | (b << 16) | (g << 8) | r; }
+function mix(a, b, t) { return [0, 1, 2].map(i => Math.round(a[i] + (b[i] - a[i]) * t)); }
+function ramp(stops, t) { t = Math.max(0, Math.min(1, t)); const n = stops.length - 1, i = Math.min(n - 1, Math.floor(t * n)); return mix(hex(stops[i]), hex(stops[i + 1]), t * n - i); }
+const SEA_RGB = hex('#1e3a5f'), NEUTRAL_RGB = hex('#9ea3a8'), FOG_RGB = hex('#4a5263');
+
+function provColor(p) {
+  const sp = S ? S.prov[p] : { o: P[p].owner0, a: 0, pop: P[p].pop0 };
+  const o = sp.o;
+  if (S && S.fog === 2 && !S.explored[p]) return FOG_RGB;
+  switch (mapMode) {
+    case 'army': {
+      if (S && !visible(p)) return FOG_RGB;
+      return sp.a <= 0 ? hex('#e9e4da') : ramp(['#f3e7c9', '#f2a65a', '#d6463b', '#6e1423'], (Math.log10(sp.a) - 2.5) / 4);
+    }
+    case 'population': return ramp(['#f1eef6', '#9ebcda', '#8856a7', '#4d004b'], (Math.log10(Math.max(1, sp.pop / P[p].cells)) - 3) / 3.5);
+    case 'terrain': return hex(TER_COL[P[p].ter]);
+    case 'diplomacy': {
+      if (!S) return o < 0 ? NEUTRAL_RGB : hex(C[o].color);
+      const r = relationOf(S.player, o);
+      return hex({ self: '#3d7fd9', vassal: '#8fc1ff', overlord: '#a37be0', ally: '#4cc27a', war: '#e5484d', pact: '#f2c94c', peace: '#d8d2c4', neutral: '#9ea3a8' }[r]);
+    }
+    default: return o < 0 ? NEUTRAL_RGB : hex(C[o].color);
+  }
+}
+
+function rebuildBase() {
+  const img = bctx.createImageData(WW, HH);
+  const buf = new Uint32Array(img.data.buffer);
+  const col = new Uint32Array(NP), dkP = new Uint32Array(NP), dkC = new Uint32Array(NP), dkS = new Uint32Array(NP);
+  const ownerKey = new Int32Array(NP);
+  for (let p = 0; p < NP; p++) {
+    const c = provColor(p);
+    col[p] = pack(...c);
+    dkP[p] = pack(...mix(c, [0, 0, 0], 0.28));
+    dkC[p] = pack(...mix(c, [10, 12, 20], 0.72));
+    dkS[p] = pack(...mix(c, [8, 20, 40], 0.6));
+    ownerKey[p] = S ? S.prov[p].o : P[p].owner0;
+    if (ownerKey[p] === -1) ownerKey[p] = -1000 - p;
+  }
+  const sea = pack(...SEA_RGB), seaEdge = pack(...mix(SEA_RGB, [255, 255, 255], 0.18));
+  for (let r = 0; r < H; r++) for (let c = 0; c < W; c++) {
+    const pid = grid[r * W + c], color = pid < 0 ? sea : col[pid];
+    const y0 = r * S, x0 = c * S;
+    for (let y = 0; y < S; y++) { const row = (y0 + y) * WW + x0; for (let x = 0; x < S; x++) buf[row + x] = color; }
+  }
+  const put = (x, y, v) => { buf[y * WW + x] = v; };
+  for (let r = 0; r < H; r++) for (let c = 0; c < W; c++) {
+    const i = r * W + c, a = grid[i];
+    const nbs = [[r, (c + 1) % W, 'R'], [r + 1, c, 'B']];
+    for (const [rr, cc, dir] of nbs) {
+      if (rr >= H) continue;
+      const b = grid[rr * W + cc];
+      if (a === b) continue;
+      for (let k = 0; k < S; k++) {
+        // a쪽 경계 픽셀
+        const ax = dir === 'R' ? c * S + S - 1 : c * S + k, ay = dir === 'R' ? r * S + k : r * S + S - 1;
+        const bx = dir === 'R' ? cc * S : cc * S + k, by = dir === 'R' ? rr * S + k : rr * S;
+        if (a < 0 || b < 0) { // 해안
+          if (a >= 0) put(ax, ay, dkS[a]); else put(ax, ay, seaEdge);
+          if (b >= 0) put(bx, by, dkS[b]); else put(bx, by, seaEdge);
+        } else if (ownerKey[a] !== ownerKey[b]) { put(ax, ay, dkC[a]); put(bx, by, dkC[b]); }
+        else put(ax, ay, dkP[a]);
+      }
+    }
+  }
+  bctx.putImageData(img, 0, 0);
+}
+
+let selected = -1, targets = new Map(), startPick = -1;
+function rebuildHighlight() {
+  const img = hctx.createImageData(W, H), d = img.data;
+  const paint = (p, r, g, b, a) => { for (const i of cellsOf[p]) { d[i * 4] = r; d[i * 4 + 1] = g; d[i * 4 + 2] = b; d[i * 4 + 3] = a; } };
+  if (!S && startPick >= 0) for (let p = 0; p < NP; p++) if (P[p].owner0 === startPick) paint(p, 255, 255, 255, 95);
+  for (const [t, k] of targets) { if (k === 'attack' || k === 'navalAttack') paint(t, 255, 70, 60, 120); else paint(t, 255, 215, 90, 110); }
+  if (selected >= 0) paint(selected, 255, 255, 255, 120);
+  hctx.putImageData(img, 0, 0);
+}
+
+function fmt(n) {
+  n = Math.round(n);
+  if (Math.abs(n) >= 1e6) return (n / 1e6).toFixed(n >= 1e7 ? 0 : 1).replace(/\.0$/, '') + 'M';
+  if (Math.abs(n) >= 1e4) return Math.round(n / 1e3) + 'k';
+  if (Math.abs(n) >= 1e3) return (n / 1e3).toFixed(1).replace(/\.0$/, '') + 'k';
+  return String(n);
+}
+const fmtN = n => Math.round(n).toLocaleString('ko-KR');
+
+function resize() {
+  dpr = Math.min(2, window.devicePixelRatio || 1);
+  vw = window.innerWidth; vh = window.innerHeight;
+  canvas.width = Math.round(vw * dpr); canvas.height = Math.round(vh * dpr);
+  clampCam(); dirty = true;
+}
+function minZoom() { return Math.max(vw / WW / 1.0, (vh - 100) / HH) * 0.98; }
+function clampCam() {
+  cam.z = Math.max(minZoom(), Math.min(9, cam.z));
+  const viewH = vh / cam.z;
+  if (viewH >= HH + 120 / cam.z) cam.y = (HH - viewH) / 2;
+  else cam.y = Math.max(-60 / cam.z, Math.min(HH - viewH + 70 / cam.z, cam.y));
+  cam.x = ((cam.x % WW) + WW) % WW;
+}
+function centerOn(p, z) { if (z) cam.z = z; cam.x = (P[p].lx + 0.5) * S - vw / 2 / cam.z; cam.y = (P[p].ly + 0.5) * S - vh / 2 / cam.z; clampCam(); dirty = true; }
+const wx = p => (P[p].lx + 0.5) * S, wy = p => (P[p].ly + 0.5) * S;
+
+function pill(x, y, text, color, opts) {
+  ctx.font = `700 ${opts && opts.big ? 13 : 12}px Pretendard, system-ui, sans-serif`;
+  const w = ctx.measureText(text).width + 12, h = 19;
+  ctx.fillStyle = 'rgba(12,16,24,.82)';
+  ctx.beginPath(); ctx.roundRect ? ctx.roundRect(x - w / 2, y - h / 2, w, h, 6) : ctx.rect(x - w / 2, y - h / 2, w, h); ctx.fill();
+  if (color) { ctx.fillStyle = color; ctx.fillRect(x - w / 2, y + h / 2 - 3, w, 3); }
+  ctx.fillStyle = '#fff'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillText(text, x, y + 0.5);
+}
+
+function draw() {
+  dirty = false;
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.fillStyle = '#1e3a5f'; ctx.fillRect(0, 0, vw, vh);
+  const z = cam.z;
+  ctx.imageSmoothingEnabled = z < 1.6;
+  const k0 = Math.floor(cam.x / WW) - 1, k1 = Math.floor((cam.x + vw / z) / WW) + 1;
+  for (let k = k0; k <= k1; k++) {
+    const ox = (k * WW - cam.x) * z, oy = -cam.y * z;
+    ctx.drawImage(base, ox, oy, WW * z, HH * z);
+    ctx.imageSmoothingEnabled = false;
+    ctx.drawImage(hl, ox, oy, WW * z, HH * z);
+    ctx.imageSmoothingEnabled = z < 1.6;
+  }
+  // 대기 중인 명령 화살표
+  if (S) {
+    for (const o of S.orders) if (o.type === 'move') arrow(o.from, o.to, o.amt, moveKind(S.player, o.from, o.to, pendingWarTargets()));
+  }
+  // 라벨
+  for (let k = k0; k <= k1; k++) {
+    for (let p = 0; p < NP; p++) {
+      const sx = (wx(p) + k * WW - cam.x) * z, sy = (wy(p) - cam.y) * z;
+      if (sx < -60 || sx > vw + 60 || sy < -30 || sy > vh + 30) continue;
+      const size = Math.sqrt(P[p].cells) * S * z;
+      const o = S ? S.prov[p].o : P[p].owner0;
+      const cap = S ? isCapitalProv(p) : P[p].cap0;
+      if (cap && size > 10) { ctx.font = `${Math.min(16, 9 + z * 2)}px system-ui`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillStyle = '#ffd34d'; ctx.strokeStyle = 'rgba(0,0,0,.6)'; ctx.lineWidth = 3; ctx.strokeText('★', sx, sy - 16); ctx.fillText('★', sx, sy - 16); }
+      if (!S) continue;
+      const mine = o === S.player;
+      if (!mine && size < 14) continue;
+      const a = S.prov[p].a;
+      const vis = visible(p);
+      const text = vis ? fmt(a) : '?';
+      if (vis && a <= 0 && !mine) continue;
+      pill(sx, sy, text, o >= 0 ? C[o].color : '#9ea3a8', { big: mine });
+      if (z > 1.5) {
+        const b = S.prov[p].b; let icons = '';
+        if (b & 1) icons += '🏰'; if (b & 2) icons += '👁'; if (b & 4) icons += '⚓';
+        if (icons) { ctx.font = '11px system-ui'; ctx.textAlign = 'center'; ctx.fillText(icons, sx, sy + 17); }
+      }
+      if (z > 2.3 && size > 40) {
+        ctx.font = '600 11px Pretendard, system-ui'; ctx.textAlign = 'center'; ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(0,0,0,.55)'; ctx.fillStyle = 'rgba(255,255,255,.92)';
+        ctx.strokeText(P[p].name, sx, sy + (S.prov[p].b ? 31 : 19)); ctx.fillText(P[p].name, sx, sy + (S.prov[p].b ? 31 : 19));
+      }
+    }
+    if (S) for (const bt of S.battles) {
+      if (!visible(bt.p) && bt.att !== S.player && bt.def !== S.player) continue;
+      const sx = (wx(bt.p) + k * WW - cam.x) * z, sy = (wy(bt.p) - cam.y) * z;
+      if (sx < -40 || sx > vw + 40 || sy < -40 || sy > vh + 40) continue;
+      ctx.font = '15px system-ui'; ctx.textAlign = 'center'; ctx.fillText('💥', sx + 22, sy - 12);
+    }
+  }
+}
+function arrow(from, to, amt, kind) {
+  const z = cam.z;
+  let x1 = wx(from), x2 = wx(to); const y1 = wy(from), y2 = wy(to);
+  if (x2 - x1 > WW / 2) x2 -= WW; else if (x1 - x2 > WW / 2) x2 += WW;
+  const k0 = Math.floor(cam.x / WW) - 1, k1 = Math.floor((cam.x + vw / z) / WW) + 1;
+  const color = kind === 'attack' || kind === 'navalAttack' ? '#ff5a4f' : kind === 'naval' ? '#7fd4ff' : '#ffffff';
+  for (let k = k0; k <= k1; k++) {
+    const ax = (x1 + k * WW - cam.x) * z, ay = (y1 - cam.y) * z, bx = (x2 + k * WW - cam.x) * z, by = (y2 - cam.y) * z;
+    if (Math.max(ax, bx) < -50 || Math.min(ax, bx) > vw + 50) continue;
+    const len = Math.hypot(bx - ax, by - ay); if (len < 4) continue;
+    const ux = (bx - ax) / len, uy = (by - ay) / len;
+    const sx = ax + ux * 12, sy = ay + uy * 12, ex = bx - ux * 14, ey = by - uy * 14;
+    const curve = kind === 'naval' || kind === 'navalAttack' ? 0.25 : 0.1;
+    const cx = (sx + ex) / 2 - uy * len * curve, cy = (sy + ey) / 2 + ux * len * curve;
+    ctx.strokeStyle = 'rgba(0,0,0,.5)'; ctx.lineWidth = 6; ctx.setLineDash(kind && kind.startsWith('naval') ? [8, 6] : []);
+    ctx.beginPath(); ctx.moveTo(sx, sy); ctx.quadraticCurveTo(cx, cy, ex, ey); ctx.stroke();
+    ctx.strokeStyle = color; ctx.lineWidth = 3; ctx.stroke(); ctx.setLineDash([]);
+    const tx = ex - cx, ty = ey - cy, tl = Math.hypot(tx, ty) || 1, hx = tx / tl, hy = ty / tl;
+    ctx.fillStyle = color; ctx.beginPath(); ctx.moveTo(ex + hx * 8, ey + hy * 8); ctx.lineTo(ex - hx * 6 - hy * 7, ey - hy * 6 + hx * 7); ctx.lineTo(ex - hx * 6 + hy * 7, ey - hy * 6 - hx * 7); ctx.closePath(); ctx.fill();
+    pill((sx + ex) / 2 * 0.5 + cx * 0.5, (sy + ey) / 2 * 0.5 + cy * 0.5, fmt(amt), color);
+  }
+}
+function loop() { if (dirty) draw(); requestAnimationFrame(loop); }
+
+// ============================================================
+//  입력 (드래그 / 핀치 / 휠 / 탭)
+// ============================================================
+const pointers = new Map();
+let dragStart = null, pinch = null, moved = 0;
+canvas.addEventListener('pointerdown', e => {
+  canvas.setPointerCapture(e.pointerId);
+  pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+  if (pointers.size === 1) { dragStart = { x: e.clientX, y: e.clientY, cx: cam.x, cy: cam.y }; moved = 0; }
+  if (pointers.size === 2) { const [a, b] = [...pointers.values()]; pinch = { d: Math.hypot(a.x - b.x, a.y - b.y), z: cam.z, mx: (a.x + b.x) / 2, my: (a.y + b.y) / 2, cx: cam.x, cy: cam.y }; moved = 99; }
+});
+canvas.addEventListener('pointermove', e => {
+  if (!pointers.has(e.pointerId)) return;
+  pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+  if (pointers.size === 2 && pinch) {
+    const [a, b] = [...pointers.values()];
+    const d = Math.hypot(a.x - b.x, a.y - b.y), mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2;
+    const wx0 = pinch.cx + pinch.mx / pinch.z, wy0 = pinch.cy + pinch.my / pinch.z;
+    cam.z = pinch.z * d / pinch.d; clampCam();
+    cam.x = wx0 - mx / cam.z; cam.y = wy0 - my / cam.z; clampCam(); dirty = true;
+  } else if (pointers.size === 1 && dragStart) {
+    const dx = e.clientX - dragStart.x, dy = e.clientY - dragStart.y;
+    moved = Math.max(moved, Math.hypot(dx, dy));
+    if (moved > 5) { canvas.classList.add('dragging'); cam.x = dragStart.cx - dx / cam.z; cam.y = dragStart.cy - dy / cam.z; clampCam(); dirty = true; }
+  }
+});
+function endPointer(e) {
+  if (!pointers.has(e.pointerId)) return;
+  pointers.delete(e.pointerId);
+  if (pointers.size < 2) pinch = null;
+  if (pointers.size === 0) {
+    canvas.classList.remove('dragging');
+    if (moved <= 5 && e.type === 'pointerup') tapAt(e.clientX, e.clientY);
+    dragStart = null;
+  } else if (pointers.size === 1) { const [a] = [...pointers.values()]; dragStart = { x: a.x, y: a.y, cx: cam.x, cy: cam.y }; }
+}
+canvas.addEventListener('pointerup', endPointer);
+canvas.addEventListener('pointercancel', endPointer);
+canvas.addEventListener('wheel', e => {
+  e.preventDefault();
+  const f = Math.exp(-e.deltaY * 0.0015);
+  const wx0 = cam.x + e.clientX / cam.z, wy0 = cam.y + e.clientY / cam.z;
+  cam.z *= f; clampCam();
+  cam.x = wx0 - e.clientX / cam.z; cam.y = wy0 - e.clientY / cam.z; clampCam(); dirty = true;
+}, { passive: false });
+function provAt(x, y) {
+  const wxp = cam.x + x / cam.z, wyp = cam.y + y / cam.z;
+  const c = Math.floor((((wxp % WW) + WW) % WW) / S), r = Math.floor(wyp / S);
+  if (r < 0 || r >= H) return -1;
+  let p = grid[r * W + c];
+  if (p >= 0) return p;
+  // 작은 섬 누르기 쉽게: 주변 2칸 탐색
+  for (let d = 1; d <= 2; d++) for (let dy = -d; dy <= d; dy++) for (let dx = -d; dx <= d; dx++) {
+    const rr = r + dy, cc = (c + dx + W) % W; if (rr < 0 || rr >= H) continue;
+    p = grid[rr * W + cc]; if (p >= 0) return p;
+  }
+  return -1;
+}
+
+// ============================================================
+//  UI
+// ============================================================
+const $ = id => document.getElementById(id);
+let uiMode = null; // {type:'move', from}
+function toast(msg) { const t = $('toast'); t.textContent = msg; t.style.opacity = 1; clearTimeout(toast._t); toast._t = setTimeout(() => t.style.opacity = 0, 2600); }
+function esc(s) { return String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
+function civBadge(c) { return c < 0 ? `<span class="sw" style="background:#9ea3a8"></span>중립 지역` : `<span class="sw" style="background:${C[c].color}"></span><span class="flag">${flagOf(C[c].tag)}</span>${esc(C[c].name)}`; }
+
+function tapAt(x, y) {
+  const p = provAt(x, y);
+  if (!S) { if (p >= 0 && P[p].owner0 >= 0) pickStart(P[p].owner0); return; }
+  if (uiMode && uiMode.type === 'move') {
+    if (p >= 0 && targets.has(p)) { const from = uiMode.from, kind = targets.get(p); cancelMode(); askMove(from, p, kind); return; }
+    cancelMode();
+  }
+  select(p);
+}
+function select(p) {
+  selected = p; targets = new Map(); rebuildHighlight(); dirty = true;
+  renderPanel();
+}
+function cancelMode() { uiMode = null; targets = new Map(); $('modeHint').classList.add('hidden'); rebuildHighlight(); dirty = true; }
+
+// 대기 명령 계산
+const pendingWarTargets = () => S.orders.filter(o => o.type === 'dip' && o.act === 'war').map(o => o.target);
+function reserved(p) { let s = 0; for (const o of S.orders) if ((o.type === 'move' && o.from === p) || (o.type === 'disband' && o.p === p)) s += o.amt; return s; }
+function availableArmy(p) { return Math.max(0, S.prov[p].a - reserved(p)); }
+function mpLeft() { return civ(S.player).mp - S.orders.reduce((s, o) => s + o.mp, 0); }
+function pendingBuild(p, b) { return S.orders.some(o => o.type === 'build' && o.p === p && o.bld === b); }
+function pendingDip(t, act) { return S.orders.some(o => o.type === 'dip' && o.target === t && (!act || o.act === act)); }
+
+function renderPanel() {
+  const el = $('panel');
+  const p = selected;
+  if (p < 0 || !S) { el.classList.add('hidden'); return; }
+  const sp = S.prov[p], o = sp.o, pl = S.player, vis = visible(p);
+  const rel = relationOf(pl, o);
+  const relTag = o === pl ? '' : `<span class="tag ${rel === 'war' ? 'war' : rel === 'ally' ? 'ally' : rel === 'pact' ? 'pact' : (rel === 'vassal' || rel === 'overlord') ? 'vassal' : ''}">${REL_KO[rel]}${rel === 'pact' ? ' ' + pactLeft(pl, o) + '턴' : ''}</span>`;
+  const capOf = capitalOwnerOf(p);
+  const bld = [1, 2, 4].filter(b => sp.b & b).map(b => BUILD[b].icon + ' ' + BUILD[b].name).join(' · ') || '없음';
+  let html = `<button class="close" id="pClose">✕</button>
+    <h3>${capOf >= 0 ? '<span title="수도">★</span>' : ''}${esc(P[p].name)}</h3>
+    <div class="sub">${civBadge(o)} ${relTag}${capOf >= 0 ? `<span class="tag">${esc(C[capOf].name)} 수도</span>` : ''}</div>
+    <div class="grid2">
+      <div class="kv"><span>병력</span><b>${vis ? fmtN(sp.a) : '?'}</b></div>
+      <div class="kv"><span>인구</span><b>${fmt(sp.pop)}</b></div>
+      <div class="kv"><span>지형</span><b>${TER_KO[P[p].ter]} <small style="color:var(--muted);font-weight:500">방어 +${Math.round(defBonus(p) * 100)}%</small></b></div>
+      <div class="kv"><span>건물</span><b style="font-size:13px">${bld}</b></div>
+    </div>`;
+  if (o === pl) {
+    const av = availableArmy(p), mp = mpLeft();
+    html += `<div class="actions">
+      <button class="act primary" id="aMove" ${av <= 0 || mp < 1 ? 'disabled' : ''}>➜ 이동/공격 <small>${fmt(av)}</small></button>
+      <button class="act" id="aRecruit" ${mp < 1 ? 'disabled' : ''}>＋ 모집 <small>MP1</small></button>
+      <button class="act" id="aDisband" ${av <= 0 || mp < 1 ? 'disabled' : ''}>－ 해산 <small>MP1</small></button>
+      <button class="act" id="aBuild" ${mp < 2 ? 'disabled' : ''}>🏗 건설 <small>MP2</small></button>
+    </div>`;
+    if (reserved(p) > 0) html += `<div class="hint">이번 턴 명령에 ${fmtN(reserved(p))}명이 배정됨</div>`;
+  } else if (o >= 0) {
+    html += `<div class="actions"><button class="act primary" id="aDip">🏛 ${esc(C[o].name)}와 외교</button></div>`;
+  } else {
+    html += `<div class="hint">어느 나라에도 속하지 않은 중립 지역. 선전포고 없이 바로 공격해 점령할 수 있다.</div>`;
+  }
+  el.innerHTML = html; el.classList.remove('hidden');
+  $('pClose').onclick = () => select(-1);
+  if ($('aMove')) $('aMove').onclick = () => startMove(p);
+  if ($('aRecruit')) $('aRecruit').onclick = () => askRecruit(p);
+  if ($('aDisband')) $('aDisband').onclick = () => askDisband(p);
+  if ($('aBuild')) $('aBuild').onclick = () => askBuild(p);
+  if ($('aDip')) $('aDip').onclick = () => openDiplomacy(o);
+}
+
+function startMove(p) {
+  const ew = pendingWarTargets();
+  targets = new Map();
+  for (const t of [...P[p].adj, ...((S.prov[p].b & 4) ? P[p].sea : [])]) { const k = moveKind(S.player, p, t, ew); if (k) targets.set(t, k); }
+  if (!targets.size) { toast('갈 수 있는 곳이 없다. (전쟁 중이 아닌 나라는 공격할 수 없음)'); targets = new Map(); return; }
+  uiMode = { type: 'move', from: p };
+  $('modeHintText').textContent = `${P[p].name}: 목적지를 고르세요 (노랑=이동, 빨강=공격)`;
+  $('modeHint').classList.remove('hidden');
+  $('panel').classList.add('hidden');
+  rebuildHighlight(); dirty = true;
+}
+$('modeCancel').onclick = () => { cancelMode(); renderPanel(); };
+
+// ----- 모달 -----
+function openModal(html) { $('modalBox').innerHTML = html; $('modal').classList.remove('hidden'); }
+function closeModal() { $('modal').classList.add('hidden'); }
+$('modal').addEventListener('pointerdown', e => { if (e.target.id === 'modal' && !$('modal').dataset.lock) closeModal(); });
+
+function amountModal({ title, sub, max, init, step, info, ok }, cb) {
+  step = step || 100;
+  openModal(`<h2>${title}</h2><p>${sub || ''}</p>
+    <div class="slider"><input type="range" id="amR" min="0" max="${max}" step="${step}" value="${init}"><input type="number" id="amN" min="0" max="${max}" step="${step}" value="${init}"></div>
+    <div class="quick"><button data-f=".25">25%</button><button data-f=".5">50%</button><button data-f=".75">75%</button><button data-f="1">전부</button></div>
+    <div id="amInfo" class="hint"></div>
+    <div class="btns"><button id="amCancel">취소</button><button class="ok" id="amOk">${ok}</button></div>`);
+  const r = $('amR'), n = $('amN');
+  const upd = v => { v = Math.max(0, Math.min(max, Math.round(+v || 0))); r.value = v; n.value = v; $('amInfo').innerHTML = info ? info(v) : ''; $('amOk').disabled = v <= 0; };
+  r.oninput = () => upd(r.value); n.oninput = () => upd(n.value);
+  document.querySelectorAll('.quick button').forEach(b => b.onclick = () => upd(Math.floor(max * +b.dataset.f / step) * step || max));
+  $('amCancel').onclick = closeModal;
+  $('amOk').onclick = () => { const v = +n.value; closeModal(); if (v > 0) cb(v); };
+  upd(init);
+}
+function addOrder(o) { S.orders.push(o); afterChange(); }
+function afterChange() { renderTop(); renderPanel(); renderDrawer(); dirty = true; save(); }
+
+function askMove(from, to, kind) {
+  const av = availableArmy(from), cost = COST[kind];
+  if (mpLeft() < cost) { toast(`MP가 부족하다 (필요 ${cost})`); return; }
+  const tgt = S.prov[to], vis = visible(to);
+  const isAtk = kind === 'attack' || kind === 'navalAttack';
+  amountModal({
+    title: `${KIND_KO[kind]}: ${esc(P[from].name)} → ${esc(P[to].name)}`,
+    sub: isAtk ? `상대 ${civBadge(tgt.o)} · 수비 ${vis ? fmtN(tgt.a) : '?'} · 방어 보너스 +${Math.round(defBonus(to) * 100)}%${kind === 'navalAttack' ? ' · 상륙 공격은 공격력 -20%' : ''}` : `보낼 병력 수를 정하세요. (MP ${cost})`,
+    max: av, init: av, step: 1,
+    info: v => isAtk && vis ? `예상: 공격력 ${fmt(v * (kind === 'navalAttack' ? 0.8 : 1))} vs 방어력 ${fmt(defPower(to))} → ${v * (kind === 'navalAttack' ? 0.8 : 1) > defPower(to) * 1.15 ? '<b class="pos">유리</b>' : v * (kind === 'navalAttack' ? 0.8 : 1) > defPower(to) * 0.85 ? '<b style="color:var(--warn)">팽팽</b>' : '<b class="neg">불리</b>'}` : `MP ${cost} 사용`,
+    ok: isAtk ? '공격 명령' : '이동 명령',
+  }, v => addOrder({ civ: S.player, type: 'move', from, to, amt: v, mp: cost, kind }));
+}
+function askRecruit(p) {
+  const X = civ(S.player), max = maxRecruit(p, X.gold);
+  if (max <= 0) { toast(X.gold < 4 ? '돈이 부족하다' : '이 지역에서 더 모집할 인구가 없다'); return; }
+  amountModal({ title: `병력 모집 · ${esc(P[p].name)}`, sub: `인구 ${fmtN(S.prov[p].pop)}명 중 이번 턴 최대 ${fmtN(max)}명 모집 가능. 병사 1000명당 ${RECRUIT_COST * 1000}금, 유지비 1000명당 턴당 1금. 다음 턴에 합류한다.`,
+    max, init: Math.floor(max / 2 / 100) * 100 || max, info: v => `비용 <b>${fmtN(Math.ceil(v * RECRUIT_COST))}금</b> · 인구 -${fmtN(v)} · MP 1`, ok: '모집' },
+    v => { const g = Math.ceil(v * RECRUIT_COST); X.gold -= g; addOrder({ civ: S.player, type: 'recruit', p, amt: v, gold: g, mp: COST.recruit }); });
+}
+function askDisband(p) {
+  const av = availableArmy(p);
+  amountModal({ title: `병력 해산 · ${esc(P[p].name)}`, sub: '해산한 병력의 절반은 인구로 돌아가고 유지비가 줄어든다.', max: av, init: Math.floor(av / 4 / 100) * 100 || av, step: 1,
+    info: v => `유지비 턴당 -${fmt(v * UPKEEP)}금 · MP 1`, ok: '해산' },
+    v => addOrder({ civ: S.player, type: 'disband', p, amt: v, mp: COST.disband }));
+}
+function askBuild(p) {
+  const X = civ(S.player), sp = S.prov[p];
+  const rows = [1, 2, 4].map(b => {
+    const B = BUILD[b], has = sp.b & b, pend = pendingBuild(p, b), noCoast = b === 4 && !P[p].coastal;
+    const dis = has || pend || noCoast || X.gold < B.cost || mpLeft() < COST.build;
+    return `<button data-b="${b}" ${dis ? 'disabled' : ''}><b>${B.icon} ${B.name}</b><span>${has ? '이미 있음' : pend ? '건설 예약됨' : noCoast ? '해안 지역만 가능' : `${B.cost}금 · ${B.desc}`}</span></button>`;
+  }).join('');
+  openModal(`<h2>🏗 건설 · ${esc(P[p].name)}</h2><p>국고 ${fmtN(X.gold)}금 · MP ${COST.build}</p><div class="diplist">${rows}</div><div class="btns"><button id="bClose">닫기</button></div>`);
+  $('bClose').onclick = closeModal;
+  document.querySelectorAll('.diplist button[data-b]').forEach(btn => btn.onclick = () => {
+    const b = +btn.dataset.b; X.gold -= BUILD[b].cost; closeModal();
+    addOrder({ civ: S.player, type: 'build', p, bld: b, gold: BUILD[b].cost, mp: COST.build });
+  });
+}
+
+function openDiplomacy(t) {
+  const pl = S.player, X = civ(pl), T = civ(t);
+  if (!T.alive) return;
+  const st = statsOf(t), rel = relationOf(pl, t);
+  const mp = mpLeft();
+  const ew = pendingDip(t, 'war');
+  const opts = [
+    ['war', '⚔ 선전포고', '전쟁 상태로 돌입한다. 상대의 동맹국도 참전한다.', COST.dip, rel === 'war' || ew ? '이미 전쟁 중/예약됨' : allied(pl, t) ? '동맹을 먼저 파기해야 함' : pactLeft(pl, t) ? `불가침 조약 ${pactLeft(pl, t)}턴 남음` : (rel === 'vassal' || rel === 'overlord') ? '종속 관계' : ''],
+    ['peace', '🕊 평화 제안', '전쟁을 끝내자고 제안한다. 상대가 거절할 수 있다.', COST.dip, rel !== 'war' ? '전쟁 중이 아님' : ''],
+    ['pact', '🤝 불가침 조약', `${PACT_TURNS}턴 동안 서로 공격할 수 없다.`, COST.dip, rel === 'war' ? '전쟁 중' : rel === 'pact' ? '이미 조약 중' : (rel === 'vassal' || rel === 'overlord') ? '종속 관계' : ''],
+    ['ally', '🛡 동맹 제안', '공격받으면 서로 돕는다.', COST.dip, rel === 'war' ? '전쟁 중' : rel === 'ally' ? '이미 동맹' : (rel === 'vassal' || rel === 'overlord') ? '종속 관계' : ''],
+    ['kick', '✂ 동맹 파기', '동맹 관계를 끊는다.', COST.dip, rel !== 'ally' ? '동맹이 아님' : ''],
+    ['support', '💰 자금 지원', '상대에게 금을 보낸다.', COST.dip, X.gold < 50 ? '돈이 부족함' : ''],
+    ['vassal', '👑 종속 요구', '전쟁 중인 약한 나라를 종속국으로 만든다.', COST.dipBig, rel !== 'war' ? '전쟁 중일 때만' : ''],
+    ['annex', '🗺 합병', `종속국을 흡수한다. (5턴 이상 종속, 비용 ${annexCost(t)}금)`, COST.dipBig, rel !== 'vassal' ? '종속국이 아님' : S.turn - T.vassalSince < 5 ? `${5 - (S.turn - T.vassalSince)}턴 후 가능` : X.gold < annexCost(t) ? '돈이 부족함' : ''],
+  ];
+  const rows = opts.map(([act, title, desc, cost, block]) => {
+    const pend = pendingDip(t, act) && act !== 'support';
+    const dis = !!block || pend || mp < cost;
+    return `<button data-act="${act}" class="${act === 'war' ? 'war' : ''}" ${dis ? 'disabled' : ''}><b>${title} <small style="opacity:.6">MP${cost}</small></b><span>${pend ? '이번 턴 예약됨' : block || desc}</span></button>`;
+  }).join('');
+  const ally = T.ally.map(nm).join(', ') || '없음', wars = T.war.map(nm).join(', ') || '없음';
+  openModal(`<h2>${civBadge(t)}</h2>
+    <div class="sub" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px"><span class="tag ${rel === 'war' ? 'war' : rel === 'ally' ? 'ally' : rel === 'pact' ? 'pact' : (rel === 'vassal' || rel === 'overlord') ? 'vassal' : ''}">${REL_KO[rel]}</span>${T.vassalOf >= 0 ? `<span class="tag vassal">${esc(nm(T.vassalOf))}의 종속국</span>` : ''}</div>
+    <div class="grid2">
+      <div class="kv"><span>지역</span><b>${st.provs}</b></div><div class="kv"><span>인구</span><b>${fmt(st.pop)}</b></div>
+      <div class="kv"><span>총 병력</span><b>${S.fog === 2 ? '?' : fmt(st.army)}</b></div><div class="kv"><span>수도</span><b style="font-size:13px">${esc(P[T.cap].name)}</b></div>
+    </div>
+    <p style="margin:4px 0">동맹: ${esc(ally)}<br>전쟁: ${esc(wars)}</p>
+    <div class="diplist">${rows}</div>
+    <div class="btns"><button id="dClose">닫기</button></div>`);
+  $('dClose').onclick = closeModal;
+  document.querySelectorAll('.diplist button[data-act]').forEach(btn => btn.onclick = () => {
+    const act = btn.dataset.act, cost = act === 'vassal' || act === 'annex' ? COST.dipBig : COST.dip;
+    if (act === 'support') {
+      closeModal();
+      amountModal({ title: `💰 ${esc(C[t].name)}에 자금 지원`, sub: `국고 ${fmtN(X.gold)}금`, max: Math.floor(X.gold), init: Math.floor(X.gold / 4), step: 10, info: () => 'MP 1', ok: '지원' },
+        v => { X.gold -= v; addOrder({ civ: pl, type: 'dip', act, target: t, gold: v, mp: cost }); });
+      return;
+    }
+    let gold = 0;
+    if (act === 'annex') { gold = annexCost(t); X.gold -= gold; }
+    addOrder({ civ: pl, type: 'dip', act, target: t, gold, mp: cost });
+    openDiplomacy(t);
+  });
+}
+function annexCost(t) { return Math.round(statsOf(t).pop / 1e6 * 15 + 200); }
+
+function orderText(o) {
+  if (o.type === 'move') { const k = o.kind || 'move'; return `${k === 'attack' || k === 'navalAttack' ? '⚔' : k === 'naval' ? '⛵' : '➜'} ${esc(P[o.from].name)} → ${esc(P[o.to].name)} · ${fmt(o.amt)} <span class="meta">${KIND_KO[k]}</span>`; }
+  if (o.type === 'recruit') return `＋ ${esc(P[o.p].name)} 모집 ${fmt(o.amt)} <span class="meta">${fmtN(o.gold)}금</span>`;
+  if (o.type === 'disband') return `－ ${esc(P[o.p].name)} 해산 ${fmt(o.amt)}`;
+  if (o.type === 'build') return `${BUILD[o.bld].icon} ${esc(P[o.p].name)} ${BUILD[o.bld].name} 건설`;
+  if (o.type === 'dip') return `🏛 ${esc(C[o.target].name)}: ${{ war: '선전포고', peace: '평화 제안', pact: '불가침 조약', ally: '동맹 제안', kick: '동맹 파기', support: `자금 지원 ${fmtN(o.gold)}금`, vassal: '종속 요구', annex: '합병' }[o.act]}`;
+  return '';
+}
+function cancelOrder(i) {
+  const o = S.orders[i]; if (!o) return;
+  if (o.gold) civ(S.player).gold += o.gold;
+  S.orders.splice(i, 1); afterChange();
+}
+
+// ----- 상단 바 -----
+function renderTop() {
+  const pl = S.player, X = civ(pl), st = statsOf(pl);
+  $('top').innerHTML = `<span class="civchip">${civBadge(pl)}</span>
+    <span class="stat">💰 ${fmtN(X.gold)} <small class="${st.net >= 0 ? 'pos' : 'neg'}">${st.net >= 0 ? '+' : ''}${fmtN(st.net)}</small></span>
+    <span class="stat">👥 ${fmt(st.pop)}</span>
+    <span class="stat">⚔ ${fmt(st.army)}</span>
+    <span class="stat">🗺 ${st.provs}</span>
+    <span class="stat"><small>턴</small> ${S.turn}</span>
+    ${X.capLost ? `<span class="stat neg">⚠ 수도 상실 ${X.capLost}/${CAP_LOST_LIMIT}</span>` : ''}
+    ${X.war.length ? `<span class="stat neg">⚔ 전쟁 ${X.war.length}</span>` : ''}`;
+  const left = mpLeft(), mx = X.mp;
+  $('mpBox').innerHTML = `MP ${left}<small>/${mx}</small>`;
+  const n = S.orders.length; $('ordBadge').textContent = n; $('ordBadge').classList.toggle('hidden', !n);
+  const unseen = S.log.length - S.seenLog; $('newsBadge').textContent = unseen > 99 ? '99+' : unseen; $('newsBadge').classList.toggle('hidden', unseen <= 0 || drawerTab === 'news' && !$('drawer').classList.contains('hidden'));
+}
+// ----- 서랍 -----
+let drawerTab = 'orders';
+function openDrawer(tab) {
+  const d = $('drawer');
+  if (!d.classList.contains('hidden') && drawerTab === tab) { d.classList.add('hidden'); return; }
+  drawerTab = tab; d.classList.remove('hidden'); renderDrawer();
+}
+function renderDrawer() {
+  const d = $('drawer'); if (d.classList.contains('hidden') || !S) return;
+  document.querySelectorAll('.tabs button[data-tab]').forEach(b => b.classList.toggle('on', b.dataset.tab === drawerTab));
+  const body = $('drawerBody');
+  if (drawerTab === 'orders') {
+    body.innerHTML = S.orders.length ? S.orders.map((o, i) => `<div class="row"><div class="grow"><div>${orderText(o)}</div></div><span class="meta">MP${o.mp}</span><button class="act" data-cancel="${i}" style="flex:none;padding:5px 9px">✕</button></div>`).join('')
+      + `<div class="hint" style="padding:8px">남은 MP ${mpLeft()} / ${civ(S.player).mp}. 명령은 [턴 종료]를 눌러야 실행된다.</div>`
+      : `<div class="empty">이번 턴 명령이 없다.<br>내 지역을 눌러 이동·모집·건설을 하거나<br>다른 나라를 눌러 외교를 해보자.</div>`;
+    body.querySelectorAll('[data-cancel]').forEach(b => b.onclick = () => cancelOrder(+b.dataset.cancel));
+  } else if (drawerTab === 'news') {
+    S.seenLog = S.log.length;
+    const items = S.log.slice().reverse().slice(0, 200);
+    body.innerHTML = items.length ? items.map(l => `<div class="log ${l.k} ${l.p >= 0 ? 'click' : ''}" data-p="${l.p}"><span class="t">T${l.t}</span>${esc(l.m)}</div>`).join('') : '<div class="empty">아직 소식이 없다.</div>';
+    body.querySelectorAll('.log.click').forEach(el => el.onclick = () => { const p = +el.dataset.p; centerOn(p, Math.max(cam.z, 2.5)); select(p); });
+    renderTop();
+  } else {
+    const rows = S.civ.map((x, i) => ({ i, x })).filter(r => r.x.alive).map(r => ({ ...r, st: statsOf(r.i) })).sort((a, b) => b.st.provs - a.st.provs || b.st.pop - a.st.pop);
+    body.innerHTML = `<div class="hint" style="padding:4px 8px 8px">살아남은 나라 ${rows.length} / ${NC}</div>` + rows.map((r, k) => {
+      const rel = relationOf(S.player, r.i);
+      return `<div class="row" style="cursor:pointer" data-civ="${r.i}"><span class="meta" style="width:20px">${k + 1}</span>${civBadge(r.i).replace(esc(C[r.i].name), '')}<div class="grow"><div>${esc(C[r.i].name)} ${r.i === S.player ? '<span class="tag">나</span>' : rel !== 'peace' ? `<span class="tag ${rel === 'war' ? 'war' : rel === 'ally' ? 'ally' : rel === 'pact' ? 'pact' : 'vassal'}">${REL_KO[rel]}</span>` : ''}</div><div class="meta">지역 ${r.st.provs} · 인구 ${fmt(r.st.pop)} · 병력 ${S.fog === 2 && r.i !== S.player ? '?' : fmt(r.st.army)}</div></div></div>`;
+    }).join('');
+    body.querySelectorAll('[data-civ]').forEach(el => el.onclick = () => { const c = +el.dataset.civ; centerOn(civ(c).cap, Math.max(cam.z, 2)); if (c !== S.player) openDiplomacy(c); else select(civ(c).cap); });
+  }
+}
+document.querySelectorAll('.tabs button[data-tab]').forEach(b => b.onclick = () => { drawerTab = b.dataset.tab; renderDrawer(); });
+document.querySelectorAll('[data-open]').forEach(b => b.onclick = () => openDrawer(b.dataset.open));
+$('drawerClose').onclick = () => $('drawer').classList.add('hidden');
+
+// ----- 지도 모드 -----
+function renderModes() {
+  $('modes').innerHTML = MODES.map(([k, l]) => `<button class="chip ${k === mapMode ? 'on' : ''}" data-mode="${k}">${l}</button>`).join('');
+  document.querySelectorAll('[data-mode]').forEach(b => b.onclick = () => { mapMode = b.dataset.mode; renderModes(); rebuildBase(); dirty = true; });
+}
+
+// ----- 턴 종료 -----
+$('endBtn').onclick = () => {
+  if (!S || S.over) return;
+  cancelMode();
+  const before = provsOf(S.player).length;
+  $('endBtn').disabled = true;
+  setTimeout(() => {
+    endTurn();
+    $('endBtn').disabled = false;
+    rebuildBase(); select(selected); renderTop(); renderDrawer(); dirty = true;
+    if (!S.over) {
+      const after = provsOf(S.player).length;
+      toast(`턴 ${S.turn} 시작 · 영토 ${before}→${after}${S.battles.length ? ` · 전투 ${S.battles.filter(b => b.att === S.player || b.def === S.player).length}건` : ''}`);
+      showProposals();
+    }
+  }, 30);
+};
+function showProposals() {
+  const pr = S.props.shift();
+  if (!pr) { save(); return; }
+  const c = pr.from;
+  if (!civ(c).alive) return showProposals();
+  const txt = { peace: ['🕊 평화 제안', `${C[c].name}이(가) 전쟁을 끝내자고 제안했다.`], ally: ['🛡 동맹 제안', `${C[c].name}이(가) 동맹을 제안했다.`], pact: ['🤝 불가침 조약 제안', `${C[c].name}이(가) ${PACT_TURNS}턴 불가침 조약을 제안했다.`], vassal: ['👑 종속 요구', `${C[c].name}이(가) 우리에게 종속국이 되라고 요구한다. 받아들이면 전쟁은 끝나지만 수입의 25%를 바쳐야 하고 독자적인 외교를 못 한다.`] }[pr.type];
+  const valid = pr.type === 'peace' || pr.type === 'vassal' ? atWar(c, S.player) : !atWar(c, S.player);
+  if (!valid) return showProposals();
+  $('modal').dataset.lock = '1';
+  openModal(`<h2>${txt[0]}</h2><div class="sub" style="margin-bottom:6px">${civBadge(c)}</div><p>${txt[1]}</p><div class="btns"><button id="pNo">거절</button><button class="ok" id="pYes">수락</button></div>`);
+  $('pNo').onclick = () => { delete $('modal').dataset.lock; closeModal(); addLog('dip', `${C[c].name}의 제안을 거절했다.`); showProposals(); };
+  $('pYes').onclick = () => {
+    delete $('modal').dataset.lock; closeModal();
+    if (pr.type === 'peace') makePeace(c, S.player);
+    else if (pr.type === 'ally') makeAlliance(c, S.player);
+    else if (pr.type === 'pact') makePact(c, S.player);
+    else if (pr.type === 'vassal') makeVassal(c, S.player);
+    updateExplored(); rebuildBase(); renderTop(); renderPanel(); renderDrawer(); dirty = true;
+    showProposals();
+  };
+}
+function gameOverModal(win) {
+  $('modal').dataset.lock = '1';
+  openModal(win
+    ? `<h2>🏆 세계 정복!</h2><p>${S.turn}턴 만에 모든 나라를 무너뜨리거나 종속시켰다. 세계가 ${C[S.player].name}의 색으로 칠해졌다.</p><div class="btns"><button id="goNew">새 게임</button><button class="ok" id="goCont">계속 보기</button></div>`
+    : `<h2>☠ 멸망</h2><p>${C[S.player].name}은(는) ${S.turn}턴에 역사 속으로 사라졌다.</p><div class="btns"><button class="ok" id="goNew">새 게임</button></div>`);
+  $('goNew').onclick = () => { delete $('modal').dataset.lock; closeModal(); try { localStorage.removeItem(SAVE_KEY); } catch (e) {} showStart(); };
+  if ($('goCont')) $('goCont').onclick = () => { delete $('modal').dataset.lock; closeModal(); };
+}
+
+// ----- 메뉴 -----
+$('menuBtn').onclick = () => {
+  openModal(`<h2>☰ 메뉴</h2><div class="diplist" style="grid-template-columns:1fr">
+    <button id="mRules"><b>📖 게임 규칙</b><span>이 게임의 모든 규칙</span></button>
+    <button id="mHome"><b>🎯 내 수도로 이동</b><span>${esc(P[civ(S.player).cap].name)}</span></button>
+    <button id="mNew"><b>🆕 새 게임</b><span>현재 게임은 사라진다</span></button>
+  </div><div class="btns"><button id="mClose">닫기</button></div>`);
+  $('mClose').onclick = closeModal;
+  $('mRules').onclick = rulesModal;
+  $('mHome').onclick = () => { closeModal(); centerOn(civ(S.player).cap, Math.max(cam.z, 2.5)); };
+  $('mNew').onclick = () => { if (confirm('정말 새 게임을 시작할까? 현재 게임은 삭제된다.')) { closeModal(); try { localStorage.removeItem(SAVE_KEY); } catch (e) {} showStart(); } };
+};
+function rulesModal() {
+  openModal(`<h2>📖 규칙</h2><div class="rules">
+    <h4>기본</h4><ul><li>세계는 150개 지역(province)으로 나뉜다. 지도 위 숫자가 곧 군대다.</li><li>명령을 예약하고 [턴 종료]를 누르면 모든 나라가 한꺼번에 움직인다.</li><li>매 턴 MP(행동 포인트) 안에서만 명령할 수 있다. 영토가 넓을수록 MP가 많다.</li></ul>
+    <h4>명령</h4><ul><li>이동 MP1 / 공격 MP2 / 해상 이동 MP2 / 상륙 공격 MP3</li><li>모집 MP1: 인구를 병력으로 바꾼다. 1000명당 40금. 다음 턴에 합류.</li><li>해산 MP1 / 건설 MP2 / 외교 MP1~2</li></ul>
+    <h4>전투</h4><ul><li>공격 병력 vs 수비 병력 × (1 + 지형 + 요새 50% + 수도 25%), 약간의 운.</li><li>이기면 그 지역을 점령한다. 상륙 공격은 공격력 -20%.</li><li>중립 지역은 선전포고 없이 공격할 수 있다.</li></ul>
+    <h4>수도</h4><ul><li>수도를 빼앗기고 ${CAP_LOST_LIMIT}턴 안에 되찾지 못하면 그 나라는 멸망하고, 남은 영토는 전부 수도를 가진 나라에 넘어간다.</li></ul>
+    <h4>건물</h4><ul><li>🏰 요새: 방어 +50%</li><li>👁 감시탑: 주변 2칸의 병력이 보인다</li><li>⚓ 항구: 바다 건너 가까운 해안 지역으로 이동·상륙할 수 있다</li></ul>
+    <h4>경제</h4><ul><li>수입 = 인구 × 경제력. 병력 1000명당 매 턴 1금 유지비.</li><li>국고가 바닥나면 병력 10%가 탈영한다.</li></ul>
+    <h4>외교</h4><ul><li>선전포고 · 평화 · 불가침(${PACT_TURNS}턴) · 동맹 · 동맹 파기 · 자금 지원 · 종속 요구 · 합병</li><li>공격받은 나라의 동맹국과 종속국은 자동으로 참전한다.</li><li>종속국은 수입의 25%를 종주국에 바치고, 5턴 뒤 합병할 수 있다.</li></ul>
+    <h4>승리</h4><ul><li>다른 모든 나라를 멸망시키거나 종속국으로 만들면 승리.</li></ul>
+  </div><div class="btns"><button class="ok" id="rClose">닫기</button></div>`);
+  $('rClose').onclick = closeModal;
+}
+
+// ============================================================
+//  시작 화면
+// ============================================================
+let startFog = 1, startAggr = 1;
+function civRow(c) {
+  const n = P.filter(p => p.owner0 === c).length, pop = P.reduce((s, p) => s + (p.owner0 === c ? p.pop0 : 0), 0);
+  return `<div class="row ${c === startPick ? 'on' : ''}" data-c="${c}"><span class="sw" style="background:${C[c].color}"></span><span class="flag">${flagOf(C[c].tag)}</span><div class="grow"><div><b>${esc(C[c].name)}</b></div><div class="meta">지역 ${n} · 인구 ${fmt(pop)}</div></div></div>`;
+}
+function renderCivList() {
+  const q = $('search').value.trim();
+  const list = C.map(c => c.id).filter(i => !q || C[i].name.includes(q)).sort((a, b) => C[a].name.localeCompare(C[b].name, 'ko'));
+  $('civList').innerHTML = list.map(civRow).join('') || '<div class="empty">검색 결과 없음</div>';
+  $('civList').querySelectorAll('[data-c]').forEach(el => el.onclick = () => pickStart(+el.dataset.c, true));
+}
+function pickStart(c, fly) {
+  startPick = c;
+  $('pick').innerHTML = civBadge(c);
+  $('startBtn').disabled = false;
+  renderCivList();
+  const el = $('civList').querySelector('.row.on'); if (el && !fly) el.scrollIntoView({ block: 'nearest' });
+  rebuildHighlight();
+  if (fly) centerOn(C[c].cap0, Math.max(cam.z, 1.6));
+  dirty = true;
+}
+function bindSeg(id, set) { $(id).querySelectorAll('button').forEach(b => b.onclick = () => { $(id).querySelectorAll('button').forEach(x => x.classList.toggle('on', x === b)); set(+b.dataset.v); }); }
+bindSeg('fogSeg', v => startFog = v);
+bindSeg('aggrSeg', v => startAggr = v);
+$('search').oninput = renderCivList;
+function showStart() {
+  S = null; selected = -1; targets = new Map(); uiMode = null; mapMode = 'political';
+  ['top', 'bar', 'panel', 'drawer', 'modeHint'].forEach(id => $(id).classList.add('hidden'));
+  $('start').classList.remove('hidden');
+  $('contBtn').classList.toggle('hidden', !loadSave());
+  renderCivList(); rebuildBase(); rebuildHighlight();
+  cam.z = minZoom(); cam.x = WW * 0.02; clampCam(); dirty = true;
+}
+function enterGame() {
+  $('start').classList.add('hidden');
+  ['top', 'bar'].forEach(id => $(id).classList.remove('hidden'));
+  startPick = -1; selected = -1; mapMode = 'political';
+  renderModes(); rebuildBase(); rebuildHighlight(); renderTop();
+  centerOn(civ(S.player).cap, 2.2);
+  showProposals();
+}
+$('startBtn').onclick = () => { if (startPick < 0) return; newGame(startPick, startFog, startAggr); save(); enterGame(); setTimeout(rulesModal, 300); };
+$('contBtn').onclick = () => { const s = loadSave(); if (!s) return; S = s; updateExplored(); enterGame(); };
+
+window.addEventListener('resize', resize);
+window.addEventListener('keydown', e => {
+  if (e.key === 'Escape') { if (!$('modal').classList.contains('hidden') && !$('modal').dataset.lock) closeModal(); else if (uiMode) { cancelMode(); renderPanel(); } else select(-1); }
+  if (e.key === 'Enter' && S && $('modal').classList.contains('hidden') && document.activeElement.tagName !== 'INPUT') $('endBtn').click();
+});
+resize();
+showStart();
+loop();
+
+// 디버그/테스트용
+window.__aoc = { get S() { return S; }, P, C, endTurn, aiTurn, newGame: (c, f, a) => { newGame(c, f, a); enterGame(); }, statsOf, moveKind };
+})();
+</script>
+</body>
+</html>
