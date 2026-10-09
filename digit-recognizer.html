@@ -1,0 +1,727 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>손글씨 숫자 인식기</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans+KR:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+/* 모눈종이 실험 노트: 파이프라인 4단계를 2열 카드로, 숫자/데이터는 고정폭 글꼴 */
+:root{
+  --bg:#eef1f4; --grid:#e2e7ed; --surface:#fbfcfd; --paper:#ffffff;
+  --ink:#16202b; --muted:#5b6878; --line:#d3dae2;
+  --accent:#2f5bea; --on-accent:#ffffff; --warm:#d9482b; --good:#1f8a5b;
+  --f-body:"IBM Plex Sans KR", "Apple SD Gothic Neo", "Malgun Gothic", system-ui, sans-serif;
+  --f-mono:"IBM Plex Mono", ui-monospace, Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#10151b; --grid:#151c24; --surface:#171e26; --paper:#0c1116;
+    --ink:#e6ebf1; --muted:#93a0b0; --line:#2a3440;
+    --accent:#7d9bff; --on-accent:#0d1220; --warm:#ff7a5c; --good:#4cc38a;
+    color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#10151b; --grid:#151c24; --surface:#171e26; --paper:#0c1116;
+  --ink:#e6ebf1; --muted:#93a0b0; --line:#2a3440;
+  --accent:#7d9bff; --on-accent:#0d1220; --warm:#ff7a5c; --good:#4cc38a;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+body{
+  margin:0; background-color:var(--bg); color:var(--ink);
+  font:15px/1.65 var(--f-body);
+  background-image:linear-gradient(var(--grid) 1px,transparent 1px),linear-gradient(90deg,var(--grid) 1px,transparent 1px);
+  background-size:24px 24px;
+}
+.wrap{max-width:1120px;margin:0 auto;padding:40px 16px 64px}
+.eyebrow{font:500 12px var(--f-mono);letter-spacing:.06em;color:var(--muted);margin:0}
+h1{font-size:clamp(30px,5vw,44px);line-height:1.15;font-weight:700;letter-spacing:-.02em;margin:.2em 0 .35em;text-wrap:balance}
+.lede{max-width:64ch;color:var(--muted);margin:0}
+.status{display:inline-flex;align-items:center;gap:8px;margin-top:16px;padding:6px 12px;border:1px solid var(--line);border-radius:999px;background:var(--surface);font:13px var(--f-mono);font-variant-numeric:tabular-nums}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--accent)}
+.status.busy .dot{animation:pulse 1s ease-in-out infinite}
+.status.done .dot{background:var(--good)}
+@keyframes pulse{50%{opacity:.25}}
+
+.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:20px;margin-top:28px;align-items:start}
+@media (max-width:880px){.grid{grid-template-columns:minmax(0,1fr)}}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:22px;min-width:0;display:flex;flex-direction:column;gap:14px}
+.step{display:flex;align-items:center;gap:10px}
+.num{flex:none;font:600 13px var(--f-mono);width:28px;height:28px;border-radius:50%;border:1.5px solid var(--accent);color:var(--accent);display:grid;place-items:center}
+h2{font-size:19px;line-height:1.3;margin:0}
+h3{font-size:14px;margin:4px 0 0}
+p{margin:0}
+.small{font-size:13px;color:var(--muted)}
+.meta{font:12px var(--f-mono);color:var(--muted);font-variant-numeric:tabular-nums}
+.row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+
+button{font:600 14px var(--f-body);padding:8px 14px;border-radius:8px;border:1px solid var(--accent);background:var(--accent);color:var(--on-accent);cursor:pointer}
+button.ghost{background:transparent;color:var(--accent)}
+button:hover{filter:brightness(1.08)}
+button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+canvas.pix{image-rendering:pixelated;image-rendering:crisp-edges;display:block}
+#samples{width:100%;max-width:560px;height:auto;background:var(--paper);border:1px solid var(--line);border-radius:6px}
+
+.stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
+.stat{border-top:2px solid var(--line);padding-top:6px;min-width:0}
+.stat b{display:block;font:600 20px var(--f-mono);font-variant-numeric:tabular-nums}
+.stat span{font-size:12px;color:var(--muted)}
+@media (max-width:480px){.stats{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.charts{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
+@media (max-width:480px){.charts{grid-template-columns:minmax(0,1fr)}}
+figure{margin:0;min-width:0}
+figcaption{font-size:12px;color:var(--muted);margin-bottom:4px}
+.charts canvas{width:100%;height:130px;display:block}
+.wfig{display:flex;gap:16px;flex-wrap:wrap;align-items:flex-start}
+#weights{width:100%;max-width:300px;height:auto;flex:1 1 220px}
+.wfig p{flex:1 1 180px;min-width:0}
+.sw{display:inline-block;width:10px;height:10px;border-radius:2px;vertical-align:-1px}
+
+.padwrap{position:relative;width:100%;max-width:300px;aspect-ratio:1}
+#pad{width:100%;height:100%;display:block;touch-action:none;cursor:crosshair;border-radius:8px;border:1.5px dashed var(--muted);background:var(--paper)}
+.hint{position:absolute;left:10px;top:8px;font:12px var(--f-mono);color:var(--muted);pointer-events:none}
+.pipe{list-style:none;padding:0;margin:0;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+.pipe li{display:flex;flex-direction:column;gap:4px;font-size:12px;line-height:1.5;color:var(--muted);min-width:0}
+.pipe b{color:var(--ink);font-size:13px}
+.pipe canvas{width:100%;max-width:120px;height:auto;aspect-ratio:1;background:var(--paper);border:1px solid var(--line);border-radius:4px}
+
+.verdict{display:flex;gap:18px;align-items:center}
+.big{font:600 76px/1 var(--f-mono);color:var(--accent);min-width:1.2ch;text-align:center}
+.verdict p{font-size:14px}
+.net{display:flex;flex-wrap:wrap;align-items:center;gap:12px}
+.net figure{display:flex;flex-direction:column;align-items:center;gap:4px}
+.net figcaption{margin:0;text-align:center;max-width:110px;line-height:1.35}
+#nIn,#nHid{width:96px;height:96px;background:var(--paper);border:1px solid var(--line);border-radius:4px}
+.arrow{color:var(--muted);font:16px var(--f-mono)}
+.outs{display:grid;gap:3px;flex:1 1 200px;min-width:0}
+.o{display:grid;grid-template-columns:14px minmax(0,1fr) 46px;gap:8px;align-items:center;font:12px var(--f-mono);font-variant-numeric:tabular-nums;color:var(--muted)}
+.o .bar{height:10px;background:var(--bg);border-radius:2px;overflow:hidden}
+.o i{display:block;height:100%;width:0;background:var(--muted);transition:width .15s}
+.o.top{color:var(--accent);font-weight:600}
+.o.top i{background:var(--accent)}
+.o span:last-child{text-align:right}
+.contrib{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
+.contrib canvas{width:100%;height:auto;aspect-ratio:1;background:var(--paper);border:1px solid var(--line);border-radius:4px}
+.contrib div{font:11px/1.4 var(--f-mono);color:var(--muted);min-width:0}
+.keys{display:grid;grid-template-columns:repeat(10,minmax(0,1fr));gap:6px}
+.keys button{padding:8px 0;font-family:var(--f-mono)}
+@media (max-width:420px){.keys{grid-template-columns:repeat(5,minmax(0,1fr))}}
+.note{font-size:13px;color:var(--muted);border-left:2px solid var(--line);padding-left:10px}
+footer{margin-top:28px;font-size:13px;color:var(--muted);max-width:70ch}
+@media (prefers-reduced-motion: reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <p class="eyebrow">MLP 784 → 64 → 10 · 이 페이지 안에서만 계산</p>
+    <h1>손글씨 숫자 인식기</h1>
+    <p class="lede">컴퓨터가 손글씨 숫자를 알아보게 되는 과정을 처음부터 보여줍니다. 연습용 숫자 그림을 만들고, 작은 신경망을 학습시키고, 직접 쓴 숫자를 신경망이 어떻게 판단하는지 단계별로 확인해 보세요. 서버나 외부 데이터 없이 브라우저가 모두 계산합니다.</p>
+    <div class="status busy" id="status"><span class="dot"></span><span id="statusText">준비 중</span></div>
+  </header>
+
+  <div class="grid">
+    <section class="card">
+      <div class="step"><span class="num">1</span><h2>학습 데이터 만들기</h2></div>
+      <p>신경망은 정답이 붙은 예시를 많이 봐야 배웁니다. 0~9를 손글씨 획 모양과 여러 글꼴로 그린 뒤, 기울이고 늘리고 굵기를 바꿔 학습용 <b>6,000</b>장과 시험용 <b>1,000</b>장을 만듭니다. 아래는 그중 일부를 신경망이 실제로 보는 28×28 크기로 줄인 모습이에요.</p>
+      <canvas id="samples" class="pix" width="298" height="118" aria-label="생성된 학습 데이터 예시"></canvas>
+      <div class="row"><button id="btnMore" class="ghost">다른 예시 보기</button><span class="meta" id="genMeta">열마다 같은 숫자 · 0부터 9까지</span></div>
+    </section>
+
+    <section class="card">
+      <div class="step"><span class="num">2</span><h2>신경망 학습</h2></div>
+      <p>처음에는 가중치가 무작위라서 아무 숫자나 찍습니다. 그림을 32장씩 보여주고, 틀린 정도(손실)를 줄이는 방향으로 가중치 약 5만 개를 조금씩 고칩니다(역전파). 학습 데이터 전체를 한 바퀴 도는 것을 1 에폭이라고 해요.</p>
+      <div class="stats">
+        <div class="stat"><b id="stEpoch">0</b><span>에폭</span></div>
+        <div class="stat"><b id="stLoss">–</b><span>손실</span></div>
+        <div class="stat"><b id="stTrain">–</b><span>학습 정확도</span></div>
+        <div class="stat"><b id="stVal">–</b><span>시험 정확도</span></div>
+      </div>
+      <div class="charts">
+        <figure><figcaption>손실 (낮을수록 좋음)</figcaption><canvas id="chLoss"></canvas></figure>
+        <figure><figcaption>시험 정확도 (학습에 안 쓴 1,000장)</figcaption><canvas id="chAcc"></canvas></figure>
+      </div>
+      <div class="row"><button id="btnTrain">일시정지</button><button id="btnReset" class="ghost">처음부터 다시 학습</button></div>
+      <h3>은닉 뉴런 64개가 찾는 패턴</h3>
+      <div class="wfig">
+        <canvas id="weights" class="pix" width="238" height="238" aria-label="은닉 뉴런 가중치"></canvas>
+        <p class="small">각 칸은 뉴런 하나가 입력 784칸에 곱하는 가중치입니다. <span class="sw" style="background:var(--accent)"></span> 파랑 자리에 잉크가 있으면 반응이 커지고, <span class="sw" style="background:var(--warm)"></span> 빨강 자리에 잉크가 있으면 작아집니다. 처음엔 잡음이던 무늬가 학습하면서 획 모양을 띠는 것을 볼 수 있어요.</p>
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="step"><span class="num">3</span><h2>숫자 쓰고 정리하기</h2></div>
+      <p>칸 안에 숫자 하나를 크게 써보세요. 쓴 그림은 학습 데이터와 똑같은 방식으로 정리한 뒤 신경망에 넣습니다.</p>
+      <div class="padwrap"><canvas id="pad" width="280" height="280" aria-label="숫자 쓰는 칸"></canvas><span class="hint" id="padHint">예시로 3을 써 두었어요</span></div>
+      <div class="row"><button id="btnClear" class="ghost">지우기</button></div>
+      <ol class="pipe">
+        <li><canvas id="pp1" width="84" height="84"></canvas><b>① 영역 찾기</b><span>잉크가 있는 사각형만 잘라냅니다</span></li>
+        <li><canvas id="pp2" class="pix" width="28" height="28"></canvas><b>② 20×20으로 축소</b><span>비율을 유지하며 줄입니다</span></li>
+        <li><canvas id="pp3" class="pix" width="28" height="28"></canvas><b>③ 28×28 중앙 정렬</b><span>무게중심을 가운데로 옮겨 숫자 784개가 됩니다</span></li>
+      </ol>
+    </section>
+
+    <section class="card">
+      <div class="step"><span class="num">4</span><h2>신경망의 판단</h2></div>
+      <div class="verdict"><div class="big" id="pred">–</div><p id="conf" class="small">숫자를 쓰면 여기에 결과가 나옵니다.</p></div>
+      <div class="net">
+        <figure><canvas id="nIn" class="pix" width="28" height="28"></canvas><figcaption class="small">입력 784</figcaption></figure>
+        <span class="arrow">→</span>
+        <figure><canvas id="nHid" width="110" height="110"></canvas><figcaption class="small">은닉층 64<br>밝을수록 강한 반응</figcaption></figure>
+        <span class="arrow">→</span>
+        <div class="outs" id="outs" aria-label="숫자별 확률"></div>
+      </div>
+      <h3>이번 판단에 가장 크게 기여한 뉴런</h3>
+      <p class="small">뉴런의 반응 × 그 뉴런이 예측한 숫자 쪽으로 연결된 가중치. 이 값이 클수록 결과를 끌어올린 뉴런입니다.</p>
+      <div class="contrib" id="contrib"></div>
+      <h3>틀렸다면 정답을 알려주세요</h3>
+      <p class="small">정답 숫자를 누르면 방금 쓴 그림을 조금씩 돌리고 늘린 24장을 학습 데이터에 넣고 곧바로 추가 학습합니다.</p>
+      <div class="keys" id="keys"></div>
+      <p class="meta" id="teachMsg">아직 가르친 그림이 없어요.</p>
+    </section>
+  </div>
+
+  <footer>
+    <p class="note">시험 정확도는 컴퓨터가 만든 그림으로 잰 값이라, 실제 손글씨에서는 이보다 낮을 수 있어요. 자주 틀리는 숫자는 4단계에서 몇 번 가르쳐 주면 금방 좋아집니다. 새로고침하면 처음 상태로 돌아갑니다.</p>
+  </footer>
+</div>
+
+<script>
+(() => {
+const $ = id => document.getElementById(id);
+const D = 784, H = 64, K = 10, N_TRAIN = 6000, N_VAL = 1000, BATCH = 32;
+const rand = (a, b) => a + Math.random() * (b - a);
+const randi = n => Math.floor(Math.random() * n);
+const randn = () => { let u = 0; while (!u) u = Math.random(); return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * Math.random()); };
+const fmtN = n => n.toLocaleString('ko-KR');
+const pct = v => (v * 100).toFixed(1) + '%';
+
+/* ---------- 테마 색 ---------- */
+const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+function rgb(n) {
+  const m = css(n).match(/^#([0-9a-f]{6})$/i);
+  if (!m) return [128, 128, 128];
+  const v = parseInt(m[1], 16);
+  return [v >> 16 & 255, v >> 8 & 255, v & 255];
+}
+
+/* ---------- 손글씨 획 템플릿 (0~1 좌표) ---------- */
+function ell(cx, cy, rx, ry, n, start, sweep) {
+  const p = [];
+  for (let i = 0; i <= n; i++) { const a = start + sweep * 2 * Math.PI * i / n; p.push([cx + rx * Math.cos(a), cy + ry * Math.sin(a)]); }
+  return p;
+}
+const T = {
+  0: [() => [ell(.5, .5, .4, .5, 14, -Math.PI / 2 + rand(-.5, .5), 1.06)],
+      () => [ell(.5, .5, .32, .5, 14, -Math.PI / 2 + rand(-.3, .3), 1.1)]],
+  1: [[[[.5, 0], [.5, 1]]],
+      [[[.25, .22], [.55, 0], [.55, 1]]],
+      [[[.3, .18], [.55, 0], [.55, 1]], [[.3, 1], [.8, 1]]]],
+  2: [[[[.15, .25], [.3, .05], [.6, 0], [.85, .2], [.78, .45], [.45, .75], [.1, 1]], [[.1, 1], [.9, 1]]],
+      [[[.12, .3], [.4, 0], [.8, .1], [.75, .4], [.35, .8], [.1, 1], [.5, .93], [.9, 1]]]],
+  3: [[[[.15, .1], [.5, 0], [.82, .15], [.78, .38], [.45, .5], [.82, .62], [.88, .85], [.5, 1], [.12, .88]]],
+      [[[.15, 0], [.85, 0]], [[.85, 0], [.45, .42], [.8, .55], [.88, .8], [.55, 1], [.12, .9]]]],
+  4: [[[[.68, 1], [.68, 0], [.08, .68], [.92, .68]]],
+      [[[.25, 0], [.15, .6], [.92, .6]], [[.72, .25], [.72, 1]]]],
+  5: [[[[.25, 0], [.85, 0]], [[.25, 0], [.2, .45], [.55, .38], [.85, .6], [.8, .88], [.45, 1], [.12, .9]]],
+      [[[.3, 0], [.85, .02]], [[.3, 0], [.22, .42], [.6, .42], [.85, .68], [.6, .98], [.15, .88]]]],
+  6: [[[[.78, .03], [.45, .12], [.2, .45], [.18, .8], [.45, 1], [.78, .85], [.75, .6], [.45, .5], [.2, .68]]],
+      () => [[[.7, 0], [.4, .3], [.24, .66]], ell(.5, .72, .3, .28, 10, Math.PI, 1.05)]],
+  7: [[[[.1, .03], [.9, .03], [.4, 1]]],
+      [[[.1, .03], [.9, .03], [.4, 1]], [[.35, .55], [.8, .55]]],
+      [[[.1, .05], [.9, 0], [.6, .5], [.45, 1]]]],
+  8: [[[[.55, .48], [.2, .28], [.5, 0], [.8, .25], [.5, .5], [.15, .75], [.5, 1], [.85, .75], [.55, .48]]],
+      () => [ell(.5, .25, .3, .25, 10, Math.PI / 2, 1.05), ell(.5, .72, .38, .28, 12, -Math.PI / 2, 1.05)]],
+  9: [[[[.8, .25], [.5, 0], [.2, .22], [.3, .47], [.62, .45], [.8, .25], [.78, .6], [.65, 1]]],
+      [[[.8, .25], [.5, 0], [.2, .22], [.3, .47], [.62, .45], [.8, .25]], [[.8, .25], [.8, 1]]],
+      () => [ell(.5, .27, .32, .27, 10, 0, 1.05), [[.82, .27], [.8, 1]]]]
+};
+
+function drawTemplate(ctx, d, o) {
+  const vs = T[d];
+  const v = vs[o.variant ?? randi(vs.length)];
+  const strokes = typeof v === 'function' ? v() : v;
+  const c = Math.cos(o.rot), s = Math.sin(o.rot);
+  const tf = ([u, w]) => {
+    u += rand(-o.jit, o.jit); w += rand(-o.jit, o.jit);
+    let x = (u - .5) * o.h * o.wr; const y = (w - .5) * o.h;
+    x -= y * o.shear;
+    return [o.cx + x * c - y * s, o.cy + x * s + y * c];
+  };
+  ctx.save();
+  ctx.lineWidth = o.h * o.lwr; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+  for (const st of strokes) {
+    const p = st.map(tf);
+    ctx.beginPath(); ctx.moveTo(p[0][0], p[0][1]);
+    if (p.length <= 4) {
+      for (let i = 1; i < p.length; i++) ctx.lineTo(p[i][0], p[i][1]);
+    } else {
+      // Catmull-Rom 곡선으로 점들을 부드럽게 잇기
+      for (let i = 0; i < p.length - 1; i++) {
+        const p0 = p[i - 1] || p[i], p1 = p[i], p2 = p[i + 1], p3 = p[i + 2] || p2;
+        for (let t = 1; t <= 8; t++) {
+          const q = t / 8, q2 = q * q, q3 = q2 * q;
+          const f = (a, b, e, g) => .5 * (2 * b + (-a + e) * q + (2 * a - 5 * b + 4 * e - g) * q2 + (-a + 3 * b - 3 * e + g) * q3);
+          ctx.lineTo(f(p0[0], p1[0], p2[0], p3[0]), f(p0[1], p1[1], p2[1], p3[1]));
+        }
+      }
+    }
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
+const FONTS = ['sans-serif', 'serif', 'monospace', 'Georgia, serif', '"Courier New", monospace', '"Trebuchet MS", sans-serif',
+  'Verdana, sans-serif', '"Comic Sans MS", cursive', 'cursive', 'Impact, sans-serif', '"Times New Roman", serif'];
+function drawFont(ctx, d) {
+  ctx.save();
+  ctx.translate(56, 56); ctx.rotate(rand(-.2, .2)); ctx.transform(1, 0, -rand(-.1, .3), 1, 0, 0);
+  ctx.font = `${Math.random() < .5 ? 700 : 400} ${Math.round(rand(60, 85))}px ${FONTS[randi(FONTS.length)]}`;
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillText(String(d), 0, 0);
+  const lw = rand(0, 7);
+  if (lw > 1.5) { ctx.lineWidth = lw; ctx.lineJoin = 'round'; ctx.strokeText(String(d), 0, 0); }
+  ctx.restore();
+}
+
+/* ---------- 전처리: 영역 → 20×20 → 무게중심 정렬 ---------- */
+const tmp28 = document.createElement('canvas'); tmp28.width = tmp28.height = 28;
+const tctx = tmp28.getContext('2d', { willReadFrequently: true });
+function preprocess(cv) {
+  const w = cv.width, h = cv.height;
+  const a = cv.getContext('2d', { willReadFrequently: true }).getImageData(0, 0, w, h).data;
+  let x0 = w, y0 = h, x1 = -1, y1 = -1;
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    if (a[(y * w + x) * 4 + 3] > 30) { if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y; }
+  }
+  if (x1 < 0) return null;
+  const bw = x1 - x0 + 1, bh = y1 - y0 + 1, s = 20 / Math.max(bw, bh);
+  const ox = (28 - bw * s) / 2, oy = (28 - bh * s) / 2;
+  const box = new Float32Array(D);
+  if (s < 1) {
+    // 여러 원본 픽셀을 한 칸에 평균 (면적 평균 축소)
+    for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) {
+      const v = a[(y * w + x) * 4 + 3]; if (!v) continue;
+      const dx = Math.min(27, Math.floor(ox + (x - x0 + .5) * s)), dy = Math.min(27, Math.floor(oy + (y - y0 + .5) * s));
+      box[dy * 28 + dx] += v / 255;
+    }
+    const k = s * s;
+    for (let i = 0; i < D; i++) box[i] = Math.min(1, box[i] * k);
+  } else {
+    tctx.clearRect(0, 0, 28, 28);
+    tctx.drawImage(cv, x0, y0, bw, bh, ox, oy, bw * s, bh * s);
+    const b = tctx.getImageData(0, 0, 28, 28).data;
+    for (let i = 0; i < D; i++) box[i] = b[i * 4 + 3] / 255;
+  }
+  let m = 0, mx = 0, my = 0;
+  for (let y = 0; y < 28; y++) for (let x = 0; x < 28; x++) { const v = box[y * 28 + x]; m += v; mx += v * (x + .5); my += v * (y + .5); }
+  const sx = m ? Math.round(14 - mx / m) : 0, sy = m ? Math.round(14 - my / m) : 0;
+  const out = new Float32Array(D);
+  for (let y = 0; y < 28; y++) for (let x = 0; x < 28; x++) {
+    const nx = x + sx, ny = y + sy;
+    if (nx >= 0 && nx < 28 && ny >= 0 && ny < 28) out[ny * 28 + nx] = box[y * 28 + x];
+  }
+  return { x: out, box, bbox: [x0, y0, bw, bh] };
+}
+function nzOf(x) { const r = []; for (let i = 0; i < D; i++) if (x[i] > 0) r.push(i); return Int32Array.from(r); }
+
+const gen = document.createElement('canvas'); gen.width = gen.height = 112;
+const gctx = gen.getContext('2d', { willReadFrequently: true });
+function makeSample(d) {
+  for (let tries = 0; tries < 3; tries++) {
+    gctx.clearRect(0, 0, 112, 112);
+    gctx.fillStyle = gctx.strokeStyle = '#000';
+    if (Math.random() < .75) {
+      drawTemplate(gctx, d, { cx: 56, cy: 56, h: rand(55, 80), wr: rand(.6, .95), rot: rand(-.22, .22), shear: rand(-.2, .4), lwr: rand(.06, .17), jit: rand(.02, .06) });
+    } else drawFont(gctx, d);
+    const r = preprocess(gen);
+    if (r) return r.x;
+  }
+  return new Float32Array(D);
+}
+
+/* ---------- 데이터 ---------- */
+const data = { X: [], Y: [], NZ: [] }, val = { X: [], Y: [], NZ: [] };
+function addTo(set, x, y) { set.X.push(x); set.Y.push(y); set.NZ.push(nzOf(x)); }
+
+/* ---------- 신경망: 784 → 64 (ReLU) → 10 (softmax), Adam ---------- */
+let W1, B1, W2, B2, P, G, M, V, adamStep;
+function initNet() {
+  W1 = new Float32Array(H * D).map(() => randn() * Math.sqrt(2 / D));
+  B1 = new Float32Array(H);
+  W2 = new Float32Array(K * H).map(() => randn() * Math.sqrt(1 / H));
+  B2 = new Float32Array(K);
+  P = [W1, B1, W2, B2];
+  G = P.map(p => new Float32Array(p.length));
+  M = P.map(p => new Float32Array(p.length));
+  V = P.map(p => new Float32Array(p.length));
+  adamStep = 0;
+}
+const hp = new Float32Array(H), hh = new Float32Array(H), z = new Float32Array(K), pr = new Float32Array(K), dz = new Float32Array(K);
+function forward(x, nz) {
+  for (let j = 0; j < H; j++) {
+    let s = B1[j]; const o = j * D;
+    for (let t = 0; t < nz.length; t++) { const i = nz[t]; s += W1[o + i] * x[i]; }
+    hp[j] = s; hh[j] = s > 0 ? s : 0;
+  }
+  let mx = -Infinity;
+  for (let k = 0; k < K; k++) {
+    let s = B2[k]; const o = k * H;
+    for (let j = 0; j < H; j++) s += W2[o + j] * hh[j];
+    z[k] = s; if (s > mx) mx = s;
+  }
+  let sum = 0;
+  for (let k = 0; k < K; k++) { pr[k] = Math.exp(z[k] - mx); sum += pr[k]; }
+  for (let k = 0; k < K; k++) pr[k] /= sum;
+}
+const argmax = a => { let b = 0; for (let i = 1; i < a.length; i++) if (a[i] > a[b]) b = i; return b; };
+function trainBatch(idxs, set) {
+  for (const g of G) g.fill(0);
+  const [gW1, gB1, gW2, gB2] = G;
+  let loss = 0, cor = 0;
+  for (const n of idxs) {
+    const x = set.X[n], nz = set.NZ[n], y = set.Y[n];
+    forward(x, nz);
+    loss -= Math.log(pr[y] + 1e-9);
+    if (argmax(pr) === y) cor++;
+    for (let k = 0; k < K; k++) dz[k] = pr[k] - (k === y ? 1 : 0);
+    for (let k = 0; k < K; k++) { gB2[k] += dz[k]; const o = k * H; for (let j = 0; j < H; j++) gW2[o + j] += dz[k] * hh[j]; }
+    for (let j = 0; j < H; j++) {
+      if (hp[j] <= 0) continue;
+      let d = 0; for (let k = 0; k < K; k++) d += W2[k * H + j] * dz[k];
+      gB1[j] += d; const o = j * D;
+      for (let t = 0; t < nz.length; t++) { const i = nz[t]; gW1[o + i] += d * x[i]; }
+    }
+  }
+  adamStep++;
+  const lr = .0015, b1 = .9, b2 = .999, c1 = 1 - b1 ** adamStep, c2 = 1 - b2 ** adamStep, sc = 1 / idxs.length;
+  for (let p = 0; p < 4; p++) {
+    const w = P[p], g = G[p], m = M[p], v = V[p];
+    for (let i = 0; i < w.length; i++) {
+      const gi = g[i] * sc;
+      m[i] = b1 * m[i] + (1 - b1) * gi;
+      v[i] = b2 * v[i] + (1 - b2) * gi * gi;
+      w[i] -= lr * (m[i] / c1) / (Math.sqrt(v[i] / c2) + 1e-8);
+    }
+  }
+  return { loss, cor };
+}
+function evalVal() {
+  let c = 0;
+  for (let n = 0; n < val.X.length; n++) { forward(val.X[n], val.NZ[n]); if (argmax(pr) === val.Y[n]) c++; }
+  return c / val.X.length;
+}
+
+/* ---------- 학습 진행 상태 ---------- */
+const S = { phase: 'gen', made: 0, running: false, target: 8, epoch: 0, ptr: 0, order: [],
+  lossHist: [], valHist: [], lossAcc: 0, corAcc: 0, cnt: 0, lastLoss: null, lastTrain: null };
+function newOrder() {
+  S.order = Array.from({ length: data.X.length }, (_, i) => i);
+  for (let i = S.order.length - 1; i > 0; i--) { const j = randi(i + 1); [S.order[i], S.order[j]] = [S.order[j], S.order[i]]; }
+  S.ptr = 0;
+}
+function startTraining() {
+  initNet();
+  Object.assign(S, { phase: 'train', running: true, target: 8, epoch: 0, lossHist: [], valHist: [], lossAcc: 0, corAcc: 0, cnt: 0, lastLoss: null, lastTrain: null });
+  newOrder();
+  S.valHist.push([0, evalVal()]);
+}
+function genChunk() {
+  const total = N_TRAIN + N_VAL, t0 = performance.now();
+  while (S.made < total && performance.now() - t0 < 14) {
+    const d = S.made % 10;
+    addTo(S.made < N_TRAIN ? data : val, makeSample(d), d);
+    S.made++;
+  }
+  if (S.made >= total) startTraining();
+}
+function trainStep() {
+  if (S.ptr >= S.order.length) {
+    S.epoch++;
+    S.valHist.push([S.epoch, evalVal()]);
+    if (S.epoch >= S.target) { S.running = false; return; }
+    newOrder();
+  }
+  const b = S.order.slice(S.ptr, S.ptr + BATCH); S.ptr += b.length;
+  const r = trainBatch(b, data);
+  S.lossAcc += r.loss; S.corAcc += r.cor; S.cnt += b.length;
+  if (S.cnt >= 640) {
+    S.lastLoss = S.lossAcc / S.cnt; S.lastTrain = S.corAcc / S.cnt;
+    S.lossHist.push([S.epoch + S.ptr / S.order.length, S.lastLoss]);
+    S.lossAcc = S.corAcc = S.cnt = 0;
+  }
+}
+
+/* ---------- 그리기 도우미 ---------- */
+function putArr(ctx, arr, dx, dy, col) {
+  const img = ctx.createImageData(28, 28);
+  for (let i = 0; i < D; i++) { img.data[i * 4] = col[0]; img.data[i * 4 + 1] = col[1]; img.data[i * 4 + 2] = col[2]; img.data[i * 4 + 3] = Math.round(Math.min(1, arr[i]) * 255); }
+  ctx.putImageData(img, dx, dy);
+}
+function putWeights(ctx, j, dx, dy, pos, neg) {
+  const o = j * D; let mx = 1e-6;
+  for (let i = 0; i < D; i++) mx = Math.max(mx, Math.abs(W1[o + i]));
+  const img = ctx.createImageData(28, 28);
+  for (let i = 0; i < D; i++) {
+    const w = W1[o + i] / mx, c = w > 0 ? pos : neg;
+    img.data[i * 4] = c[0]; img.data[i * 4 + 1] = c[1]; img.data[i * 4 + 2] = c[2]; img.data[i * 4 + 3] = Math.round(Math.abs(w) * 255);
+  }
+  ctx.putImageData(img, dx, dy);
+}
+
+function drawSamples() {
+  const cv = $('samples'), ctx = cv.getContext('2d'), ink = rgb('--ink');
+  ctx.clearRect(0, 0, cv.width, cv.height);
+  const n = data.X.length;
+  if (!n) return;
+  for (let d = 0; d < 10; d++) for (let r = 0; r < 4; r++) {
+    // 같은 숫자는 10칸 간격으로 저장됨
+    const groups = Math.floor((n - 1 - d) / 10) + 1;
+    if (groups <= 0) continue;
+    const idx = d + 10 * randi(groups);
+    putArr(ctx, data.X[idx], d * 30, r * 30, ink);
+  }
+}
+
+function drawChart(cv, pts, ymin, ymax, ticks, fmt, colName) {
+  const dpr = window.devicePixelRatio || 1, W = cv.clientWidth, Hh = cv.clientHeight;
+  if (!W) return;
+  if (cv.width !== Math.round(W * dpr) || cv.height !== Math.round(Hh * dpr)) { cv.width = Math.round(W * dpr); cv.height = Math.round(Hh * dpr); }
+  const c = cv.getContext('2d');
+  c.setTransform(dpr, 0, 0, dpr, 0, 0); c.clearRect(0, 0, W, Hh);
+  const L = 38, R = 10, Tp = 8, B = 20, xmax = Math.max(S.target, S.epoch, 1);
+  const X = v => L + (W - L - R) * v / xmax, Y = v => Tp + (Hh - Tp - B) * (1 - (Math.min(ymax, Math.max(ymin, v)) - ymin) / (ymax - ymin));
+  c.font = '11px "IBM Plex Mono", ui-monospace, monospace';
+  c.fillStyle = css('--muted'); c.strokeStyle = css('--line'); c.lineWidth = 1;
+  c.textAlign = 'right'; c.textBaseline = 'middle';
+  for (const t of ticks) { const y = Math.round(Y(t)) + .5; c.beginPath(); c.moveTo(L, y); c.lineTo(W - R, y); c.stroke(); c.fillText(fmt(t), L - 6, y); }
+  c.textAlign = 'center'; c.textBaseline = 'top';
+  const st = xmax > 12 ? 2 : 1;
+  for (let e = 0; e <= xmax; e += st) c.fillText(e, X(e), Hh - B + 5);
+  if (!pts.length) return;
+  const col = css(colName);
+  c.beginPath(); c.moveTo(X(pts[0][0]), Y(ymin));
+  for (const [x, y] of pts) c.lineTo(X(x), Y(y));
+  c.lineTo(X(pts[pts.length - 1][0]), Y(ymin)); c.closePath();
+  c.globalAlpha = .12; c.fillStyle = col; c.fill(); c.globalAlpha = 1;
+  c.beginPath();
+  pts.forEach(([x, y], i) => i ? c.lineTo(X(x), Y(y)) : c.moveTo(X(x), Y(y)));
+  c.strokeStyle = col; c.lineWidth = 2; c.stroke();
+  const [lx, ly] = pts[pts.length - 1];
+  c.beginPath(); c.arc(X(lx), Y(ly), 3.5, 0, Math.PI * 2); c.fillStyle = col; c.fill();
+}
+
+function drawWeights() {
+  const cv = $('weights'), ctx = cv.getContext('2d'), pos = rgb('--accent'), neg = rgb('--warm');
+  ctx.clearRect(0, 0, cv.width, cv.height);
+  if (!W1) return;
+  for (let j = 0; j < H; j++) putWeights(ctx, j, (j % 8) * 30, Math.floor(j / 8) * 30, pos, neg);
+}
+
+function renderStats() {
+  $('stEpoch').textContent = S.phase === 'gen' ? '0' : (S.epoch + (S.running ? S.ptr / Math.max(1, S.order.length) : 0)).toFixed(S.running ? 1 : 0);
+  $('stLoss').textContent = S.lastLoss == null ? '–' : S.lastLoss.toFixed(3);
+  $('stTrain').textContent = S.lastTrain == null ? '–' : pct(S.lastTrain);
+  const v = S.valHist[S.valHist.length - 1];
+  $('stVal').textContent = v ? pct(v[1]) : '–';
+  drawChart($('chLoss'), S.lossHist, 0, 2.5, [0, 1, 2], t => t.toFixed(1), '--accent');
+  drawChart($('chAcc'), S.valHist, 0, 1, [0, .5, 1], t => Math.round(t * 100) + '%', '--good');
+  const st = $('status'), tx = $('statusText');
+  st.classList.toggle('busy', S.phase === 'gen' || S.running);
+  st.classList.toggle('done', S.phase === 'train' && !S.running);
+  if (S.phase === 'gen') tx.textContent = `학습 데이터 만드는 중 · ${fmtN(S.made)} / ${fmtN(N_TRAIN + N_VAL)}장`;
+  else if (S.running) tx.textContent = `학습 중 · 에폭 ${S.epoch + 1} / ${S.target}`;
+  else if (S.epoch >= S.target) tx.textContent = `학습 완료 · 시험 정확도 ${v ? pct(v[1]) : '–'} · 숫자를 써보세요`;
+  else tx.textContent = `일시정지 · 에폭 ${S.epoch} / ${S.target}`;
+  const bt = $('btnTrain');
+  bt.disabled = S.phase === 'gen';
+  bt.textContent = S.running ? '일시정지' : (S.epoch >= S.target ? '3 에폭 더 학습' : '학습 계속');
+}
+
+/* ---------- 쓰기 칸 ---------- */
+const pad = $('pad'), pctx = pad.getContext('2d', { willReadFrequently: true });
+const padState = { example: true, strokes: [] };
+let cur = null;
+function strokeStyle() { pctx.strokeStyle = css('--ink'); pctx.lineWidth = 18; pctx.lineCap = 'round'; pctx.lineJoin = 'round'; }
+function redrawPad() {
+  pctx.clearRect(0, 0, 280, 280);
+  strokeStyle();
+  if (padState.example) {
+    drawTemplate(pctx, 3, { cx: 140, cy: 140, h: 180, wr: .75, rot: .04, shear: .12, lwr: 18 / 180, jit: 0, variant: 0 });
+  }
+  for (const s of padState.strokes) {
+    pctx.beginPath(); pctx.moveTo(s[0][0], s[0][1]);
+    for (const [x, y] of s) pctx.lineTo(x, y);
+    if (s.length === 1) pctx.lineTo(s[0][0] + .1, s[0][1]);
+    pctx.stroke();
+  }
+  $('padHint').hidden = !padState.example;
+}
+function padPos(e) { const r = pad.getBoundingClientRect(); return [(e.clientX - r.left) * 280 / r.width, (e.clientY - r.top) * 280 / r.height]; }
+let drawing = false, lastAnalyze = 0;
+pad.addEventListener('pointerdown', e => {
+  e.preventDefault();
+  if (padState.example) { padState.example = false; redrawPad(); }
+  drawing = true; pad.setPointerCapture(e.pointerId);
+  const p = padPos(e); padState.strokes.push([p]);
+  strokeStyle(); pctx.beginPath(); pctx.moveTo(p[0], p[1]); pctx.lineTo(p[0] + .1, p[1]); pctx.stroke();
+});
+pad.addEventListener('pointermove', e => {
+  if (!drawing) return;
+  const s = padState.strokes[padState.strokes.length - 1], a = s[s.length - 1], p = padPos(e);
+  s.push(p);
+  strokeStyle(); pctx.beginPath(); pctx.moveTo(a[0], a[1]); pctx.lineTo(p[0], p[1]); pctx.stroke();
+  const now = performance.now();
+  if (now - lastAnalyze > 80) { lastAnalyze = now; analyzePad(); }
+});
+const endDraw = () => { if (drawing) { drawing = false; analyzePad(); } };
+pad.addEventListener('pointerup', endDraw);
+pad.addEventListener('pointercancel', endDraw);
+$('btnClear').addEventListener('click', () => { padState.example = false; padState.strokes = []; redrawPad(); analyzePad(); });
+
+function analyzePad() {
+  cur = preprocess(pad);
+  if (cur) cur.nz = nzOf(cur.x);
+  drawPipeline();
+  renderInference();
+}
+function drawPipeline() {
+  const ink = rgb('--ink');
+  const c1 = $('pp1').getContext('2d'), c2 = $('pp2').getContext('2d'), c3 = $('pp3').getContext('2d');
+  c1.clearRect(0, 0, 84, 84); c2.clearRect(0, 0, 28, 28); c3.clearRect(0, 0, 28, 28);
+  c1.drawImage(pad, 0, 0, 84, 84);
+  if (!cur) return;
+  const [x, y, w, h] = cur.bbox, k = 84 / 280;
+  c1.strokeStyle = css('--accent'); c1.lineWidth = 1.5; c1.setLineDash([3, 2]);
+  c1.strokeRect(x * k, y * k, w * k, h * k); c1.setLineDash([]);
+  putArr(c2, cur.box, 0, 0, ink);
+  putArr(c3, cur.x, 0, 0, ink);
+}
+
+/* ---------- 판단 화면 ---------- */
+const outs = $('outs'), outRows = [];
+for (let k = 0; k < K; k++) {
+  const row = document.createElement('div'); row.className = 'o';
+  row.innerHTML = `<span>${k}</span><span class="bar"><i></i></span><span>–</span>`;
+  outs.appendChild(row); outRows.push(row);
+}
+const contrib = $('contrib'), contribCells = [];
+for (let i = 0; i < 4; i++) {
+  const cell = document.createElement('div');
+  const cv = document.createElement('canvas'); cv.width = cv.height = 28; cv.className = 'pix';
+  const lab = document.createElement('div'); lab.textContent = '–';
+  cell.append(cv, lab); contrib.appendChild(cell); contribCells.push({ cv, lab });
+}
+function renderInference() {
+  const nIn = $('nIn').getContext('2d'), nHid = $('nHid').getContext('2d');
+  nIn.clearRect(0, 0, 28, 28); nHid.clearRect(0, 0, 110, 110);
+  const accent = css('--accent'), line = css('--line');
+  if (!cur || !W1) {
+    $('pred').textContent = '–';
+    $('conf').textContent = !W1 ? '학습 데이터를 만드는 중이에요. 잠시 후 학습이 시작됩니다.' : '칸에 숫자를 쓰면 여기에 결과가 나옵니다.';
+    outRows.forEach(r => { r.className = 'o'; r.querySelector('i').style.width = '0'; r.lastChild.textContent = '–'; });
+    contribCells.forEach(c => { c.cv.getContext('2d').clearRect(0, 0, 28, 28); c.lab.textContent = '–'; });
+    for (let j = 0; j < H; j++) { nHid.strokeStyle = line; nHid.strokeRect((j % 8) * 14 + .5, Math.floor(j / 8) * 14 + .5, 11, 11); }
+    return;
+  }
+  putArr(nIn, cur.x, 0, 0, rgb('--ink'));
+  forward(cur.x, cur.nz);
+  const p = Float32Array.from(pr), h = Float32Array.from(hh), best = argmax(p);
+  let hm = 1e-6; for (let j = 0; j < H; j++) hm = Math.max(hm, h[j]);
+  for (let j = 0; j < H; j++) {
+    const x = (j % 8) * 14, y = Math.floor(j / 8) * 14;
+    nHid.globalAlpha = h[j] / hm; nHid.fillStyle = accent; nHid.fillRect(x, y, 12, 12);
+    nHid.globalAlpha = 1; nHid.strokeStyle = line; nHid.strokeRect(x + .5, y + .5, 11, 11);
+  }
+  $('pred').textContent = best;
+  const second = argmax(p.map((v, i) => i === best ? -1 : v));
+  $('conf').innerHTML = `신경망은 <b>${best}</b>이라고 <b>${pct(p[best])}</b> 확신합니다.` + (p[second] > .1 ? `<br>두 번째 후보는 ${second} (${pct(p[second])})` : '');
+  outRows.forEach((r, k) => { r.className = 'o' + (k === best ? ' top' : ''); r.querySelector('i').style.width = (p[k] * 100).toFixed(1) + '%'; r.lastChild.textContent = pct(p[k]); });
+  const cs = Array.from({ length: H }, (_, j) => [j, h[j] * W2[best * H + j]]).sort((a, b) => b[1] - a[1]).slice(0, 4);
+  const pos = rgb('--accent'), neg = rgb('--warm');
+  cs.forEach(([j, c], i) => {
+    const ctx = contribCells[i].cv.getContext('2d'); ctx.clearRect(0, 0, 28, 28);
+    putWeights(ctx, j, 0, 0, pos, neg);
+    contribCells[i].lab.textContent = `뉴런 #${j} · ${c >= 0 ? '+' : ''}${c.toFixed(2)}`;
+  });
+}
+
+/* ---------- 가르치기 ---------- */
+const keys = $('keys'); let taught = 0;
+const aug = document.createElement('canvas'); aug.width = aug.height = 280;
+const actx = aug.getContext('2d', { willReadFrequently: true });
+for (let d = 0; d < 10; d++) {
+  const b = document.createElement('button'); b.className = 'ghost'; b.textContent = d;
+  b.setAttribute('aria-label', `정답은 ${d}`);
+  b.addEventListener('click', () => teach(d));
+  keys.appendChild(b);
+}
+function teach(d) {
+  const msg = $('teachMsg');
+  if (!W1) { msg.textContent = '학습이 시작된 뒤에 가르칠 수 있어요.'; return; }
+  if (!cur) { msg.textContent = '먼저 칸에 숫자를 써 주세요.'; return; }
+  const before = argmax((forward(cur.x, cur.nz), pr));
+  const added = [];
+  for (let i = 0; i < 24; i++) {
+    actx.clearRect(0, 0, 280, 280); actx.save();
+    actx.translate(140, 140); actx.rotate(rand(-.2, .2));
+    const s = rand(.85, 1.1); actx.scale(s * rand(.85, 1.15), s); actx.transform(1, 0, rand(-.2, .2), 1, 0, 0);
+    actx.translate(-140, -140); actx.drawImage(pad, 0, 0); actx.restore();
+    const r = preprocess(aug);
+    if (r) { addTo(data, r.x, d); added.push(data.X.length - 1); }
+  }
+  for (let t = 0; t < 40; t++) {
+    const b = [];
+    for (let i = 0; i < 8; i++) b.push(added[randi(added.length)]);
+    for (let i = 0; i < 24; i++) b.push(randi(data.X.length));
+    trainBatch(b, data);
+  }
+  taught++;
+  renderInference(); drawWeights();
+  const after = argmax((forward(cur.x, cur.nz), pr));
+  msg.textContent = `‘${d}’ 그림 ${added.length}장 추가 · 40번 추가 학습 · 판단 ${before} → ${after} · 지금까지 ${taught}번 가르침`;
+}
+
+/* ---------- 버튼 ---------- */
+$('btnMore').addEventListener('click', drawSamples);
+$('btnTrain').addEventListener('click', () => {
+  if (S.phase !== 'train') return;
+  if (S.running) S.running = false;
+  else { if (S.epoch >= S.target) { S.target += 3; newOrder(); } S.running = true; }
+  renderStats();
+});
+$('btnReset').addEventListener('click', () => { if (S.phase === 'train') { startTraining(); renderAll(); } });
+
+/* ---------- 메인 루프 ---------- */
+function renderAll() { renderStats(); drawWeights(); renderInference(); }
+let lastRender = 0, lastSamples = 0;
+function loop(now) {
+  if (S.phase === 'gen') {
+    genChunk();
+    if (now - lastSamples > 300) { lastSamples = now; drawSamples(); }
+    if (S.phase === 'train') { drawSamples(); renderAll(); }
+  } else if (S.running) {
+    const t0 = performance.now();
+    while (S.running && performance.now() - t0 < 14) trainStep();
+    if (!S.running) renderAll();
+  }
+  if (now - lastRender > 200) { lastRender = now; renderStats(); if (S.running) { drawWeights(); renderInference(); } }
+  requestAnimationFrame(loop);
+}
+
+const rethemed = () => { redrawPad(); analyzePad(); drawSamples(); renderAll(); };
+matchMedia('(prefers-color-scheme: dark)').addEventListener('change', rethemed);
+new MutationObserver(rethemed).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+window.addEventListener('resize', renderStats);
+
+redrawPad(); analyzePad(); renderStats(); drawWeights();
+requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>
