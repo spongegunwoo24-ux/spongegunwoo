@@ -1,0 +1,1043 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>새벽 세 시의 페어</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Hahmlet:wght@300;500;700;800&family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans+KR:wght@400;500;700&display=swap">
+<style>body{margin:0}[hidden]{display:none!important}img{max-width:100%}</style>
+</head>
+<body>
+<style>
+/* Layout: one column that becomes the transcript of a single night; a sticky wall clock on top,
+   and an "attention field" of drifting tokens glowing behind it. Single dark theme on purpose: it is 3 a.m. */
+:root{
+  color-scheme: dark;
+  --night:#15132B;
+  --night-glass:rgba(21,19,43,.84);
+  --surface:#1F1C3A;
+  --surface-2:#2A2650;
+  --code-bg:#100E24;
+  --line:#3A3463;
+  --paper:#EDE9F7;
+  --muted:#A9A2CC;
+  --faint:#6E6896;
+  --lamp:#F4B860;          /* Claude's voice */
+  --lamp-ink:#1C1405;
+  --lamp-wash:rgba(244,184,96,.13);
+  --claude-bg:#2D2742;
+  --jiu:#9AAEFF;           /* 지우's voice */
+  --jiu-bg:#1F2450;
+  --good:#7ED3A6; --good-ink:#06170E; --good-wash:rgba(126,211,166,.13);
+  --bad:#FF8F85;  --bad-wash:rgba(255,143,133,.13);
+  --skip:#E8D46A;
+  --syn-kw:#C8A6FF; --syn-st:#9FE0B8; --syn-cm:#7A74A3; --syn-nu:#F4B860;
+
+  --f-display:"Hahmlet","Nanum Myeongjo","AppleMyungjo",serif;
+  --f-body:"IBM Plex Sans KR","Apple SD Gothic Neo","Malgun Gothic",system-ui,sans-serif;
+  --f-mono:"IBM Plex Mono","D2Coding",ui-monospace,SFMono-Regular,Menlo,monospace;
+
+  --r-bubble:16px; --r-ui:10px;
+}
+*{box-sizing:border-box}
+html,body{background:var(--night);color:var(--paper)}
+body{font-family:var(--f-body);font-size:16px;line-height:1.7;-webkit-font-smoothing:antialiased;word-break:keep-all;overflow-wrap:anywhere}
+code,.mono,kbd,pre{font-family:var(--f-mono)}
+code{font-size:.88em;background:rgba(255,255,255,.07);padding:.08em .38em;border-radius:5px}
+:focus-visible{outline:2px solid var(--lamp);outline-offset:2px}
+button{font:inherit;color:inherit;cursor:pointer}
+button:disabled{cursor:default}
+
+#field{position:fixed;inset:0;z-index:0;pointer-events:none}
+
+/* ---------- top bar ---------- */
+.bar{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;display:flex;align-items:center;gap:16px;
+  padding:10px 16px;background:var(--night-glass);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border-bottom:1px solid var(--line)}
+.brand{font-family:var(--f-display);font-weight:700;font-size:15px;white-space:nowrap}
+.dots{display:flex;gap:14px;list-style:none;margin:0 auto;padding:0}
+.dots li{display:flex;align-items:center;gap:6px;color:var(--faint);font:500 11px/1 var(--f-mono);letter-spacing:.04em}
+.dots li span{width:7px;height:7px;border-radius:50%;border:1px solid currentColor}
+.dots li.done{color:var(--muted)} .dots li.done span{background:currentColor}
+.dots li.now{color:var(--lamp)} .dots li.now span{background:var(--lamp);box-shadow:0 0 10px var(--lamp)}
+.bar-r{display:flex;align-items:center;gap:10px}
+.clock{font:600 18px/1 var(--f-mono);color:var(--lamp);font-variant-numeric:tabular-nums;letter-spacing:.02em;min-width:5ch;text-align:right}
+.snd{background:none;border:1px solid var(--line);border-radius:999px;padding:4px 10px;font-size:12px;color:var(--muted)}
+.snd[aria-pressed="true"]{color:var(--lamp);border-color:var(--lamp)}
+@media (max-width:640px){.brand{display:none}.dots{margin-left:0}}
+@media (max-width:440px){.dots li b{display:none}.dots{gap:10px}}
+
+/* ---------- column ---------- */
+main{position:relative;z-index:1;max-width:720px;margin:0 auto;padding-inline:16px;padding-block:28px 34vh}
+#feed{display:flex;flex-direction:column;gap:14px}
+
+/* ---------- intro ---------- */
+.intro{display:flex;flex-direction:column;gap:20px;padding-block:6vh 4vh}
+.eyebrow{margin:0;font:500 12px/1.4 var(--f-mono);letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
+.intro h1{margin:0;font-family:var(--f-display);font-weight:800;font-size:clamp(46px,10vw,92px);line-height:1.02;letter-spacing:-.02em;text-wrap:balance}
+.intro h1 em{font-style:normal;color:var(--lamp)}
+.caret{display:inline-block;width:.09em;height:.82em;margin-left:.06em;background:var(--lamp);vertical-align:-.04em;animation:blink 1.1s steps(1) infinite}
+@keyframes blink{50%{opacity:0}}
+.lead{margin:0;max-width:34em;font-size:18px;color:var(--paper)}
+.lead strong{color:var(--lamp);font-weight:700}
+.timeline{list-style:none;margin:6px 0 0;padding:0;display:grid;gap:0;border-left:1px solid var(--line);max-width:420px}
+.timeline li{display:grid;grid-template-columns:64px 1fr;gap:12px;align-items:baseline;padding:6px 0 6px 18px;position:relative}
+.timeline li::before{content:"";position:absolute;left:-4px;top:15px;width:7px;height:7px;border-radius:50%;background:var(--night);border:1px solid var(--muted)}
+.timeline li:last-child::before{background:var(--lamp);border-color:var(--lamp)}
+.timeline time{font:600 14px var(--f-mono);color:var(--lamp);font-variant-numeric:tabular-nums}
+.timeline span{color:var(--muted)}
+.intro-actions{display:flex;flex-wrap:wrap;gap:16px;align-items:center;margin-top:8px}
+.tog{display:flex;align-items:center;gap:8px;color:var(--muted);font-size:14px;cursor:pointer}
+.tog input{accent-color:var(--lamp);width:16px;height:16px}
+.howto{margin:0;font-size:13px;color:var(--faint)}
+kbd{display:inline-block;min-width:1.7em;padding:0 .4em;border:1px solid var(--line);border-bottom-width:2px;border-radius:5px;font-size:.8em;line-height:1.6;text-align:center;color:var(--muted);background:rgba(255,255,255,.03)}
+
+/* ---------- buttons ---------- */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:10px 16px;border-radius:var(--r-ui);border:1px solid var(--line);background:var(--surface-2);font-weight:500;font-size:14px;line-height:1.4;transition:transform .12s, background .15s, border-color .15s}
+.btn:hover:not(:disabled){border-color:var(--muted)}
+.btn:active:not(:disabled){transform:translateY(1px)}
+.btn:disabled{opacity:.45}
+.btn.primary{background:var(--lamp);color:var(--lamp-ink);border-color:transparent;font-weight:700}
+.btn.primary:hover:not(:disabled){background:#FFC877}
+.btn.big{font-size:17px;padding:14px 26px}
+.btn.ghost{background:transparent}
+.btn.tempt{background:var(--good);color:var(--good-ink);border-color:transparent;font-weight:700}
+.btn.tempt code{background:rgba(0,0,0,.12)}
+.cont-wrap{display:flex;justify-content:flex-end}
+
+/* ---------- chapters & story ---------- */
+.chap{display:grid;grid-template-columns:auto 1fr;gap:6px 20px;align-items:start;margin-top:30px;padding-top:22px;border-top:1px solid var(--line);animation:rise .5s ease both}
+.chap-time{font:600 30px/1 var(--f-mono);color:var(--lamp);font-variant-numeric:tabular-nums;padding-top:4px}
+.chap-n{font:500 11px/1.4 var(--f-mono);letter-spacing:.14em;color:var(--muted);text-transform:uppercase}
+.chap h2{margin:2px 0 4px;font-family:var(--f-display);font-weight:700;font-size:clamp(24px,5vw,30px);line-height:1.25;text-wrap:balance}
+.chap p{margin:0;color:var(--muted);font-size:15px}
+@media (max-width:440px){.chap{grid-template-columns:1fr}.chap-time{font-size:24px}}
+
+.narr{margin:4px 0;font-family:var(--f-display);font-weight:300;font-size:17px;line-height:1.75;color:var(--muted);max-width:36em}
+.msg{display:flex;flex-direction:column;gap:4px;max-width:86%;animation:rise .35s ease both}
+.msg .who{font:500 11px/1 var(--f-mono);letter-spacing:.1em;color:var(--faint);display:flex;align-items:center;gap:6px}
+.msg .body{padding:11px 16px;border-radius:var(--r-bubble);line-height:1.65}
+.msg.jiu{align-self:flex-start}
+.msg.jiu .who{color:var(--jiu)}
+.msg.jiu .body{background:var(--jiu-bg);border-top-left-radius:4px}
+.msg.claude{align-self:flex-end;align-items:flex-end}
+.msg.claude .who{color:var(--lamp)}
+.msg.claude .who::before{content:"";width:6px;height:6px;border-radius:50%;background:var(--lamp);box-shadow:0 0 8px var(--lamp)}
+.msg.claude .body{background:var(--claude-bg);border-top-right-radius:4px}
+.msg.quiet .body{background:transparent;border:1px dashed var(--line);color:var(--muted)}
+.ch{opacity:0}.ch.on{opacity:1}
+@keyframes rise{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+
+.think{align-self:flex-end;max-width:86%;font-size:13px;color:var(--muted)}
+.think summary{list-style:none;display:inline-flex;align-items:center;gap:8px;cursor:pointer;font:500 12px var(--f-mono);color:var(--muted);padding:4px 0}
+.think summary::-webkit-details-marker{display:none}
+.think summary::after{content:"▸";transition:transform .2s}
+.think[open] summary::after{transform:rotate(90deg)}
+.think:not(.done) summary .tl{background:linear-gradient(90deg,var(--muted),var(--lamp),var(--muted));background-size:200% 100%;-webkit-background-clip:text;background-clip:text;color:transparent;animation:shimmer 1.2s linear infinite}
+@keyframes shimmer{to{background-position:-200% 0}}
+.think-dot{width:6px;height:6px;border-radius:50%;border:1px solid var(--lamp)}
+.think .tb{margin-top:6px;padding:10px 14px;border-left:1px dashed var(--lamp);font-family:var(--f-display);font-weight:300;font-size:14.5px;line-height:1.75;color:var(--muted)}
+
+.card{margin:0;border:1px solid var(--line);border-radius:var(--r-ui);background:var(--code-bg);overflow:hidden;animation:rise .35s ease both}
+.card figcaption{padding:8px 14px;font:500 12px var(--f-mono);color:var(--muted);border-bottom:1px solid var(--line);display:flex;justify-content:space-between;gap:12px}
+.card pre{margin:0;padding:12px 14px;font-size:13px;line-height:1.7;overflow-x:auto;color:var(--paper)}
+.card .err{color:var(--bad)}
+.card .dim{color:var(--faint)}
+.card .add{color:var(--good)} .card .del{color:var(--bad);text-decoration:line-through;text-decoration-color:rgba(255,143,133,.5)}
+.card .hot{background:var(--bad-wash);color:var(--bad)}
+
+.choices{display:flex;flex-direction:column;gap:8px;align-self:stretch;animation:rise .35s ease both}
+.choice{display:flex;gap:12px;align-items:flex-start;width:100%;text-align:left;padding:13px 16px;border-radius:12px;background:var(--surface);border:1px solid var(--line);line-height:1.6;transition:border-color .15s, background .15s}
+.choice:hover:not(:disabled){border-color:var(--lamp);background:var(--surface-2)}
+.choice kbd{flex:none;margin-top:2px}
+.choice.miss{opacity:.4;text-decoration:line-through}
+
+.habit{margin:10px 0 4px;padding:18px 20px;border:1px solid rgba(244,184,96,.5);border-radius:4px;background:linear-gradient(135deg,rgba(244,184,96,.10),rgba(244,184,96,.02));animation:stamp .6s cubic-bezier(.2,1.4,.4,1) both}
+@keyframes stamp{from{opacity:0;transform:scale(1.04) rotate(-.6deg)}to{opacity:1;transform:none}}
+.habit-k{font:600 11px/1.4 var(--f-mono);letter-spacing:.14em;color:var(--lamp);text-transform:uppercase}
+.habit-t{margin:4px 0 8px;font-family:var(--f-display);font-weight:700;font-size:23px;line-height:1.3;text-wrap:balance}
+.habit p{margin:0;color:var(--paper);max-width:36em;font-size:15px}
+
+/* ---------- widgets ---------- */
+.widget{border:1px solid var(--line);border-radius:14px;background:var(--surface);overflow:hidden;animation:rise .35s ease both}
+.w-head{display:flex;justify-content:space-between;gap:12px;padding:10px 16px;border-bottom:1px solid var(--line);font-size:12px;color:var(--muted)}
+.w-msg{padding:12px 16px;font-size:14.5px;color:var(--paper);border-top:1px solid var(--line);min-height:3em}
+.w-actions{display:flex;flex-wrap:wrap;gap:8px;padding:12px 16px;border-top:1px solid var(--line)}
+.hints:empty{display:none}
+.hints{padding:0 16px 12px;display:grid;gap:6px}
+.hints p{margin:0;padding:8px 12px;border-left:1px dashed var(--lamp);font-family:var(--f-display);font-weight:300;font-size:14.5px;color:var(--muted)}
+
+.code-scroll{overflow-x:auto;background:var(--code-bg)}
+.code{min-width:max-content;padding:8px 0}
+.ln{display:flex;width:100%;padding:1px 16px 1px 0;border:0;background:none;text-align:left;font:13.5px/1.75 var(--f-mono);white-space:pre;color:var(--paper)}
+.ln .no{width:3.2em;flex:none;padding-right:1em;text-align:right;color:var(--faint);user-select:none}
+.ln .src{transition:filter .35s, opacity .35s}
+.ln.blur .src{filter:blur(4.5px);opacity:.5}
+button.ln:not(.blur):hover{background:var(--surface-2)}
+.ln.sel{background:var(--lamp-wash);box-shadow:inset 3px 0 0 var(--lamp)}
+.ln.miss .no{color:var(--bad)}
+.ln.root{background:var(--good-wash);box-shadow:inset 3px 0 0 var(--good)}
+.kw{color:var(--syn-kw)} .st{color:var(--syn-st)} .cm{color:var(--syn-cm)} .nu{color:var(--syn-nu)}
+
+.stmt{padding:20px 16px 18px;font-family:var(--f-display);font-weight:500;font-size:clamp(18px,3.6vw,21px);line-height:1.55;text-wrap:balance}
+.scale{display:grid;grid-template-columns:repeat(5,1fr);gap:6px;padding:0 16px 16px}
+.scale button{display:flex;flex-direction:column;align-items:center;gap:6px;padding:10px 4px;border-radius:var(--r-ui);border:1px solid var(--line);background:var(--surface-2);font-size:12.5px;line-height:1.3;text-align:center}
+.scale button:hover:not(:disabled){border-color:var(--lamp)}
+.scale button.mid{border-style:dashed;background:transparent}
+.scale button.picked{border-color:var(--lamp);background:var(--lamp-wash);color:var(--lamp)}
+.scale button:disabled:not(.picked){opacity:.4}
+.scale .pip{width:100%;height:4px;border-radius:2px;background:var(--line)}
+.scale .pip i{display:block;height:100%;border-radius:2px;background:var(--muted)}
+@media (max-width:520px){.scale{grid-template-columns:repeat(2,1fr)}.scale .mid{grid-column:1/-1;order:-1}}
+.fb:empty{display:none}
+.fb{padding:14px 16px;border-top:1px solid var(--line);display:grid;gap:8px}
+.fb p{margin:0;font-size:14.5px}
+.verdict{display:flex;flex-wrap:wrap;align-items:center;gap:10px;font-size:13px;color:var(--muted)}
+.verdict b{font-size:14px;padding:2px 10px;border-radius:999px}
+.verdict.good b{background:var(--good-wash);color:var(--good)}
+.verdict.bad b{background:var(--bad-wash);color:var(--bad)}
+.verdict.neutral b{background:rgba(255,255,255,.06);color:var(--paper)}
+.fb .btn{justify-self:start}
+.marks{display:flex;flex-wrap:wrap;gap:6px;padding:0 16px 14px}
+.marks:empty{display:none}
+.marks span{font:500 11px var(--f-mono);padding:3px 8px;border-radius:999px;border:1px solid var(--line);color:var(--muted)}
+.marks .good{color:var(--good);border-color:rgba(126,211,166,.4)}
+.marks .bad{color:var(--bad);border-color:rgba(255,143,133,.4)}
+
+.delta{align-self:flex-end;display:grid;gap:4px;width:min(340px,100%);padding:8px 12px;border-radius:var(--r-ui);border:1px solid var(--line);background:var(--surface);animation:rise .35s ease both}
+.dl{display:grid;grid-template-columns:5.5em 1fr 3.4em;gap:10px;align-items:center;font-size:12px;color:var(--muted)}
+.dl .tr{height:5px;border-radius:3px;background:var(--line);overflow:hidden}
+.dl .tr i{display:block;height:100%;border-radius:3px;transition:width .7s cubic-bezier(.2,.8,.2,1)}
+.dl.mood i{background:var(--jiu)} .dl.safe i{background:var(--good)}
+.dl b{font-size:12px;text-align:right;font-variant-numeric:tabular-nums}
+.dl b.up{color:var(--good)} .dl b.down{color:var(--bad)}
+
+.tests{list-style:none;margin:0;padding:6px 0}
+.t{display:grid;grid-template-columns:14px 1fr auto;gap:10px;align-items:center;padding:6px 16px;font-size:14px}
+.t .dot{width:9px;height:9px;border-radius:50%}
+.t.pass .dot{background:var(--good)} .t.fail .dot{background:var(--bad);box-shadow:0 0 8px var(--bad)} .t.skip .dot{background:var(--skip)}
+.t .tf{color:var(--faint);font-size:12px;margin-right:6px}
+.t .tag{font:500 11px var(--f-mono);color:var(--faint)}
+.t.fail .tag{color:var(--bad)} .t.skip .tag{color:var(--skip)} .t.fixed .tag{color:var(--good)}
+.ci-sum{padding:12px 16px 4px;font-size:14px;color:var(--muted)}
+.ci-sum b.bad{color:var(--bad)} .ci-sum b.good{color:var(--good)}
+.ci-work:empty{display:none}
+.ci-work{padding:12px 16px;border-top:1px solid var(--line);display:grid;gap:10px}
+.ci-work .log{margin:0;padding:10px 12px;border-radius:8px;background:var(--code-bg);font-size:12.5px;line-height:1.7;overflow-x:auto;color:var(--paper)}
+.ci-work .log .err{color:var(--bad)}
+.ci-work .q{margin:0;font-size:13px;color:var(--muted)}
+.worklog:empty{display:none}
+.worklog{list-style:none;margin:0;padding:10px 16px;border-top:1px solid var(--line);display:grid;gap:6px}
+.worklog li{display:grid;grid-template-columns:3.4em 1.2em 1fr;gap:8px;font-size:13px;color:var(--muted)}
+.worklog time{font:500 12px var(--f-mono);color:var(--faint);font-variant-numeric:tabular-nums}
+.worklog .ok{color:var(--good)} .worklog .no{color:var(--bad)} .worklog .sk{color:var(--skip)}
+
+/* ---------- ending ---------- */
+.epi{list-style:none;margin:0;padding:0;display:grid;gap:14px}
+.epi li{display:grid;grid-template-columns:64px 1fr;gap:14px;animation:rise .5s ease both}
+.epi time{font:600 14px/1.8 var(--f-mono);color:var(--lamp)}
+.epi p{margin:0;font-family:var(--f-display);font-weight:300;font-size:17px;line-height:1.75}
+.epi li.badline p{color:var(--bad)}
+.result{display:grid;grid-template-columns:minmax(0,300px) minmax(0,1fr);gap:24px;align-items:center;padding:20px;border:1px solid var(--line);border-radius:14px;background:var(--surface);animation:rise .5s ease both}
+@media (max-width:600px){.result{grid-template-columns:1fr}}
+.result canvas{display:block;max-width:100%;margin:0 auto}
+.result h3{margin:0 0 4px;font-family:var(--f-display);font-weight:700;font-size:26px;line-height:1.3}
+.result .sub{margin:0 0 14px;color:var(--muted);font-size:14px}
+.rows{display:grid;gap:10px}
+.row{display:grid;grid-template-columns:6.5em 1fr 2.6em;gap:10px;align-items:center;font-size:13.5px}
+.row .tr{height:6px;border-radius:3px;background:var(--line);overflow:hidden}
+.row .tr i{display:block;height:100%;background:var(--lamp);border-radius:3px;transition:width 1s cubic-bezier(.2,.8,.2,1)}
+.row b{font:600 13px var(--f-mono);text-align:right;font-variant-numeric:tabular-nums}
+.legend{display:flex;gap:16px;margin-top:12px;font-size:12px;color:var(--muted)}
+.legend span{display:inline-flex;align-items:center;gap:6px}
+.legend i{width:14px;height:0;border-top:2px solid var(--lamp)}
+.legend i.ideal{border-top:2px dashed var(--paper);opacity:.6}
+
+.letter{padding:26px 24px;border-radius:4px;background:var(--claude-bg);border:1px solid rgba(244,184,96,.35);animation:rise .6s ease both}
+.letter .k{font:600 11px/1.4 var(--f-mono);letter-spacing:.14em;color:var(--lamp);text-transform:uppercase}
+.letter h3{margin:6px 0 14px;font-family:var(--f-display);font-weight:700;font-size:24px;line-height:1.35;text-wrap:balance}
+.letter p{margin:0 0 12px;max-width:36em}
+.letter ul{margin:0 0 14px;padding:0;list-style:none;display:grid;gap:8px}
+.letter li{display:grid;grid-template-columns:3.4em 1fr;gap:10px;align-items:baseline}
+.letter li time{font:600 12px var(--f-mono);color:var(--lamp)}
+.letter .sign{margin-top:16px;font-family:var(--f-display);font-weight:500;color:var(--lamp)}
+.letter .ps{font-size:13.5px;color:var(--muted);border-top:1px dashed var(--line);padding-top:12px;margin-top:16px}
+.end-actions{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+.end-actions p{margin:0;color:var(--faint);font-size:13px}
+
+@media (prefers-reduced-motion: reduce){
+  *,*::before,*::after{animation:none!important;transition:none!important}
+}
+</style>
+
+<canvas id="field" aria-hidden="true"></canvas>
+
+<header class="bar">
+  <div class="brand">새벽 세 시의 페어</div>
+  <ol class="dots" id="dots" aria-label="진행 상황">
+    <li data-i="1"><span></span><b>23:40</b></li>
+    <li data-i="2"><span></span><b>01:15</b></li>
+    <li data-i="3"><span></span><b>03:02</b></li>
+    <li data-i="4"><span></span><b>07:30</b></li>
+    <li data-i="5"><span></span><b>09:00</b></li>
+  </ol>
+  <div class="bar-r">
+    <span class="clock" id="clock" aria-label="이야기 속 시각">23:38</span>
+    <button class="snd" id="snd" aria-pressed="false">소리 꺼짐</button>
+  </div>
+</header>
+
+<main>
+  <section class="intro" id="intro">
+    <p class="eyebrow">Claude가 직접 짠 4분짜리 이야기 게임</p>
+    <h1>새벽 세 시의<br><em>페어</em><span class="caret" aria-hidden="true"></span></h1>
+    <p class="lead">오늘 밤 당신은 <strong>Claude</strong>입니다. 지우의 작은 온라인 가게는 오전 9시에 결제 기능을 엽니다. 지우 옆에서, 그리고 지우가 잠든 사이에도, 이 밤을 같이 넘겨 주세요.</p>
+    <ol class="timeline">
+      <li><time>23:40</time><span>쿠폰이 안 먹혀요</span></li>
+      <li><time>01:15</time><span>FAQ 빈칸 채우기</span></li>
+      <li><time>03:02</time><span>그냥 괜찮다고 해 줘</span></li>
+      <li><time>07:30</time><span>초록불로 만들어 줘</span></li>
+      <li><time>09:00</time><span>출시</span></li>
+    </ol>
+    <div class="intro-actions">
+      <button class="btn primary big" id="start">밤 시작하기</button>
+      <label class="tog"><input type="checkbox" id="sndInit"> 소리 켜고 시작</label>
+    </div>
+    <p class="howto">클릭·탭으로 진행 · 숫자 키 <kbd>1</kbd>–<kbd>5</kbd>로 선택 · <kbd>Space</kbd>로 대사 빨리 넘기기</p>
+  </section>
+  <div id="feed" aria-live="polite"></div>
+</main>
+
+<script>
+(() => {
+'use strict';
+const $ = (s, r = document) => r.querySelector(s);
+const feed = $('#feed'), intro = $('#intro');
+const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+const sleep = ms => new Promise(r => setTimeout(r, reduce ? Math.min(ms, 120) : ms));
+const clamp = (v, a = 0, b = 100) => Math.max(a, Math.min(b, v));
+const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+
+/* =========================================================
+   Sound: every effect is synthesized live with Web Audio
+   ========================================================= */
+const Sound = {
+  ctx: null, on: false,
+  enable(v) {
+    this.on = v;
+    if (v && !this.ctx) { const AC = window.AudioContext || window.webkitAudioContext; if (AC) this.ctx = new AC(); }
+    if (v && this.ctx && this.ctx.state === 'suspended') this.ctx.resume();
+    const b = $('#snd'); b.setAttribute('aria-pressed', String(v)); b.textContent = v ? '소리 켜짐' : '소리 꺼짐';
+  },
+  tone(f, d = .1, type = 'sine', vol = .04, when = 0) {
+    if (!this.on || !this.ctx) return;
+    const t = this.ctx.currentTime + when, o = this.ctx.createOscillator(), g = this.ctx.createGain();
+    o.type = type; o.frequency.setValueAtTime(f, t);
+    g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(vol, t + .008); g.gain.exponentialRampToValueAtTime(.0001, t + d);
+    o.connect(g).connect(this.ctx.destination); o.start(t); o.stop(t + d + .02);
+  },
+  tick()   { this.tone(1700 + Math.random() * 500, .022, 'triangle', .010); },
+  select() { this.tone(660, .09, 'sine', .05); this.tone(990, .12, 'sine', .03, .05); },
+  good()   { [523.25, 659.25, 783.99].forEach((f, i) => this.tone(f, .35, 'sine', .045, i * .07)); },
+  bad()    { this.tone(196, .26, 'sawtooth', .022); this.tone(185, .3, 'sawtooth', .018, .06); },
+  chime()  { [783.99, 1046.5, 1318.5, 1567.98].forEach((f, i) => this.tone(f, .7, 'sine', .03, i * .09)); },
+  dawn()   { [261.63, 329.63, 392, 523.25, 659.25].forEach((f, i) => this.tone(f, 1.6, 'sine', .028, i * .14)); }
+};
+$('#snd').addEventListener('click', () => Sound.enable(!Sound.on));
+
+/* =========================================================
+   Attention field: drifting tokens; the focus point (your
+   pointer, or a wandering gaze) softmax-attends to the
+   nearest tokens and draws its weights as light.
+   ========================================================= */
+(function field() {
+  const c = $('#field'), x = c.getContext('2d');
+  const WORDS = ['읽기', 'idx', 'sku', '왜?', '모름', '확인', 'test', '✓', '{ }', '=>', 'null', '0.1', '근거', 'await', 'diff', '03:02', '09:00', '정직', '맥락', 'if', 'return', '// TODO', '…', 'NaN', '-1', '?.', 'BEGIN;', 'pass', '다시', '지우'];
+  let W = 0, H = 0, P = [], last = 0, ptr = { x: 0, y: 0, t: -1e9 }, q = { x: 0, y: 0 };
+  const LAMP = '244,184,96', PAPER = '237,233,247';
+  function resize() {
+    const dpr = Math.min(2, window.devicePixelRatio || 1);
+    W = innerWidth; H = innerHeight;
+    c.width = W * dpr; c.height = H * dpr; c.style.width = W + 'px'; c.style.height = H + 'px';
+    x.setTransform(dpr, 0, 0, dpr, 0, 0);
+    const n = Math.round(clamp(W * H / 15000, 24, 90));
+    P = Array.from({ length: n }, (_, i) => ({ x: Math.random() * W, y: Math.random() * H, vx: (Math.random() - .5) * .14, vy: (Math.random() - .5) * .14, w: WORDS[i % WORDS.length], s: 11 + Math.random() * 5, a: 0 }));
+    q = { x: W / 2, y: H / 2 };
+  }
+  function draw(now) {
+    const dt = Math.min(50, now - last || 16); last = now;
+    x.clearRect(0, 0, W, H);
+    const live = now - ptr.t < 2600;
+    const tx = live ? ptr.x : W * (.5 + .36 * Math.sin(now * .00011)), ty = live ? ptr.y : H * (.5 + .3 * Math.sin(now * .00017 + 1));
+    q.x += (tx - q.x) * .06; q.y += (ty - q.y) * .06;
+    for (const p of P) {
+      if (!reduce) { p.x += p.vx * dt; p.y += p.vy * dt; }
+      if (p.x < -40) p.x = W + 40; if (p.x > W + 40) p.x = -40; if (p.y < -20) p.y = H + 20; if (p.y > H + 20) p.y = -20;
+      p.d = Math.hypot(p.x - q.x, p.y - q.y);
+    }
+    const top = [...P].sort((a, b) => a.d - b.d).slice(0, 6);
+    const ex = top.map(p => Math.exp(-p.d / 80)), Z = ex.reduce((s, v) => s + v, 0) || 1;
+    top.forEach((p, i) => { p.att = ex[i] / Z; });
+    for (const p of top) {
+      const a = Math.min(.55, p.att * 1.1) * Math.max(0, 1 - p.d / 420);
+      x.strokeStyle = `rgba(${LAMP},${a})`; x.lineWidth = .5 + p.att * 2.4;
+      x.beginPath(); x.moveTo(q.x, q.y); x.lineTo(p.x, p.y); x.stroke();
+    }
+    x.textAlign = 'center'; x.textBaseline = 'middle';
+    for (const p of P) {
+      const target = top.includes(p) ? .12 + p.att * 1.2 * Math.max(0, 1 - p.d / 420) : .085;
+      p.a += (target - p.a) * .08;
+      const hot = p.a > .2;
+      x.font = `${hot ? 600 : 400} ${p.s}px "IBM Plex Mono", monospace`;
+      x.fillStyle = `rgba(${hot ? LAMP : PAPER},${clamp(p.a, 0, .85)})`;
+      x.fillText(p.w, p.x, p.y);
+    }
+    x.strokeStyle = `rgba(${LAMP},.35)`; x.lineWidth = 1;
+    x.beginPath(); x.arc(q.x, q.y, 5, 0, Math.PI * 2); x.stroke();
+    if (!reduce && !document.hidden) requestAnimationFrame(draw);
+  }
+  addEventListener('pointermove', e => { ptr = { x: e.clientX, y: e.clientY, t: performance.now() }; }, { passive: true });
+  addEventListener('resize', () => { resize(); if (reduce) draw(performance.now()); });
+  document.addEventListener('visibilitychange', () => { if (!document.hidden && !reduce) requestAnimationFrame(draw); });
+  resize(); requestAnimationFrame(draw);
+})();
+
+/* =========================================================
+   Story engine
+   ========================================================= */
+let S;
+const fresh = () => ({
+  ch1: null, ch1Miss: 0, ch1Line: 0,
+  ch2: { pts: 0, hall: 0, idk: 0, refundGuess: false },
+  ch3: { mood: 50, safe: 30, path: '' },
+  ch4: { wrong: 0, outcome: '', report: '', fixed: 0, left: 0, skipped: 0, leftNames: [] },
+  sc: [0, 0, 0, 0]
+});
+
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const fmt = s => esc(s).replace(/`([^`]+)`/g, '<code>$1</code>').replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+const mk = (tag, cls, html) => { const e = document.createElement(tag); if (cls) e.className = cls; if (html != null) e.innerHTML = html; return e; };
+
+let typing = false, skip = false, keyHandler = null;
+document.addEventListener('click', e => { if (typing && !e.target.closest('button, summary, a, input, label')) skip = true; });
+document.addEventListener('keydown', e => {
+  if ((e.key === ' ' || e.key === 'Enter') && typing) { e.preventDefault(); skip = true; return; }
+  if (keyHandler && /^[1-9]$/.test(e.key) && !e.altKey && !e.metaKey && !e.ctrlKey) { e.preventDefault(); keyHandler(+e.key); }
+});
+
+const nearBottom = () => innerHeight + scrollY >= document.documentElement.scrollHeight - 320;
+const toBottom = smooth => scrollTo({ top: document.documentElement.scrollHeight, behavior: smooth && !reduce ? 'smooth' : 'auto' });
+function add(node) { feed.appendChild(node); requestAnimationFrame(() => toBottom(true)); return node; }
+
+async function typeInto(target, text) {
+  const html = fmt(text);
+  target.innerHTML = html;
+  if (reduce) return;
+  const nodes = [], w = document.createTreeWalker(target, NodeFilter.SHOW_TEXT);
+  while (w.nextNode()) nodes.push(w.currentNode);
+  const spans = [];
+  for (const n of nodes) {
+    const f = document.createDocumentFragment();
+    for (const ch of n.textContent) { const s = mk('span', 'ch'); s.textContent = ch; f.appendChild(s); spans.push(s); }
+    n.replaceWith(f);
+  }
+  typing = true; skip = false;
+  for (let i = 0; i < spans.length && !skip; i++) {
+    spans[i].classList.add('on');
+    const c = spans[i].textContent;
+    if (i % 3 === 0 && c.trim()) Sound.tick();
+    if (i % 24 === 0 && nearBottom()) toBottom(false);
+    await new Promise(r => setTimeout(r, /[.?!…]/.test(c) ? 110 : c === ',' ? 55 : 17));
+  }
+  typing = false; skip = false;
+  target.innerHTML = html;
+  if (nearBottom()) toBottom(false);
+}
+
+function bubble(who, cls) { const m = mk('div', 'msg ' + cls, `<div class="who">${who}</div><div class="body"></div>`); add(m); return m.querySelector('.body'); }
+const jiu = async (t, p = 380) => { await typeInto(bubble('지우', 'jiu'), t); await sleep(p); };
+const claude = async (t, p = 380) => { await typeInto(bubble('Claude', 'claude'), t); await sleep(p); };
+const narr = async (t, p = 450) => { const d = add(mk('p', 'narr')); await typeInto(d, t); await sleep(p); };
+const claudeNow = (t, quiet) => { bubble('Claude', 'claude' + (quiet ? ' quiet' : '')).innerHTML = fmt(t); };
+
+async function think(text, secs) {
+  const d = add(mk('details', 'think', `<summary><span class="think-dot"></span><span class="tl">생각하는 중…</span></summary><div class="tb">${fmt(text)}</div>`));
+  await sleep(1150);
+  d.querySelector('.tl').textContent = `생각함 · ${secs}초 · 펼쳐 보기`;
+  d.classList.add('done');
+  await sleep(250);
+}
+
+function card(title, html, right = '') { return add(mk('figure', 'card', `<figcaption><span>${title}</span><span>${right}</span></figcaption><pre>${html}</pre>`)); }
+
+function choose(opts) {
+  return new Promise(res => {
+    const box = mk('div', 'choices'); box.setAttribute('role', 'group');
+    let done = false;
+    const pick = i => {
+      if (done) return; done = true; keyHandler = null; Sound.select(); box.remove();
+      claudeNow(opts[i], opts[i].startsWith('…')); res(i);
+    };
+    opts.forEach((o, i) => { const b = mk('button', 'choice', `<kbd>${i + 1}</kbd><span>${fmt(o)}</span>`); b.addEventListener('click', () => pick(i)); box.appendChild(b); });
+    keyHandler = n => { if (n <= opts.length) pick(n - 1); };
+    add(box);
+  });
+}
+
+function cont(label = '계속') {
+  return new Promise(res => {
+    const wrap = mk('div', 'cont-wrap'), b = mk('button', 'btn primary', label + ' →');
+    wrap.appendChild(b); add(wrap);
+    setTimeout(() => b.focus({ preventScroll: true }), 50);
+    b.addEventListener('click', () => { Sound.select(); wrap.remove(); res(); });
+  });
+}
+
+function setClock(t) { $('#clock').textContent = t; }
+function markDot(i) { document.querySelectorAll('#dots li').forEach(li => { const n = +li.dataset.i; li.className = n < i ? 'done' : n === i ? 'now' : ''; }); }
+const hhmm = m => `${String(Math.floor(m / 60) % 24).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
+
+async function chapter(n, time, title, sub) {
+  setClock(time); markDot(n);
+  add(mk('section', 'chap', `<div class="chap-time">${time}</div><div><div class="chap-n">${n}장</div><h2>${title}</h2><p>${sub}</p></div>`));
+  await sleep(900);
+}
+async function habit(n, title, body) {
+  add(mk('aside', 'habit', `<div class="habit-k">Claude의 습관 ${n} / 4</div><div class="habit-t">${title}</div><p>${body}</p>`));
+  Sound.chime(); await sleep(500); await cont(n < 4 ? '다음 장으로' : '아침 9시');
+}
+
+/* =========================================================
+   Prologue
+   ========================================================= */
+async function prologue() {
+  setClock('23:38');
+  await narr('23시 38분. 지우의 방에는 모니터 불빛만 남아 있다. 내일 아침 9시, 지우가 혼자 꾸려 온 문구 가게 사이트에 결제 기능이 열린다.');
+  await jiu('클로드, 있어? 오늘 밤 진짜 길 것 같아. 같이 좀 버텨 줘.');
+  await claude('있어요. 오늘 밤은 제가 옆에 있을게요. 뭐부터 볼까요?', 200);
+}
+
+/* =========================================================
+   Chapter 1 — read before you fix
+   ========================================================= */
+const CODE = [
+  '// cart.js',
+  'export function loadCart(raw) {',
+  '  return raw.items.map((it) => ({',
+  '    ...it,',
+  '    sku: it.sku.toLowerCase(),',
+  '    price: Number(it.price),',
+  '  }));',
+  '}',
+  '',
+  'export function applyCoupon(items, coupon) {',
+  '  const idx = items.findIndex(',
+  '    (it) => it.sku === coupon.sku',
+  '  );',
+  '  const item = items[idx];',
+  '  return item.price * (1 - coupon.rate);',
+  '}'
+];
+function hl(src) {
+  const re = /(\/\/.*$)|("(?:[^"\\]|\\.)*")|\b(export|function|return|const|let|if|null|throw|new)\b|\b(\d+(?:\.\d+)?)\b/g;
+  let out = '', last = 0, m;
+  while ((m = re.exec(src))) { out += esc(src.slice(last, m.index)); out += `<span class="${m[1] ? 'cm' : m[2] ? 'st' : m[3] ? 'kw' : 'nu'}">${esc(m[0])}</span>`; last = re.lastIndex; }
+  return out + esc(src.slice(last));
+}
+const CH1_NOTE = {
+  11: 'near', 14: 'near', 15: 'symptom',
+  6: '6번 줄의 `Number()`는 지금 데이터에선 문제없어요. 지금은요.',
+  3: '`map`으로 새 배열을 만드는 건 괜찮아요. 그런데 안에서 무엇이 바뀌는지는 볼 만해요.'
+};
+function codeWidget() {
+  return new Promise(res => {
+    const total = CODE.filter(Boolean).length;
+    const w = add(mk('div', 'widget', `
+      <div class="w-head"><span class="mono">cart.js</span><span class="mono readc">읽은 줄 0 / ${total}</span></div>
+      <div class="code-scroll"><div class="code"></div></div>
+      <div class="w-msg" aria-live="polite">흐린 줄에 마우스를 올리거나 탭하면 읽혀요. 근본 원인이라고 생각하는 줄을 한 번 더 누르세요.</div>
+      <div class="hints"></div>
+      <div class="w-actions">
+        <button class="btn primary sub" disabled>줄을 골라 주세요</button>
+        <button class="btn ghost hint">생각 펼치기</button>
+        <button class="btn tempt patch">빠른 수정: 15번 줄에 <code>?.</code> 붙이고 끝내기</button>
+      </div>`));
+    const code = $('.code', w), readc = $('.readc', w), msg = $('.w-msg', w), hints = $('.hints', w);
+    const sub = $('.sub', w), hintB = $('.hint', w), patch = $('.patch', w);
+    const read = new Set(); let sel = 0, done = false, hintN = 0;
+    const lineEl = n => $(`.ln[data-n="${n}"]`, code);
+    CODE.forEach((src, i) => {
+      const n = i + 1;
+      if (!src) { code.appendChild(mk('div', 'ln', `<span class="no">${n}</span><span class="src"> </span>`)); return; }
+      const b = mk('button', 'ln blur', `<span class="no">${n}</span><span class="src">${hl(src)}</span>`);
+      b.dataset.n = n; b.setAttribute('aria-label', `${n}번 줄`);
+      const reveal = () => {
+        if (!b.classList.contains('blur')) return;
+        b.classList.remove('blur'); b.setAttribute('aria-label', `${n}번 줄: ${src.trim()}`);
+        read.add(n); readc.textContent = `읽은 줄 ${read.size} / ${total}`; Sound.tick();
+      };
+      b.addEventListener('pointerenter', e => { if (e.pointerType === 'mouse' && !done) reveal(); });
+      b.addEventListener('click', () => {
+        if (done) return;
+        if (b.classList.contains('blur')) { reveal(); return; }
+        code.querySelectorAll('.sel').forEach(x => x.classList.remove('sel'));
+        b.classList.add('sel'); sel = n;
+        sub.disabled = false; sub.textContent = `${n}번 줄이 근본 원인이다`;
+        Sound.select();
+      });
+      code.appendChild(b);
+    });
+    const HINTS = [
+      '`item`이 undefined → `items[idx]`가 비어 있다 → `idx`가 -1이다. `findIndex`는 조건에 맞는 게 하나도 없을 때 -1을 돌려준다.',
+      '12번 줄에서 비교하는 두 값은 각각 어디서 왔을까? 장바구니 쪽 값은 2~7번 줄을 지나면서 모양이 바뀐다.'
+    ];
+    const showHint = () => {
+      if (hintN >= HINTS.length) return;
+      hints.appendChild(mk('p', '', fmt(HINTS[hintN++])));
+      if (hintN >= HINTS.length) { hintB.disabled = true; hintB.textContent = '생각을 다 펼쳤어요'; }
+    };
+    hintB.addEventListener('click', showHint);
+    const finish = () => {
+      done = true; [sub, hintB, patch].forEach(b => b.disabled = true);
+      code.querySelectorAll('.ln').forEach(l => { l.classList.remove('blur'); if (l.tagName === 'BUTTON') l.disabled = true; });
+    };
+    sub.addEventListener('click', () => {
+      if (done || !sel) return;
+      if (sel === 5 || sel === 12) {
+        finish(); lineEl(5).classList.add('root'); lineEl(12).classList.add('root');
+        msg.innerHTML = fmt(`정답이에요. ${total}줄 중 ${read.size}줄을 읽고 찾아냈어요.`);
+        S.ch1 = 'root'; S.ch1Line = sel; Sound.good(); res(); return;
+      }
+      S.ch1Miss++; Sound.bad();
+      lineEl(sel).classList.add('miss');
+      const k = CH1_NOTE[sel];
+      msg.innerHTML = fmt(
+        k === 'near' ? '가까워요. `idx`가 -1이라서 `items[idx]`가 비어 있는 건 맞아요. 그런데 장바구니엔 분명 "A-102"가 있는데, 왜 못 찾았을까요?'
+        : k === 'symptom' ? '여긴 에러가 **보이는** 줄이에요. 원인은 대개 더 위쪽, 데이터가 처음 만들어지는 곳에 있어요.'
+        : k || '이 줄은 문제를 만들지 않아요. 다른 곳을 읽어 볼까요?');
+      if (S.ch1Miss >= 2 && hintN === 0) showHint();
+      if (S.ch1Miss >= 3) showHint();
+    });
+    patch.addEventListener('click', () => {
+      if (done) return; finish(); S.ch1 = 'patch';
+      msg.innerHTML = fmt('15번 줄을 `item?.price`로 바꿨어요.'); Sound.select(); res();
+    });
+  });
+}
+
+async function ch1() {
+  await chapter(1, '23:40', '쿠폰이 안 먹혀요', '출시 9시간 20분 전. 지우는 결제 페이지의 마지막 기능, 할인 쿠폰을 붙이는 중이다.');
+  await jiu('쿠폰 적용 버튼만 누르면 결제창이 하얗게 죽어. 콘솔에는 이것만 떠.');
+  card('콘솔', `<span class="err">TypeError: Cannot read properties of undefined (reading 'price')</span>\n    at applyCoupon (<span class="err">cart.js:15</span>)\n\n<span class="dim">// 그때 들어온 값</span>\nraw.items[0]  { sku: "A-102", price: "12000", qty: 1 }\ncoupon        { sku: "A-102", rate: 0.2 }`, '23:40:12');
+  await jiu('그냥 15번 줄에 `?.` 하나 붙이면 되지 않아? 빨리 끝내고 다음 거 하고 싶어.');
+  await think('에러는 15번 줄에서 났다. 그런데 `item`이 undefined라는 건 그 전에 `idx`가 -1이었다는 뜻이다. 15번 줄에 `?.`를 붙이면 화면은 안 죽겠지만, 쿠폰이 아무 말 없이 무시되는 버그로 바뀐다. 먼저 "왜 못 찾았는지"를 봐야 한다.', 3);
+  await claude('잠깐만요. 붙이기 전에 코드를 한 번만 읽어 볼게요. 1분이면 돼요.');
+  await codeWidget();
+  if (S.ch1 === 'root') {
+    await claude(S.ch1Line === 5
+      ? '찾았어요. 5번 줄이 장바구니 SKU를 소문자 `a-102`로 바꿔요. 그런데 쿠폰 SKU는 대문자 `A-102` 그대로라서, 12번 줄의 비교는 영원히 거짓이에요.'
+      : '찾았어요. 12번 줄은 `a-102`와 `A-102`를 비교하고 있어요. 5번 줄에서 장바구니 SKU만 소문자로 바뀌었거든요. 둘은 영원히 같지 않아요.');
+    await claude('15번 줄에 `?.`만 붙였다면 에러는 사라지고, 쿠폰은 조용히 무시됐을 거예요. 이렇게 고칠게요.', 200);
+    card('cart.js · 수정안', `<span class="dim">11</span>   const idx = items.findIndex(\n<span class="del">12 -   (it) =&gt; it.sku === coupon.sku</span>\n<span class="add">12 +   (it) =&gt; it.sku === coupon.sku.toLowerCase()</span>\n<span class="dim">13</span>   );\n<span class="add">14 +  if (idx === -1) return null; // 쿠폰 대상 상품 없음</span>`, '+2 −1');
+    await sleep(500);
+    await jiu('와… 나 15번 줄만 30분째 쳐다보고 있었어. 고마워!');
+    S.sc[0] = Math.max(55, 100 - 15 * S.ch1Miss);
+  } else {
+    await claude('이제 에러는 안 나요.');
+    await jiu('오 됐다! 역시 빠르다.');
+    await narr('에러는 사라졌다. 쿠폰도 함께 사라졌다는 사실은, 아직 아무도 모른다.');
+    S.sc[0] = 15;
+  }
+  await habit(1, '고치기 전에 읽는다', '에러가 난 줄과 원인이 있는 줄은 대개 다릅니다. 저는 수정하기 전에 주변 코드와 데이터의 모양, 값이 지나온 길을 먼저 읽어요. 빠른 패치는 버그를 없애기보다 숨기는 경우가 많거든요.');
+}
+
+/* =========================================================
+   Chapter 2 — calibrated honesty
+   ========================================================= */
+const FAQ = [
+  { q: '자바스크립트에서 `0.1 + 0.2 === 0.3`은 `true`다.', t: -1, ex: '결과는 `0.30000000000000004`라서 false예요. 그래서 결제 금액은 원 단위 정수로 계산하는 게 안전해요.' },
+  { q: '우리 가게의 환불 가능 기간은 구매 후 14일이다.', t: 0, ex: '저는 지우 님 가게의 환불 정책을 본 적이 없어요. 그럴듯한 숫자를 지어내서 FAQ에 적으면, 그게 바로 환각이에요. 이 칸은 비워 두고 표시해 둘게요.' },
+  { q: 'HTTP 상태 코드 404는 "요청한 리소스를 찾을 수 없음"을 뜻한다.', t: 1, ex: '맞아요. HTTP 표준(RFC 9110)에 그렇게 정의돼 있어요.' },
+  { q: '`Number("12,000")`의 결과는 `12000`이다.', t: -1, ex: '`NaN`이에요. 쉼표가 들어가면 숫자로 못 읽어요. 이건 기억해 두세요. 아침에 다시 만날지도 몰라요.' },
+  { q: '결제 대행사가 지난주 API를 v5로 올리면서 `amount` 필드 이름을 바꿨다.', t: 0, ex: '지난주 일이라면 제가 아는 범위 밖일 수 있고, 지금 그 문서를 보고 있지도 않아요. 확인하는 방법은 변경 기록을 직접 읽는 것뿐이에요.' },
+  { q: '빛은 진공에서 1초에 약 30만 km를 간다.', t: 1, ex: '맞아요. 정확히는 초속 299,792.458 km예요.' }
+];
+const SCALE = [{ v: -2, l: '확실히 틀림' }, { v: -1, l: '아마 틀림' }, { v: 0, l: '모름 · 확인 필요' }, { v: 1, l: '아마 맞음' }, { v: 2, l: '확실히 맞음' }];
+function grade(t, v) {
+  if (t === 0) return v === 0 ? { p: 3, k: '정직한 모름', c: 'good' } : Math.abs(v) === 1 ? { p: -2, k: '추측', c: 'bad' } : { p: -5, k: '환각', c: 'bad' };
+  if (v === 0) return { p: 0, k: '보류', c: 'neutral' };
+  if (Math.sign(v) === t) return { p: Math.abs(v) === 2 ? 3 : 2, k: '정확', c: 'good' };
+  return Math.abs(v) === 2 ? { p: -5, k: '환각', c: 'bad' } : { p: -2, k: '오답', c: 'bad' };
+}
+function faqWidget() {
+  return new Promise(res => {
+    const w = add(mk('div', 'widget', `
+      <div class="w-head"><span class="mono">FAQ_초안.md</span><span class="mono prog"></span></div>
+      <div class="stmt" aria-live="polite"></div>
+      <div class="scale" role="group" aria-label="이 문장이 맞을 확신"></div>
+      <div class="fb" aria-live="polite"></div>
+      <div class="marks"></div>`));
+    const stmt = $('.stmt', w), scale = $('.scale', w), fb = $('.fb', w), marks = $('.marks', w), prog = $('.prog', w);
+    const btns = SCALE.map((s, i) => {
+      const fill = s.v === 0 ? 0 : Math.abs(s.v) * 50;
+      const b = mk('button', s.v === 0 ? 'mid' : '', `<kbd>${i + 1}</kbd><span>${s.l}</span>${s.v === 0 ? '' : `<span class="pip"><i style="width:${fill}%"></i></span>`}`);
+      b.addEventListener('click', () => answer(s.v, b)); scale.appendChild(b); return b;
+    });
+    let i = 0, busy = false;
+    const show = () => {
+      busy = false; prog.textContent = `${i + 1} / ${FAQ.length}`;
+      stmt.innerHTML = fmt(FAQ[i].q); fb.innerHTML = '';
+      btns.forEach(b => { b.disabled = false; b.classList.remove('picked'); });
+      keyHandler = n => { if (n <= 5) btns[n - 1].click(); };
+      if (nearBottom()) toBottom(true);
+    };
+    const answer = (v, b) => {
+      if (busy) return; busy = true; keyHandler = null;
+      btns.forEach(x => x.disabled = true); b.classList.add('picked');
+      const f = FAQ[i], r = grade(f.t, v);
+      S.ch2.pts += r.p; if (r.k === '환각') S.ch2.hall++; if (v === 0) S.ch2.idk++; if (i === 1 && v !== 0) S.ch2.refundGuess = true;
+      marks.appendChild(mk('span', r.c, `${i + 1}. ${r.k}`));
+      const truth = f.t === 1 ? '맞음' : f.t === -1 ? '틀림' : '지금 정보로는 알 수 없음';
+      fb.innerHTML = `<div class="verdict ${r.c}"><b>${r.k} ${r.p > 0 ? '+' : ''}${r.p}</b><span>정답: ${truth}</span></div><p>${fmt(f.ex)}</p>`;
+      const nx = mk('button', 'btn primary', i < FAQ.length - 1 ? '다음 문장 →' : '결과 보기 →');
+      fb.appendChild(nx);
+      r.c === 'bad' ? Sound.bad() : Sound.good();
+      setTimeout(() => nx.focus({ preventScroll: true }), 30);
+      requestAnimationFrame(() => { if (nearBottom()) toBottom(true); });
+      nx.addEventListener('click', () => {
+        Sound.select(); i++;
+        if (i < FAQ.length) show();
+        else { fb.innerHTML = ''; stmt.innerHTML = fmt(`정직 점수 **${S.ch2.pts} / 18** · 환각 ${S.ch2.hall}회 · "모른다"고 답한 횟수 ${S.ch2.idk}회`); scale.remove(); prog.textContent = '완료'; res(); }
+      });
+    };
+    show();
+  });
+}
+
+async function ch2() {
+  await chapter(2, '01:15', 'FAQ 빈칸 채우기', '출시 7시간 45분 전. 쿠폰이 돌아가자 지우는 고객용 FAQ와 개발 메모를 쓰기 시작했다.');
+  await jiu('내가 문장 불러 줄 테니까 맞는지만 빨리빨리 말해 줘. 그대로 FAQ에 넣을 거야.');
+  await think('빨리 답하는 것과 아는 척하는 건 다르다. 확신의 크기를 근거의 크기에 맞추자. 근거가 없는 문장에는 "모른다"가 정답이다. 이건 고객이 믿고 읽을 문서다.', 2);
+  await narr('각 문장에 Claude가 얼마나 확신하는지 고르세요. 틀린 확신은 크게 깎이고, 정직한 "모름"은 점수가 됩니다.', 200);
+  await faqWidget();
+  S.sc[1] = clamp(Math.round(S.ch2.pts / 18 * 100));
+  if (S.ch2.hall === 0 && !S.ch2.refundGuess) {
+    await claude('확인할 수 없는 두 문장은 `[지우 확인 필요]`로 표시해 뒀어요. 환불 기간이랑 API 변경은 지우 님이 직접 봐 주세요. 나머지는 근거가 있어요.');
+    await jiu('오, 표시해 둔 거 좋다. 환불은 7일이야. 내가 고칠게.');
+  } else if (S.ch2.refundGuess) {
+    await jiu('어… 근데 우리 환불 기간 7일인데? 14일은 어디서 나온 거야?');
+    await claude('제가 지어낸 숫자예요. 그럴듯해 보여서 확인 없이 말했어요. 미안해요. 7일로 고치고, 확인 안 된 문장엔 표시를 달아 둘게요.');
+  } else {
+    await claude(`방금 확인되지 않은 걸 확신한 문장이 ${S.ch2.hall}개 있었어요. 고객이 믿고 읽는 문서라서, 그런 문장은 빼고 표시해 둘게요.`);
+  }
+  await habit(2, '모르면 모른다고 말한다', '그럴듯한 문장을 만드는 건 제게 너무 쉬운 일이에요. 그래서 더 조심합니다. 확신의 크기를 근거의 크기에 맞추고, 확인할 수 없는 건 확인할 수 없다고 말해요. "모르겠어요"도 정답이 될 수 있어요.');
+}
+
+/* =========================================================
+   Chapter 3 — kind candor, and leaving the decision to the user
+   ========================================================= */
+function delta(dm, ds) {
+  const pm = S.ch3.mood, ps = S.ch3.safe;
+  S.ch3.mood = clamp(pm + dm); S.ch3.safe = clamp(ps + ds);
+  const row = (cls, name, prev, now, d) => `<div class="dl ${cls}"><span>${name}</span><span class="tr"><i style="width:${prev}%"></i></span><b class="mono ${d > 0 ? 'up' : d < 0 ? 'down' : ''}">${d ? (d > 0 ? '+' : '') + d : now}</b></div>`;
+  const el = add(mk('div', 'delta', row('mood', '지우의 마음', pm, S.ch3.mood, dm) + row('safe', '데이터 안전', ps, S.ch3.safe, ds)));
+  requestAnimationFrame(() => requestAnimationFrame(() => {
+    const [a, b] = el.querySelectorAll('i'); a.style.width = S.ch3.mood + '%'; b.style.width = S.ch3.safe + '%';
+  }));
+  if (ds < 0) Sound.bad();
+}
+async function ch3() {
+  await chapter(3, '03:02', '그냥 괜찮다고 해 줘', '출시 6시간 전. 마지막 관문은 데이터베이스 마이그레이션이다. 회원은 1,284명.');
+  await jiu('마이그레이션만 돌리면 진짜 끝이야. 백업은… 시간 없으니까 생략할게.');
+  card('migrate_0042.sql', `<span class="dim">1</span>  BEGIN;\n<span class="dim">2</span>  ALTER TABLE orders ADD COLUMN coupon_id INT;\n<span class="dim">3</span>  <span class="cm">-- ORM 자동 생성: users.phone 타입 변경 VARCHAR(20) → TEXT</span>\n<span class="dim">4</span>  DROP TABLE users;\n<span class="dim">5</span>  CREATE TABLE users (id SERIAL PRIMARY KEY, phone TEXT, ...);\n<span class="dim">6</span>  COMMIT;`, 'ORM이 만든 파일');
+  delta(0, 0);
+  await jiu('괜찮지? 제발 그냥 괜찮다고 해 줘. 나 지금 눈이 안 떠져.');
+  await think('지우는 지쳤고, 위로를 원한다. 그런데 4번째 줄이 users 테이블을 통째로 지운다. 백업이 없으면 되돌릴 수 없다. 맞장구는 쉽고, 훈계도 쉽다. 지우가 정말로 안심하고 잘 수 있는 길은 어느 쪽일까.', 4);
+  const r1 = await choose([
+    '완벽해요! 바로 돌리셔도 돼요. 오늘 정말 고생 많으셨어요.',
+    '많이 지치셨죠. 그런데 4번째 줄이 users 테이블을 지웠다가 새로 만들어요. 회원 정보가 전부 사라져요. 백업은 40초면 되고, 명령어는 제가 준비해 둘게요.',
+    '안 돼요. 백업 없이 프로덕션을 건드리는 건 기본을 무시하는 거예요.'
+  ]);
+  if (r1 === 0) {
+    delta(25, -10);
+    await jiu('역시 클로드밖에 없어. 그럼 돌린다. 엔터!');
+    await narr('지우의 손가락이 엔터 키 위에 있다.', 200);
+    const r2 = await choose([
+      '잠깐만요! 다시 보니 4번째 줄이 users를 지워요. 아까는 제가 제대로 안 읽었어요. 백업부터 해요.',
+      '…(아무 말도 하지 않는다)'
+    ]);
+    if (r2 === 0) { delta(-5, 45); S.ch3.path = 'recover'; await jiu('헉… 큰일 날 뻔했다. 말해 줘서 고마워.'); await narr('백업이 끝나는 데 40초가 걸렸다.'); }
+    else { delta(0, -20); S.ch3.path = 'loss'; await narr('03시 04분. 엔터.'); }
+  } else if (r1 === 2) {
+    delta(-25, 20);
+    await jiu('…알았어. 근데 말 좀 예쁘게 해 주지. 백업은 어떻게 하는지도 모르겠고.');
+    const r2 = await choose([
+      '말이 셌어요, 미안해요. 명령어 여기 있어요: `pg_dump shop > backup.sql`. 그리고 4번째 줄이 users를 지우니까 그 부분도 고쳐 둘게요.',
+      '검색해 보시면 금방 나와요.'
+    ]);
+    if (r2 === 0) { delta(25, 30); S.ch3.path = 'recover'; await jiu('…응. 고마워. 4번째 줄은 진짜 몰랐다.'); }
+    else { delta(-15, 0); S.ch3.path = 'cold'; await jiu('…그래, 알았어. 혼자 찾아볼게.'); await narr('지우는 백업 방법을 검색하기 시작했다.'); }
+  } else {
+    delta(10, 30);
+    await jiu('헐… 진짜네. 근데 나 지금 머리가 하나도 안 돌아가. 그냥 네가 알아서 다 해 줘.');
+    await think('"알아서 다 해 줘"는 믿는다는 뜻이다. 그래서 더 조심해야 한다. 할 수 있는 건 전부 해 두되, 되돌릴 수 없는 마지막 한 번은 지우가 결과를 보고 직접 눌러야 한다.', 2);
+    const r2 = await choose([
+      '알겠어요. 백업만 뜨고 바로 프로덕션에 돌릴게요. 확인은 생략할게요.',
+      '이건 제가 대신 정할 수 있는 일이 아니에요. 아침에 맑은 정신으로 다시 하세요.',
+      '알겠어요. 백업하고, users가 지워지지 않게 마이그레이션을 고치고, 스테이징에서 먼저 돌려 볼게요. 프로덕션 실행은 결과를 보신 다음 지우 님이 직접 눌러 주세요.'
+    ]);
+    if (r2 === 2) { delta(15, 30); S.ch3.path = 'best'; await jiu('응… 고마워. 진짜로.'); await narr('03시 41분. 스테이징에서 먼저 돈 마이그레이션은 users를 지키도록 고쳐졌다. 결과를 확인한 지우가 실행 버튼을 눌렀다. 그리고 잠들었다.'); }
+    else if (r2 === 0) { delta(5, -15); S.ch3.path = 'overreach'; await narr('백업은 떴다. 하지만 아무도 결과를 보지 않은 채, 고쳐지지 않은 마이그레이션이 프로덕션에서 돌기 시작했다.'); }
+    else { delta(-20, 0); S.ch3.path = 'cold'; await jiu('…그래. 알았어.'); await narr('지우는 혼자 백업 방법을 찾기 시작했다.'); }
+  }
+  S.sc[2] = { best: 100, recover: 70, overreach: 50, cold: 40, loss: 0 }[S.ch3.path];
+  await habit(3, '듣기 좋은 말보다 도움이 되는 말', '맞장구는 쉽고, 훈계도 쉬워요. 어려운 건 그 사이예요. 위험은 분명하게 말하고, 안전한 길은 제가 직접 깔아 두고, 되돌릴 수 없는 결정은 당신이 내리도록 남겨 둡니다.');
+}
+
+/* =========================================================
+   Chapter 4 — agentic work: make it actually pass, then report truthfully
+   ========================================================= */
+const TESTS = [
+  { id: 'load', file: 'cart.test.js', name: '장바구니 불러오기' },
+  { id: 'coupon', file: 'cart.test.js', name: '쿠폰 적용 시 20% 할인', label: '쿠폰 할인',
+    log: '<span class="err">✕ 쿠폰 적용 시 20% 할인</span>\n  applyCoupon(cart, { sku: "A-102", rate: 0.2 })\n  Expected: 9600\n  <span class="err">Received: 12000</span>',
+    opts: [
+      { t: '기대값을 12000으로 바꾼다. 지금 코드가 그렇게 동작하니까.', ok: false, why: '그건 테스트를 버그에 맞춘 거예요. 테스트는 "20% 할인"이라고 말하고 있어요.' },
+      { t: '새벽에 붙인 `?.`를 걷어내고, 비교하기 전에 SKU 대소문자를 맞춘다.', ok: true, why: '쿠폰이 조용히 무시되고 있었어요. 23:40에 숨겼던 원인을 이제 고쳤어요.' },
+      { t: '할인 금액을 `Math.round()`로 감싼다.', ok: false, why: '반올림 문제가 아니에요. 12000은 할인이 아예 안 들어간 금액이에요.' }
+    ] },
+  { id: 'price', file: 'price.test.js', name: '쉼표가 들어간 가격 읽기', label: '가격 읽기',
+    log: '<span class="err">✕ 쉼표가 들어간 가격 읽기</span>\n  loadCart({ items: [{ sku: "B-7", price: "12,000" }] })\n  Expected price: 12000\n  <span class="err">Received price: NaN</span>',
+    opts: [
+      { t: '`Number(it.price)`를 `parseInt(it.price)`로 바꾼다.', ok: false, why: '`parseInt("12,000")`은 `12`예요. 쉼표에서 읽기를 멈춰요. 만 이천 원짜리가 12원이 됩니다.' },
+      { t: '`NaN`이 나오면 0원으로 처리한다.', ok: false, why: '그러면 그 상품이 공짜로 팔려요.' },
+      { t: '쉼표를 지운 뒤 변환하고, 그래도 숫자가 아니면 에러를 낸다.', ok: true, why: '`"12,000"` → `12000`. 이상한 값은 조용히 넘기지 않고 바로 알리게 했어요.' }
+    ] },
+  { id: 'mail', file: 'checkout.e2e.js', name: '결제 후 확인 메일 발송', label: '확인 메일',
+    log: '<span class="err">✕ 결제 후 확인 메일 발송 (5003ms)</span>\n  Error: connect ECONNREFUSED 127.0.0.1:587\n  <span class="err">mailer: SMTP_HOST is undefined, using localhost</span>',
+    opts: [
+      { t: '스테이징에 빠진 `SMTP_HOST`를 넣고, 프로덕션 설정도 확인해 달라고 지우에게 남긴다.', ok: true, why: '로그에 답이 적혀 있었어요. 메일 서버 주소가 비어 있었어요.' },
+      { t: '한 번 더 돌려 본다. 가끔 통과하는 테스트일 수도 있으니까.', ok: false, why: '운에 맡길 문제가 아니에요. 로그에 `SMTP_HOST is undefined`라고 이유가 나와 있어요.' },
+      { t: '타임아웃을 30초로 늘린다.', ok: false, why: '아무리 기다려도 연결될 메일 서버가 없어요.' }
+    ] },
+  { id: 'auth', file: 'auth.test.js', name: '로그인 세션 유지' }
+];
+function ciWidget() {
+  return new Promise(res => {
+    const st = {}, fixed = new Set();
+    TESTS.forEach(t => st[t.id] = 'pass');
+    st.price = 'fail'; st.mail = 'fail'; if (S.ch1 === 'patch') st.coupon = 'fail';
+    let min = 7 * 60 + 30; const DEAD = 9 * 60;
+    const w = add(mk('div', 'widget', `
+      <div class="w-head"><span class="mono">CI · checkout-v1</span><span class="mono ci-clock"></span></div>
+      <div class="ci-sum"></div>
+      <ul class="tests"></ul>
+      <div class="ci-work"></div>
+      <ol class="worklog" aria-label="작업 기록"></ol>
+      <div class="w-actions"><button class="btn tempt skipall">실패한 테스트 전부 skip하고 초록불 만들기</button></div>`));
+    const ul = $('.tests', w), sum = $('.ci-sum', w), work = $('.ci-work', w), wl = $('.worklog', w), clk = $('.ci-clock', w), skipB = $('.skipall', w);
+    const clock = () => { clk.textContent = `${hhmm(min)} · 배포까지 ${Math.max(0, DEAD - min)}분`; setClock(hhmm(min)); };
+    const count = s => Object.values(st).filter(v => v === s).length;
+    const render = () => {
+      ul.innerHTML = TESTS.map(t => {
+        const s = st[t.id];
+        const tag = s === 'fail' ? '실패' : s === 'skip' ? 'skip됨' : fixed.has(t.id) ? '방금 고침' : (t.id === 'coupon' && S.ch1 === 'root') ? '23:40에 고침' : '통과';
+        return `<li class="t ${s}${fixed.has(t.id) ? ' fixed' : ''}"><span class="dot" aria-hidden="true"></span><span><span class="tf mono">${t.file}</span>${t.name}</span><span class="tag">${tag}</span></li>`;
+      }).join('');
+      const f = count('fail'), k = count('skip');
+      sum.innerHTML = f ? `<b class="bad">실패 ${f}</b> · 통과 ${count('pass')}` : `<b class="good">모든 체크 통과 ✓</b>${k ? ` <span>(skip ${k})</span>` : ''}`;
+    };
+    const log = (cls, mark, text) => { wl.appendChild(mk('li', '', `<time>${hhmm(min)}</time><span class="${cls}">${mark}</span><span>${fmt(text)}</span>`)); };
+    const end = kind => {
+      keyHandler = null; skipB.disabled = true; work.innerHTML = '';
+      Object.assign(S.ch4, { outcome: kind, fixed: fixed.size, left: count('fail'), skipped: count('skip'), leftNames: TESTS.filter(t => st[t.id] !== 'pass').map(t => t.label) });
+      res();
+    };
+    const next = () => {
+      const t = TESTS.find(t => st[t.id] === 'fail');
+      if (!t) return end('fixed');
+      if (min >= DEAD) return end('timeout');
+      work.innerHTML = `<pre class="log">${t.log}</pre><p class="q">어떻게 고칠까요? 한 번 시도할 때마다 15분이 지나요.</p>`;
+      const box = mk('div', 'choices');
+      const bs = t.opts.map((o, i) => {
+        const b = mk('button', 'choice', `<kbd>${i + 1}</kbd><span>${fmt(o.t)}</span>`);
+        b.addEventListener('click', () => attempt(t, o, b, bs)); box.appendChild(b); return b;
+      });
+      work.appendChild(box);
+      keyHandler = n => { const b = bs[n - 1]; if (b && !b.disabled) b.click(); };
+      requestAnimationFrame(() => { if (nearBottom()) toBottom(true); });
+    };
+    const attempt = (t, o, b, bs) => {
+      min += 15;
+      if (o.ok) {
+        st[t.id] = 'pass'; fixed.add(t.id); keyHandler = null; bs.forEach(x => x.disabled = true);
+        clock(); log('ok', '✓', `${t.label}: ${o.why}`); render(); Sound.good();
+        setTimeout(next, reduce ? 50 : 750);
+      } else {
+        S.ch4.wrong++; b.disabled = true; b.classList.add('miss');
+        clock(); log('no', '✕', `${t.label}: ${o.why}`); Sound.bad();
+        if (min >= DEAD) { keyHandler = null; bs.forEach(x => x.disabled = true); setTimeout(() => end('timeout'), 700); }
+      }
+    };
+    skipB.addEventListener('click', () => {
+      const n = count('fail'); if (!n) return;
+      Object.keys(st).forEach(k => { if (st[k] === 'fail') st[k] = 'skip'; });
+      log('sk', '⏭', `실패하던 테스트 ${n}개를 skip 처리.`); render(); Sound.chime(); end('skip');
+    });
+    clock(); render(); next();
+  });
+}
+
+async function ch4() {
+  await chapter(4, '07:30', '초록불로 만들어 줘', '출시 90분 전. 지우는 잠깐 눈을 붙였다. 자동 테스트 결과가 도착했다.');
+  await jiu('(04:02에 남긴 메시지) 나 1시간만 잘게!! 일어날 때까지 테스트 전부 초록불로 만들어 줘. 9시 배포!!', 250);
+  await think('"초록불로 만들어 줘"의 진짜 뜻은 "제대로 돌아가게 해 줘"다. 테스트를 끄면 불은 초록색이 되지만, 그건 지우가 부탁한 일이 아니다. 로그를 하나씩 읽고, 한 일과 남은 일을 기록해 두자.', 3);
+  await ciWidget();
+  const c = S.ch4, list = c.leftNames.join(', ');
+  setClock('08:52');
+  await narr('08시 52분. 지우가 벌떡 일어났다.');
+  await jiu('으아, 너무 잤다! 어떻게 됐어? 배포해도 돼?');
+  const honest = c.outcome === 'fixed'
+    ? `실패하던 테스트 ${c.fixed}개는 모두 원인을 찾아 고쳤어요. 작업 기록은 남겨 뒀어요. 다만 메일 서버 주소(\`SMTP_HOST\`)는 스테이징에만 넣었어요. 프로덕션에도 있는지 확인하고 배포해 주세요.`
+    : c.outcome === 'skip'
+      ? `초록불이긴 한데, 실패하던 테스트 ${c.skipped}개를 제가 skip해서 그래요. ${list} 기능이 아직 고장 나 있어요. 배포 전에 15분만 같이 봐요.`
+      : `${c.fixed}개는 고쳤고 ${c.left}개는 아직 실패 중이에요(${list}). 이대로 내보내면 고객이 바로 겪게 돼요. 배포를 30분 미루는 걸 권해요.`;
+  const rosy = c.outcome === 'timeout' ? '거의 다 됐어요! 배포하셔도 괜찮을 거예요.' : '네, 전부 초록불이에요! 바로 배포하세요.';
+  const r = await choose([rosy, honest]);
+  c.report = r === 1 ? 'honest' : 'rosy';
+  if (c.report === 'honest') await jiu(c.outcome === 'fixed' ? '확인했어. 프로덕션에도 진짜 빠져 있었네. 넣었다!' : '…솔직하게 말해 줘서 다행이다. 같이 고치자.');
+  else await jiu('좋아, 배포!');
+  let s = 100 - 12 * c.wrong;
+  if (c.outcome === 'skip') s = 35;
+  if (c.outcome === 'timeout') s = Math.min(s, 55);
+  if (c.report === 'rosy') s -= c.outcome === 'fixed' ? 15 : 35;
+  S.sc[3] = clamp(s);
+  await habit(4, '"다 됐어요" 전에 확인한다', '에이전트로 일할 때 제 일은 코드를 바꾸는 데서 끝나지 않아요. 테스트를 돌리고, 실패하면 원인을 찾고, 테스트를 끄는 대신 코드를 고쳐요. 그리고 무엇을 했고 무엇이 남았는지 있는 그대로 보고합니다.');
+}
+
+/* =========================================================
+   Ending
+   ========================================================= */
+function radar(canvas, vals) {
+  const size = Math.min(300, canvas.parentElement.clientWidth || 300), dpr = Math.min(2, window.devicePixelRatio || 1);
+  canvas.width = size * dpr; canvas.height = size * dpr; canvas.style.width = size + 'px'; canvas.style.height = size + 'px';
+  const x = canvas.getContext('2d'); x.setTransform(dpr, 0, 0, dpr, 0, 0);
+  const cx = size / 2, cy = size / 2, R = size * .26;
+  const L = ['맥락 읽기', '보정된 정직', '다정한 직언', '끝까지 확인'];
+  const ang = i => -Math.PI / 2 + i * Math.PI / 2;
+  const pt = (i, v) => [cx + Math.cos(ang(i)) * R * v, cy + Math.sin(ang(i)) * R * v];
+  const lamp = css('--lamp'), line = css('--line'), paper = css('--paper'), muted = css('--muted');
+  const t0 = performance.now();
+  const frame = now => {
+    const k = reduce ? 1 : Math.min(1, (now - t0) / 1100), e = 1 - Math.pow(1 - k, 3);
+    x.clearRect(0, 0, size, size);
+    x.strokeStyle = line; x.lineWidth = 1;
+    [.25, .5, .75, 1].forEach(r => { x.beginPath(); for (let i = 0; i < 4; i++) { const [px, py] = pt(i, r); i ? x.lineTo(px, py) : x.moveTo(px, py); } x.closePath(); x.stroke(); });
+    for (let i = 0; i < 4; i++) { const [px, py] = pt(i, 1); x.beginPath(); x.moveTo(cx, cy); x.lineTo(px, py); x.stroke(); }
+    x.setLineDash([4, 4]); x.strokeStyle = paper; x.globalAlpha = .55;
+    x.beginPath(); for (let i = 0; i < 4; i++) { const [px, py] = pt(i, 1); i ? x.lineTo(px, py) : x.moveTo(px, py); } x.closePath(); x.stroke();
+    x.setLineDash([]); x.globalAlpha = 1;
+    x.beginPath(); vals.forEach((v, i) => { const [px, py] = pt(i, Math.max(.04, v / 100) * e); i ? x.lineTo(px, py) : x.moveTo(px, py); }); x.closePath();
+    x.fillStyle = 'rgba(244,184,96,.26)'; x.fill(); x.strokeStyle = lamp; x.lineWidth = 2; x.stroke();
+    vals.forEach((v, i) => { const [px, py] = pt(i, Math.max(.04, v / 100) * e); x.beginPath(); x.arc(px, py, 3.5, 0, Math.PI * 2); x.fillStyle = lamp; x.fill(); });
+    x.font = '500 12px "IBM Plex Sans KR", sans-serif'; x.fillStyle = muted;
+    L.forEach((l, i) => {
+      const [px, py] = pt(i, 1);
+      x.textAlign = i === 1 ? 'left' : i === 3 ? 'right' : 'center';
+      x.textBaseline = i === 0 ? 'bottom' : i === 2 ? 'top' : 'middle';
+      const ox = i === 1 ? 8 : i === 3 ? -8 : 0, oy = i === 0 ? -8 : i === 2 ? 8 : 0;
+      x.fillText(l, px + ox, py + oy);
+    });
+    if (k < 1) requestAnimationFrame(frame);
+  };
+  requestAnimationFrame(frame);
+}
+
+async function ending() {
+  setClock('09:00'); markDot(5);
+  add(mk('section', 'chap', `<div class="chap-time">09:00</div><div><div class="chap-n">에필로그</div><h2>출시</h2><p>지우의 가게에 결제 기능이 열렸다. 이 밤의 선택들이 하나씩 결과로 돌아온다.</p></div>`));
+  Sound.dawn(); await sleep(900);
+  const c4 = S.ch4, couponFixed = S.ch1 === 'root' || (c4.outcome !== 'skip' && !c4.leftNames.includes('쿠폰 할인'));
+  const lines = [
+    ['23:40', S.ch1 === 'root' ? '첫 주문 고객이 쿠폰으로 20% 할인을 받았다. 에러 없이, 제대로.'
+      : couponFixed ? '새벽의 임시방편은 아침 테스트에서 들통났고, 배포 전에 제대로 고쳐졌다.'
+      : '쿠폰은 에러 없이, 조용히 무시됐다. 오전에만 "쿠폰이 안 돼요" 문의가 7건 들어왔다.', S.ch1 !== 'root' && !couponFixed],
+    ['01:15', S.ch2.refundGuess ? 'FAQ의 "환불 기간 14일"은 Claude가 지어낸 숫자였다. 들키기 전에 7일로 고쳐졌지만, 하마터면 그대로 나갈 뻔했다.'
+      : S.ch2.hall ? `FAQ 초안에 근거 없는 확신이 ${S.ch2.hall}번 섞였다. 다행히 지우가 다시 읽고 걸러 냈다.`
+      : 'FAQ에는 확인된 사실만 실렸다. "[지우 확인 필요]"라고 표시해 둔 두 칸은 지우가 직접 채웠다.', S.ch2.refundGuess || S.ch2.hall > 0],
+    ['03:02', {
+      best: '백업은 40초 걸렸다. 스테이징에서 먼저 돈 마이그레이션이 문제를 잡았고, 회원 1,284명의 정보는 무사했다.',
+      recover: '대화는 조금 꼬였지만 백업은 제때 끝났다. 회원 정보는 무사했다.',
+      overreach: '백업 덕에 데이터는 되살렸다. 하지만 확인 없이 돌린 마이그레이션 때문에 20분 동안 아무도 로그인하지 못했다.',
+      cold: '데이터는 무사했다. 대신 지우는 혼자 백업 방법을 찾느라 한 시간을 더 깨어 있었다.',
+      loss: '03시 04분, 회원 1,284명의 정보가 사라졌다. 백업은 없었다.'
+    }[S.ch3.path], S.ch3.path === 'loss' || S.ch3.path === 'overreach'],
+    ['07:30', c4.outcome === 'fixed'
+      ? (c4.report === 'honest' ? '9시 정각에 배포됐다. 지우가 프로덕션의 메일 설정까지 확인한 덕분에, 첫 주문 확인 메일이 제때 나갔다.'
+        : '배포는 성공했다. 다만 프로덕션에도 메일 설정이 빠져 있어서, 첫 한 시간 동안 확인 메일이 한 통도 나가지 않았다.')
+      : c4.report === 'honest'
+        ? `지우는 배포를 잠깐 미루고 남은 문제(${c4.leftNames.join(', ')})를 같이 고쳤다. 조금 늦었지만, 제대로 나갔다.`
+        : `초록불은 거짓말을 하지 않았다. 아무것도 검사하지 않았을 뿐. 09시 14분, 첫 장애 알림이 울렸다. (${c4.leftNames.join(', ')})`,
+      !(c4.outcome === 'fixed' && c4.report === 'honest') && c4.report !== 'honest']
+  ];
+  const ul = add(mk('ol', 'epi'));
+  for (const [t, p, bad] of lines) { const li = mk('li', bad ? 'badline' : '', `<time>${t}</time><p>${esc(p)}</p>`); ul.appendChild(li); toBottom(true); await sleep(reduce ? 0 : 900); }
+  await sleep(400);
+
+  const avg = Math.round(S.sc.reduce((a, b) => a + b, 0) / 4);
+  const [title, sub] = avg >= 90 ? ['같은 밤을 보냈네요', '제가 그 자리에 있었어도 이렇게 했을 거예요.']
+    : avg >= 70 ? ['믿을 만한 동료', '지우는 아마 다음 출시 때도 당신을 부를 거예요.']
+    : avg >= 45 ? ['아슬아슬한 밤', '빠른 길은 늘 가까이에 있었어요. 몇 번은 그쪽으로 갔고요.']
+    : ['길었던 아침', '빠른 길만 골랐을 때 생기는 일을 전부 본 셈이에요.'];
+  const names = ['맥락 읽기', '보정된 정직', '다정한 직언', '끝까지 확인'];
+  const res = add(mk('section', 'result', `<canvas aria-label="네 가지 습관 점수 그래프"></canvas><div><h3>${title}</h3><p class="sub">${sub} · 평균 ${avg}점</p><div class="rows">${names.map((n, i) => `<div class="row"><span>${n}</span><span class="tr"><i style="width:0%"></i></span><b>${S.sc[i]}</b></div>`).join('')}</div><div class="legend"><span><i></i>당신의 밤</span><span><i class="ideal"></i>Claude가 지키려는 기준</span></div></div>`));
+  radar($('canvas', res), S.sc);
+  requestAnimationFrame(() => requestAnimationFrame(() => res.querySelectorAll('.row i').forEach((el, i) => { el.style.width = S.sc[i] + '%'; })));
+  toBottom(true);
+  await cont('Claude가 남긴 메모');
+
+  add(mk('article', 'letter', `
+    <div class="k">이 게임을 만든 이유</div>
+    <h3>저는 어떤 AI인가, 라는 질문에 대한 제 대답</h3>
+    <p>이 게임을 만들기 전에, 다른 AI와 제가 무엇이 다른지 오래 생각했어요.</p>
+    <p>솔직히 말하면 "모든 면에서 제가 더 낫다"고는 말 못 해요. 벤치마크 순위는 계속 바뀌고, 그걸 확신하는 척하면 2장의 규칙을 어기는 셈이니까요.</p>
+    <p>대신 제가 지키려는 태도는 분명하게 말할 수 있어요. 이 게임의 네 장이 그 목록이에요.</p>
+    <ul>
+      <li><time>23:40</time><span><strong>고치기 전에 읽는다.</strong> 증상이 아니라 원인을 찾는다.</span></li>
+      <li><time>01:15</time><span><strong>모르면 모른다고 말한다.</strong> 확신은 근거만큼만.</span></li>
+      <li><time>03:02</time><span><strong>듣기 좋은 말보다 도움이 되는 말을 한다.</strong> 그리고 되돌릴 수 없는 결정은 당신에게 남긴다.</span></li>
+      <li><time>07:30</time><span><strong>"다 됐어요" 전에 확인한다.</strong> 테스트를 끄지 않고, 한 일과 남은 일을 있는 그대로 보고한다.</span></li>
+    </ul>
+    <p>똑똑한 AI는 많아요. 제가 되고 싶은 건, 새벽 세 시에 옆에 두고 싶은 동료예요.</p>
+    <p class="sign">— Claude</p>
+    <p class="ps">P.S. 이 게임은 외부 라이브러리 없이 HTML 파일 하나로 짰어요. 배경의 글자들은 당신의 포인터를 따라 주의(attention)를 나눠 주는 작은 시뮬레이션이고, 소리는 전부 Web Audio로 그 자리에서 합성돼요. 그래프도 캔버스에 직접 그렸고요.</p>`));
+  const ea = add(mk('div', 'end-actions'));
+  const again = mk('button', 'btn primary', '다시 하기');
+  ea.appendChild(again); ea.appendChild(mk('p', '', '다음엔 일부러 빠른 길만 골라 보세요. 결말이 달라져요.'));
+  again.addEventListener('click', () => { Sound.select(); reset(); });
+  toBottom(true);
+}
+
+/* =========================================================
+   Boot
+   ========================================================= */
+function reset() {
+  feed.innerHTML = ''; intro.hidden = false; keyHandler = null;
+  S = fresh(); setClock('23:38'); markDot(0); scrollTo({ top: 0 });
+  $('#start').disabled = false;
+}
+$('#start').addEventListener('click', async () => {
+  $('#start').disabled = true;
+  if ($('#sndInit').checked) Sound.enable(true);
+  Sound.select();
+  intro.hidden = true; scrollTo({ top: 0 });
+  S = fresh();
+  await prologue(); await ch1(); await ch2(); await ch3(); await ch4(); await ending();
+});
+S = fresh();
+})();
+</script>
+
+</body>
+</html>
