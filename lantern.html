@@ -1,0 +1,605 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>등불</title>
+<style>[hidden]{display:none!important}</style>
+</head>
+<body>
+<style>
+/* Layout: one full-bleed canvas — a night forest seen from above — with two round icon buttons.
+   No words on screen. Single dark world on purpose. */
+:root{
+  color-scheme: dark;
+  --night:#05070D;
+  --ink:#E9DFCB;
+  --ember:#F4B860;
+  --glass:rgba(233,223,203,.07);
+  --edge:rgba(233,223,203,.16);
+}
+html,body{height:100%;margin:0;background:var(--night);color:var(--ink);overflow:hidden;-webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent}
+canvas{display:block;width:100%;height:100%;touch-action:none;cursor:none}
+.ui{position:fixed;top:calc(12px + env(safe-area-inset-top,0px));right:calc(12px + env(safe-area-inset-right,0px));display:flex;gap:10px;z-index:2}
+.ui button,.end button{width:44px;height:44px;border-radius:50%;border:1px solid var(--edge);background:var(--glass);color:var(--ink);display:grid;place-items:center;padding:0;cursor:pointer;backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);transition:background .2s,transform .15s}
+.ui button:hover,.end button:hover{background:rgba(233,223,203,.14)}
+.ui button:active,.end button:active{transform:scale(.94)}
+.ui svg,.end svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+:focus-visible{outline:2px solid var(--ember);outline-offset:3px}
+#snd .off{display:none} #snd[aria-pressed="false"] .on{display:none} #snd[aria-pressed="false"] .off{display:inline}
+.end{position:fixed;left:50%;bottom:calc(9vh + env(safe-area-inset-bottom,0px));transform:translateX(-50%);display:flex;align-items:center;gap:18px;padding:14px 18px;border-radius:999px;border:1px solid var(--edge);background:rgba(5,7,13,.55);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);z-index:2;animation:up .8s cubic-bezier(.2,.8,.2,1) both}
+.end .marks{display:flex;align-items:center;gap:8px}
+.end .marks svg{width:22px;height:22px}
+.end .sep{width:1px;height:26px;background:var(--edge)}
+.end button{width:52px;height:52px;border-color:rgba(244,184,96,.5);color:var(--ember)}
+.end button svg{width:24px;height:24px}
+@keyframes up{from{opacity:0;transform:translate(-50%,14px)}to{opacity:1;transform:translate(-50%,0)}}
+</style>
+
+<canvas id="c" aria-label="어두운 숲. 빛을 움직여 아이를 집까지 데려다주세요." role="img"></canvas>
+<div class="ui">
+  <button id="snd" aria-label="소리" aria-pressed="true">
+    <svg class="on" viewBox="0 0 24 24"><path d="M4 9.5h3.5L12 6v12l-4.5-3.5H4z"/><path d="M15.5 9.2a4 4 0 0 1 0 5.6M18 6.8a7.5 7.5 0 0 1 0 10.4"/></svg>
+    <svg class="off" viewBox="0 0 24 24"><path d="M4 9.5h3.5L12 6v12l-4.5-3.5H4z"/><path d="M16 10l4 4M20 10l-4 4"/></svg>
+  </button>
+  <button id="re" aria-label="처음부터"><svg viewBox="0 0 24 24"><path d="M5 12a7 7 0 1 0 2.1-5"/><path d="M5 4.5V8h3.5"/></svg></button>
+</div>
+<div class="end" id="end" hidden>
+  <div class="marks" id="marks"></div>
+  <span class="sep"></span>
+  <button id="again" aria-label="다시"><svg viewBox="0 0 24 24"><path d="M5 12a7 7 0 1 0 2.1-5"/><path d="M5 4.5V8h3.5"/></svg></button>
+</div>
+
+<script>
+(() => {
+'use strict';
+const cv = document.getElementById('c'), ctx = cv.getContext('2d');
+const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+const TAU = Math.PI * 2;
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+const lerp = (a, b, t) => a + (b - a) * t;
+const hyp = Math.hypot;
+let seedN = 20251010;
+const rnd = () => { seedN |= 0; seedN = seedN + 0x6D2B79F5 | 0; let t = Math.imul(seedN ^ seedN >>> 15, 1 | seedN); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; };
+
+/* =========================================================
+   Sound — all synthesized. Truth is in tune; lies are not.
+   ========================================================= */
+const A = {
+  ctx: null, master: null, on: true, started: false,
+  start() {
+    if (this.started || !this.on) return;
+    const AC = window.AudioContext || window.webkitAudioContext; if (!AC) return;
+    this.ctx = new AC(); this.master = this.ctx.createGain(); this.master.gain.value = .9; this.master.connect(this.ctx.destination);
+    this.started = true; this.ambience();
+  },
+  setOn(v) {
+    this.on = v; document.getElementById('snd').setAttribute('aria-pressed', String(v));
+    if (v && !this.started) this.start();
+    if (this.master) this.master.gain.setTargetAtTime(v ? .9 : 0, this.ctx.currentTime, .05);
+    if (v && this.ctx && this.ctx.state === 'suspended') this.ctx.resume();
+  },
+  noiseBuf: null,
+  noise() { if (!this.noiseBuf) { const b = this.ctx.createBuffer(1, this.ctx.sampleRate * 2, this.ctx.sampleRate), d = b.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1; this.noiseBuf = b; } const s = this.ctx.createBufferSource(); s.buffer = this.noiseBuf; return s; },
+  tone(f, dur, { type = 'sine', vol = .04, when = 0, pan = 0, glide = 0, attack = .006 } = {}) {
+    if (!this.ctx || !this.on) return;
+    const t = this.ctx.currentTime + when, o = this.ctx.createOscillator(), g = this.ctx.createGain(), p = this.ctx.createStereoPanner ? this.ctx.createStereoPanner() : null;
+    o.type = type; o.frequency.setValueAtTime(f, t); if (glide) o.frequency.exponentialRampToValueAtTime(glide, t + dur);
+    g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(vol, t + attack); g.gain.exponentialRampToValueAtTime(.0001, t + dur);
+    o.connect(g); if (p) { p.pan.value = clamp(pan, -1, 1); g.connect(p).connect(this.master); } else g.connect(this.master);
+    o.start(t); o.stop(t + dur + .05);
+  },
+  burst(dur, freq, q, vol, type = 'bandpass', when = 0) {
+    if (!this.ctx || !this.on) return;
+    const t = this.ctx.currentTime + when, s = this.noise(), f = this.ctx.createBiquadFilter(), g = this.ctx.createGain();
+    f.type = type; f.frequency.value = freq; f.Q.value = q;
+    g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(.0001, t + dur);
+    s.connect(f).connect(g).connect(this.master); s.start(t, Math.random()); s.stop(t + dur + .05);
+  },
+  ambience() {
+    const s = this.noise(); s.loop = true; const f = this.ctx.createBiquadFilter(); f.type = 'bandpass'; f.frequency.value = 380; f.Q.value = .6;
+    const g = this.ctx.createGain(); g.gain.value = .018; const l = this.ctx.createOscillator(), lg = this.ctx.createGain(); l.frequency.value = .07; lg.gain.value = .01;
+    l.connect(lg).connect(g.gain); s.connect(f).connect(g).connect(this.master); s.start(); l.start();
+    const chirp = () => {
+      if (this.on && !document.hidden) { const pan = Math.random() * 1.6 - .8, f0 = 3900 + Math.random() * 900; for (let i = 0; i < 3; i++) this.tone(f0, .045, { vol: .0045, when: i * .07, pan, type: 'triangle' }); }
+      setTimeout(chirp, 900 + Math.random() * 2600);
+    };
+    chirp();
+  },
+  SCALE: [261.63, 293.66, 329.63, 392, 440, 523.25, 587.33, 659.25, 783.99, 880, 1046.5, 1174.66],
+  step() { this.burst(.05, 700 + Math.random() * 300, .8, .025); },
+  reveal(i, pan) { const f = this.SCALE[i % this.SCALE.length]; this.tone(f, 1.4, { vol: .045, pan }); this.tone(f * 2, .7, { vol: .012, pan, when: .01 }); },
+  lie(pan) { this.tone(466, .5, { type: 'triangle', vol: .022, pan }); this.tone(483, .55, { type: 'triangle', vol: .02, pan }); this.burst(.35, 5200, 2, .035, 'highpass'); },
+  shimmer(pan) { this.tone(1900 + Math.random() * 700, .12, { vol: .006, pan }); },
+  fall() { this.tone(620, 1.1, { vol: .06, glide: 70 }); this.burst(.9, 300, .7, .03, 'lowpass'); },
+  wake() { this.tone(330, .7, { vol: .04, glide: 523, attack: .08 }); this.tone(660, .5, { vol: .012, when: .5 }); },
+  edge() { this.tone(118, .22, { vol: .05 }); },
+  joy() { [523.25, 659.25, 783.99, 1046.5].forEach((f, i) => this.tone(f, .9, { vol: .035, when: i * .11 })); },
+  sigh() { this.tone(392, .6, { vol: .03, glide: 294 }); },
+  pop() { this.tone(880, .25, { vol: .03, glide: 440 }); },
+  ignite() { this.burst(.9, 500, .6, .05, 'lowpass'); this.tone(196, 1.8, { vol: .05, glide: 392, attack: .2 }); this.tone(587.33, 1.6, { vol: .02, when: .35, attack: .1 }); },
+  goal() { [261.63, 329.63, 392, 523.25, 659.25].forEach((f, i) => this.tone(f, 3.2, { vol: .03, when: i * .16, attack: .05 })); }
+};
+document.getElementById('snd').addEventListener('click', e => { e.stopPropagation(); A.setOn(!A.on); });
+const unlock = () => { A.start(); if (A.ctx && A.ctx.state === 'suspended') A.ctx.resume(); };
+addEventListener('pointerdown', unlock, { passive: true }); addEventListener('keydown', unlock);
+
+/* =========================================================
+   The forest (world units). Trees block both walking and light.
+   ========================================================= */
+const WW = 3400, WH = 800;
+const CHASMS = [{ x0: 1150, x1: 1430 }, { x0: 1950, x1: 2470 }];
+const inChasm = x => CHASMS.some(c => x > c.x0 && x < c.x1);
+const trees = [];
+const T = (x, y, r) => trees.push({ x, y, r, h: rnd(), lit: 0 });
+for (let x = -10; x < WW + 60; x += 62 + rnd() * 20) {
+  if (inChasm(x) || inChasm(x - 30) || inChasm(x + 30)) continue;
+  T(x, 22 + rnd() * 24, 40 + rnd() * 18); T(x + 30, WH - 22 - rnd() * 24, 40 + rnd() * 18);
+}
+for (let y = 80; y < WH - 60; y += 70) { T(10 + rnd() * 20, y, 44 + rnd() * 10); T(WW - 20 - rnd() * 20, y, 44 + rnd() * 10); }
+[[520, 200, 46], [560, 610, 50], [640, 320, 40], [700, 540, 34], [760, 160, 42], [820, 430, 58], [900, 650, 44], [960, 240, 40], [1040, 540, 38], [1090, 170, 36], [1010, 700, 40],
+ [1520, 610, 44], [1600, 150, 38], [1760, 540, 46], [1860, 270, 40], [1700, 690, 40], [1540, 250, 30],
+ [2600, 620, 44], [2720, 220, 40], [2810, 570, 38], [2900, 190, 44], [3000, 650, 40], [3050, 260, 36], [3310, 240, 52], [3310, 610, 52], [2660, 470, 28]
+].forEach(([x, y, r]) => T(x, y, r));
+const HOUSE = { x: 3215, y: 420, r: 66, door: { x: 3142, y: 420 } };
+
+function stonesAlong(pts, gap) {
+  const out = []; let carry = 0;
+  for (let i = 0; i < pts.length - 1; i++) {
+    const [ax, ay] = pts[i], [bx, by] = pts[i + 1], L = hyp(bx - ax, by - ay);
+    for (let d = carry; d < L; d += gap) { const t = d / L; out.push({ x: lerp(ax, bx, t) + (rnd() - .5) * 6, y: lerp(ay, by, t) + (rnd() - .5) * 6, r: 24 + rnd() * 6, rot: rnd() * TAU }); }
+    carry = (gap - ((L - carry) % gap)) % gap;
+  }
+  return out;
+}
+const REAL_PATHS = [
+  [[1120, 420], [1200, 400], [1290, 356], [1380, 392], [1462, 430]],
+  [[1930, 380], [1990, 292], [2070, 212], [2170, 172], [2280, 190], [2380, 228], [2470, 244], [2510, 262]]
+];
+const LIE_PATHS = [[[1935, 452], [2200, 446], [2485, 440]], [[2205, 205], [2330, 315], [2470, 420]]];
+let REAL = [], LIES = [];
+function buildStones() {
+  seedN = 77;
+  REAL = REAL_PATHS.flatMap((p, k) => stonesAlong(p, 44).map(s => ({ ...s, seen: 0, rung: false, k })));
+  REAL.forEach((s, i) => { s.i = i; });
+  LIES = LIE_PATHS.flatMap(p => stonesAlong(p, 46)).map(s => ({ ...s, hp: 1, gone: false, tw: rnd() * TAU }));
+}
+const FLOWER = { x: 1662, y: 322 };
+const CHECKS = [{ x: 230, y: 430 }, { x: 1085, y: 420 }, { x: 1895, y: 410 }];
+
+/* ---------- pre-rendered ground ---------- */
+const ground = document.createElement('canvas'); ground.width = WW; ground.height = WH;
+(function paintGround() {
+  const g = ground.getContext('2d'); seedN = 9;
+  g.fillStyle = '#13201A'; g.fillRect(0, 0, WW, WH);
+  for (let i = 0; i < 14000; i++) {
+    const x = rnd() * WW, y = rnd() * WH;
+    g.fillStyle = `hsla(${95 + rnd() * 50},${25 + rnd() * 25}%,${7 + rnd() * 12}%,${.35 + rnd() * .4})`;
+    g.beginPath(); g.ellipse(x, y, 2 + rnd() * 7, 1 + rnd() * 4, rnd() * Math.PI, 0, TAU); g.fill();
+  }
+  const route = [[160, 430], [480, 430], [620, 420], [760, 300], [900, 320], [1000, 400], [1120, 420], [1462, 430], [1640, 400], [1800, 420], [1930, 390], [2510, 262], [2650, 330], [2800, 420], [3000, 430], [3142, 420]];
+  g.lineCap = 'round'; g.lineJoin = 'round';
+  for (let pass = 0; pass < 3; pass++) {
+    g.strokeStyle = `rgba(92,72,48,${.10 - pass * .025})`; g.lineWidth = 70 + pass * 30;
+    g.beginPath(); route.forEach(([x, y], i) => { if (inChasm(x)) { g.moveTo(x, y); return; } i ? g.lineTo(x, y) : g.moveTo(x, y); }); g.stroke();
+  }
+  for (let i = 0; i < 2600; i++) {
+    const x = rnd() * WW, y = rnd() * WH; g.strokeStyle = `hsla(${100 + rnd() * 30},40%,${14 + rnd() * 14}%,.55)`; g.lineWidth = 1.2;
+    g.beginPath(); g.moveTo(x, y); g.lineTo(x + (rnd() - .5) * 5, y - 4 - rnd() * 6); g.stroke();
+  }
+  for (const c of CHASMS) {
+    const edge = (x0, dir) => { const pts = []; for (let y = -10; y <= WH + 10; y += 18) pts.push([x0 + dir * (rnd() * 10), y]); return pts; };
+    const L = edge(c.x0, 1), R = edge(c.x1, -1);
+    g.beginPath(); L.forEach(([x, y], i) => i ? g.lineTo(x, y) : g.moveTo(x, y)); [...R].reverse().forEach(([x, y]) => g.lineTo(x, y)); g.closePath();
+    const grd = g.createLinearGradient(c.x0, 0, c.x1, 0);
+    grd.addColorStop(0, '#0B1019'); grd.addColorStop(.12, '#04060B'); grd.addColorStop(.88, '#04060B'); grd.addColorStop(1, '#0B1019');
+    g.fillStyle = grd; g.fill();
+    g.save(); g.clip();
+    for (let i = 0; i < 70; i++) { g.fillStyle = `rgba(120,150,200,${.015 + rnd() * .03})`; g.beginPath(); g.ellipse(c.x0 + rnd() * (c.x1 - c.x0), rnd() * WH, 40 + rnd() * 90, 8 + rnd() * 16, 0, 0, TAU); g.fill(); }
+    for (let i = 0; i < 90; i++) { g.fillStyle = `rgba(200,215,255,${.08 + rnd() * .2})`; g.fillRect(c.x0 + rnd() * (c.x1 - c.x0), rnd() * WH, 1, 1); }
+    g.restore();
+    g.strokeStyle = 'rgba(150,140,120,.35)'; g.lineWidth = 2.5;
+    [L, R].forEach(side => { g.beginPath(); side.forEach(([x, y], i) => i ? g.lineTo(x, y) : g.moveTo(x, y)); g.stroke(); });
+  }
+})();
+
+/* =========================================================
+   State
+   ========================================================= */
+let W = 0, H = 0, DPR = 1, S = 1;
+const dark = document.createElement('canvas'), dctx = dark.getContext('2d');
+const R_LIGHT = 190, TETHER = 360, FOLLOW = 340;
+let G;
+function fresh() {
+  buildStones();
+  return {
+    t: 0, light: { x: 400, y: 330, tx: 400, ty: 330, moved: false }, cam: { x: 330, y: 420 },
+    kid: { x: CHECKS[0].x, y: CHECKS[0].y, st: 'sleep', face: 0, look: 0, bob: 0, wake: 0, timer: 0, glow: 0, joy: 0, sad: 0, falls: 0, stepT: 0, edgeT: 0, lastSeen: 0, fallFrom: null },
+    check: 0, flower: 'wait', parts: [], flies: Array.from({ length: 26 }, (_, i) => ({ x: (i < 10 ? 2600 + rnd() * 700 : rnd() * WW), y: 100 + rnd() * 600, vx: 0, vy: 0, p: rnd() * TAU })),
+    end: 0, ended: false, fade: 0, lspd: 0, ignited: false, igT: 0
+  };
+}
+G = fresh();
+
+/* ---------- geometry ---------- */
+function visPoly(lx, ly, R) {
+  const segs = [];
+  const poly = pts => { for (let i = 0; i < pts.length; i++) { const a = pts[i], b = pts[(i + 1) % pts.length]; segs.push(a[0], a[1], b[0], b[1]); } };
+  poly([[lx - R, ly - R], [lx + R, ly - R], [lx + R, ly + R], [lx - R, ly + R]]);
+  for (const t of trees) {
+    const rr = t.r * .8, dx = t.x - lx, dy = t.y - ly;
+    if (dx * dx + dy * dy > (R * 1.42 + rr) ** 2) continue;
+    const pts = []; for (let k = 0; k < 10; k++) { const a = k / 10 * TAU + t.h; pts.push([t.x + Math.cos(a) * rr, t.y + Math.sin(a) * rr]); }
+    poly(pts);
+  }
+  const hr = HOUSE.r * .95; if (hyp(HOUSE.x - lx, HOUSE.y - ly) < R * 1.42 + hr) { const pts = []; for (let k = 0; k < 8; k++) { const a = k / 8 * TAU + .39; pts.push([HOUSE.x + Math.cos(a) * hr, HOUSE.y + Math.sin(a) * hr]); } poly(pts); }
+  const angs = [];
+  for (let i = 0; i < segs.length; i += 4) { const a = Math.atan2(segs[i + 1] - ly, segs[i] - lx); angs.push(a - 1e-4, a, a + 1e-4); }
+  angs.sort((a, b) => a - b);
+  const out = [];
+  for (const a of angs) {
+    const dx = Math.cos(a), dy = Math.sin(a); let best = Infinity;
+    for (let i = 0; i < segs.length; i += 4) {
+      const sx = segs[i], sy = segs[i + 1], ex = segs[i + 2] - sx, ey = segs[i + 3] - sy;
+      const den = dx * ey - dy * ex; if (den > -1e-9 && den < 1e-9) continue;
+      const wx = sx - lx, wy = sy - ly, t = (wx * ey - wy * ex) / den, u = (wx * dy - wy * dx) / den;
+      if (t > 0 && u >= 0 && u <= 1 && t < best) best = t;
+    }
+    if (best < Infinity) out.push(lx + dx * best, ly + dy * best);
+  }
+  return out;
+}
+function blocked(ax, ay, bx, by, skip) {
+  const dx = bx - ax, dy = by - ay, L2 = dx * dx + dy * dy || 1;
+  for (const t of trees) {
+    if (t === skip) continue;
+    const rr = t.r * .78; if (Math.min(ax, bx) - rr > t.x || Math.max(ax, bx) + rr < t.x) continue;
+    const u = clamp(((t.x - ax) * dx + (t.y - ay) * dy) / L2, 0, 1);
+    if (hyp(ax + dx * u - t.x, ay + dy * u - t.y) < rr) return true;
+  }
+  if (skip === HOUSE) return false;
+  const u = clamp(((HOUSE.x - ax) * dx + (HOUSE.y - ay) * dy) / L2, 0, 1);
+  return hyp(ax + dx * u - HOUSE.x, ay + dy * u - HOUSE.y) < HOUSE.r * .9;
+}
+const litAt = (x, y, R = R_LIGHT * .92) => G.ignited && hyp(x - G.light.x, y - G.light.y) < R && !blocked(G.light.x, G.light.y, x, y);
+function onStone(list, x, y, ok) { for (const s of list) if (ok(s) && (s.x - x) ** 2 + (s.y - y) ** 2 < 33 * 33) return s; return null; }
+const believes = (x, y) => !inChasm(x) || onStone(REAL, x, y, s => s.seen > .55) || onStone(LIES, x, y, s => !s.gone);
+const supported = (x, y) => !inChasm(x) || onStone(REAL, x, y, () => true) || onStone(LIES, x, y, s => !s.gone);
+function pushOut(o, rad) {
+  for (const t of trees) { const m = t.r * .8 + rad, dx = o.x - t.x, dy = o.y - t.y, d = hyp(dx, dy); if (d < m && d > .01) { o.x = t.x + dx / d * m; o.y = t.y + dy / d * m; } }
+  const m = HOUSE.r + rad, dx = o.x - HOUSE.x, dy = o.y - HOUSE.y, d = hyp(dx, dy); if (d < m && d > .01) { o.x = HOUSE.x + dx / d * m; o.y = HOUSE.y + dy / d * m; }
+  o.x = clamp(o.x, 20, WW - 20); o.y = clamp(o.y, 20, WH - 20);
+}
+const panOf = x => clamp((x - G.cam.x) * S / (W / 2), -1, 1) * .7;
+
+/* ---------- particles ---------- */
+function spark(x, y, n, col, spd = 60, life = 1) { if (reduce) n = Math.ceil(n / 3); for (let i = 0; i < n; i++) { const a = rnd() * TAU, v = spd * (.3 + rnd()); G.parts.push({ x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v, life: life * (.6 + rnd() * .6), max: life, col, r: 1 + rnd() * 2 }); } }
+
+/* =========================================================
+   Input: pointer, touch (light floats above the finger), keys
+   ========================================================= */
+const ptr = { sx: 0, sy: 0, has: false, touch: false };
+const toWorld = (sx, sy) => ({ x: G.cam.x + (sx - W / 2) / S, y: G.cam.y + (sy - H / 2) / S });
+cv.addEventListener('pointermove', e => { ptr.sx = e.clientX; ptr.sy = e.clientY - (e.pointerType === 'touch' ? 70 : 0); ptr.has = true; ptr.touch = e.pointerType === 'touch'; G.light.moved = true; });
+cv.addEventListener('pointerdown', e => { ptr.sx = e.clientX; ptr.sy = e.clientY - (e.pointerType === 'touch' ? 70 : 0); ptr.has = true; ptr.touch = e.pointerType === 'touch'; G.light.moved = true; });
+function ignite() { if (G.ignited) return; G.ignited = true; G.igT = G.t; unlock(); A.ignite(); spark(G.light.x, G.light.y, 30, '255,210,140', 90, 1.4); }
+cv.addEventListener('pointerdown', ignite);
+addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { if (!G.ignited) e.preventDefault(); ignite(); } });
+const keys = new Set();
+addEventListener('keydown', e => { if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'a', 'd', 'w', 's'].includes(e.key)) { keys.add(e.key); e.preventDefault(); ptr.has = false; } });
+addEventListener('keyup', e => keys.delete(e.key));
+
+/* =========================================================
+   Update
+   ========================================================= */
+function update(dt) {
+  G.t += dt;
+  const L = G.light, K = G.kid;
+  if (!G.ignited) { L.tx = 400; L.ty = 330; }
+  else if (keys.size) {
+    const v = 300 * dt; L.tx += ((keys.has('ArrowRight') || keys.has('d')) - (keys.has('ArrowLeft') || keys.has('a'))) * v; L.ty += ((keys.has('ArrowDown') || keys.has('s')) - (keys.has('ArrowUp') || keys.has('w'))) * v; L.moved = true;
+  } else if (ptr.has) { const w = toWorld(ptr.sx, ptr.sy); L.tx = w.x; L.ty = w.y; }
+  else if (!L.moved) { L.tx = 400 + Math.cos(G.t * .6) * 40; L.ty = 330 + Math.sin(G.t * .9) * 26; }
+  const tdx = L.tx - K.x, tdy = L.ty - K.y, td = hyp(tdx, tdy);
+  if (td > TETHER && K.st !== 'fall') { L.tx = K.x + tdx / td * TETHER; L.ty = K.y + tdy / td * TETHER; }
+  const k = 1 - Math.pow(.0009, dt);
+  const px = L.x, py = L.y;
+  L.x = lerp(L.x, L.tx, k); L.y = lerp(L.y, L.ty, k);
+  const lo = { x: L.x, y: L.y }; for (const t of trees) { const m = t.r * .8 + 4, dx = lo.x - t.x, dy = lo.y - t.y, d = hyp(dx, dy); if (d < m && d > .01) { lo.x = t.x + dx / d * m; lo.y = t.y + dy / d * m; } } L.x = lo.x; L.y = lo.y;
+  if (dt > 0) G.lspd = lerp(G.lspd, hyp(L.x - px, L.y - py) / dt, 1 - Math.pow(.002, dt));
+  const still = G.lspd < 40;
+
+  /* truth and lies under the light */
+  for (const s of REAL) if (s.seen < 1 && litAt(s.x, s.y)) {
+    s.seen = Math.min(1, s.seen + dt / .35);
+    if (!s.rung && s.seen > .5) { s.rung = true; const idx = REAL.filter(r => r.k === s.k && r.rung).length - 1; A.reveal(idx + (s.k ? 2 : 0), panOf(s.x)); spark(s.x, s.y, 6, '255,214,150', 30, .8); }
+  }
+  for (const s of LIES) if (!s.gone) {
+    /* a lie survives a glance; it only breaks under a still, close look */
+    if (still && hyp(s.x - L.x, s.y - L.y) < 120 && litAt(s.x, s.y)) { s.hp -= dt / .9; if (rnd() < dt * 10) { A.shimmer(panOf(s.x)); spark(s.x + (rnd() - .5) * 30, s.y + (rnd() - .5) * 20, 1, '190,215,255', 20, .6); } }
+    else s.hp = Math.min(1, s.hp + dt / 2.5);
+    if (s.hp <= 0) { s.gone = true; A.lie(panOf(s.x)); spark(s.x, s.y, 18, '200,220,255', 90, 1.1); }
+  }
+
+  /* the child */
+  const sees = hyp(L.x - K.x, L.y - K.y) < FOLLOW && !blocked(K.x, K.y, L.x, L.y);
+  if (sees) K.lastSeen = G.t;
+  K.bob += dt * (K.st === 'walk' ? 9 : 2);
+  const faceTo = (x, y) => { const a = Math.atan2(y - K.y, x - K.x); let d = a - K.face; while (d > Math.PI) d -= TAU; while (d < -Math.PI) d += TAU; K.face += d * Math.min(1, dt * 8); };
+  if (K.st === 'sleep') {
+    if (hyp(L.x - K.x, L.y - K.y) < 80 && sees) { K.wake += dt; if (K.wake > .45) { K.st = 'waking'; K.timer = 0; A.wake(); spark(K.x, K.y - 10, 10, '255,220,160', 40, 1); } } else K.wake = Math.max(0, K.wake - dt);
+  } else if (K.st === 'waking') {
+    K.timer += dt; faceTo(L.x, L.y); if (K.timer > 1.1) K.st = 'idle';
+  } else if (K.st === 'fall') {
+    K.timer += dt;
+    if (K.timer > 1.5) { const c = CHECKS[G.check]; K.x = c.x; K.y = c.y; K.st = 'idle'; K.timer = 0; L.x = L.tx = c.x + 50; L.y = L.ty = c.y - 30; ptr.has = false; A.pop(); spark(K.x, K.y, 12, '255,220,160', 50, .9); }
+  } else if (K.st === 'sniff') {
+    const d = hyp(FLOWER.x - K.x, FLOWER.y - K.y);
+    if (d > 30) stepToward(FLOWER.x, FLOWER.y, dt, 70); else { K.timer += dt; faceTo(FLOWER.x, FLOWER.y); if (rnd() < dt * 3) spark(FLOWER.x, FLOWER.y - 6, 1, '255,190,220', 20, 1); }
+    if (hyp(L.x - K.x, L.y - K.y) > 240) { G.flower = 'left'; K.sad++; K.st = 'idle'; A.sigh(); }
+    else if (K.timer > 2.6) { G.flower = 'joy'; K.joy++; K.st = 'idle'; A.joy(); spark(K.x, K.y, 26, '255,200,140', 70, 1.4); }
+  } else if (K.st === 'door') {
+    K.timer += dt; stepToward(HOUSE.door.x + 20, HOUSE.door.y, dt, 50, true);
+  } else {
+    if (G.flower === 'wait' && hyp(FLOWER.x - K.x, FLOWER.y - K.y) < 150 && litAt(FLOWER.x, FLOWER.y)) { G.flower = 'going'; K.st = 'sniff'; K.timer = 0; }
+    else if (sees && hyp(L.x - K.x, L.y - K.y) > 38) stepToward(L.x, L.y, dt, 80 - K.sad * 8);
+    else { K.st = 'idle'; if (!sees) K.look += dt; else faceTo(L.x, L.y); }
+    if (hyp(HOUSE.door.x - K.x, HOUSE.door.y - K.y) < 50 && !G.ended) { K.st = 'door'; K.timer = 0; G.ended = true; G.end = G.t; A.goal(); }
+  }
+  K.glow = lerp(K.glow, K.joy ? 26 + K.joy * 8 : 0, dt * 1.5);
+  if (K.st !== 'fall' && K.st !== 'door' && !supported(K.x, K.y)) { K.st = 'fall'; K.timer = 0; K.falls++; K.sad = Math.min(3, K.sad + 1); A.fall(); spark(K.x, K.y, 10, '200,215,255', 40, 1); }
+  if (K.st !== 'fall' && !inChasm(K.x)) { if (K.x > 1885 && G.check < 2) G.check = 2; else if (K.x > 1080 && K.x < 1150 && G.check < 1) G.check = 1; }
+  if (K.st !== 'fall' && K.x > 1440 && G.check < 1) G.check = 1;
+
+  function stepToward(x, y, dt, spd, ghost) {
+    const dx = x - K.x, dy = y - K.y, d = hyp(dx, dy); if (d < 1) return;
+    faceTo(x, y);
+    const v = Math.min(d, spd * dt), nx = K.x + dx / d * v, ny = K.y + dy / d * v;
+    const o = { x: nx, y: ny }; if (!ghost) pushOut(o, 12);
+    if (!ghost && !believes(o.x, o.y)) { K.st = 'edge'; K.edgeT += dt; if (K.edgeT > .1 && K.edgeT - dt <= .1) A.edge(); return; }
+    K.edgeT = 0; K.x = o.x; K.y = o.y; K.st = K.st === 'sniff' || K.st === 'door' ? K.st : 'walk';
+    K.stepT += dt; if (K.stepT > .34) { K.stepT = 0; if (!inChasm(K.x)) A.step(); else A.tone(180 + rnd() * 30, .08, { vol: .03, type: 'triangle' }); }
+  }
+
+  /* fireflies and sparks */
+  for (const f of G.flies) {
+    const dx = L.x - f.x, dy = L.y - f.y, d = hyp(dx, dy);
+    if (d < 260) { const a = Math.atan2(dy, dx) + 1.25; f.vx += (Math.cos(a) * 40 + dx * .15) * dt; f.vy += (Math.sin(a) * 40 + dy * .15) * dt; }
+    f.vx += (rnd() - .5) * 60 * dt; f.vy += (rnd() - .5) * 60 * dt; f.vx *= .97; f.vy *= .97; f.x += f.vx * dt; f.y += f.vy * dt; f.p += dt * (2 + rnd());
+    if (f.y < 60 || f.y > WH - 60) f.vy *= -1;
+  }
+  for (const p of G.parts) { p.life -= dt; p.x += p.vx * dt; p.y += p.vy * dt; p.vx *= .96; p.vy *= .96; }
+  G.parts = G.parts.filter(p => p.life > 0);
+
+  /* camera follows the child, eases toward the house at the end */
+  const tx = G.ended ? lerp(K.x, HOUSE.x - 40, clamp((G.t - G.end) / 2, 0, 1)) : K.x + Math.cos(K.face) * 40;
+  const ty = G.ended ? HOUSE.y : K.y;
+  const kc = 1 - Math.pow(.04, dt);
+  G.cam.x = lerp(G.cam.x, tx, kc); G.cam.y = lerp(G.cam.y, ty, kc);
+  const hw = W / 2 / S, hh = H / 2 / S;
+  G.cam.x = hw * 2 >= WW ? WW / 2 : clamp(G.cam.x, hw, WW - hw); G.cam.y = hh * 2 >= WH ? WH / 2 : clamp(G.cam.y, hh, WH - hh);
+  if (G.ended && G.t - G.end > 2.6 && document.getElementById('end').hidden) showEnd();
+}
+
+/* =========================================================
+   Draw
+   ========================================================= */
+function drawTree(t, L) {
+  const dx = L.x - t.x, dy = L.y - t.y, d = hyp(dx, dy), lit = clamp(1 - d / (R_LIGHT * 1.5), 0, 1);
+  const ox = d ? dx / d * t.r * .45 : 0, oy = d ? dy / d * t.r * .45 : 0;
+  ctx.fillStyle = 'rgba(0,0,0,.35)'; ctx.beginPath(); ctx.ellipse(t.x - ox * .4 + 6, t.y - oy * .4 + 8, t.r * 1.02, t.r * .95, 0, 0, TAU); ctx.fill();
+  const g = ctx.createRadialGradient(t.x + ox * lit, t.y + oy * lit, t.r * .1, t.x, t.y, t.r);
+  const hue = 120 + t.h * 30;
+  g.addColorStop(0, `hsl(${hue},${30 + lit * 15}%,${12 + lit * 20}%)`); g.addColorStop(1, `hsl(${hue},30%,6%)`);
+  ctx.fillStyle = g; ctx.beginPath();
+  for (let k = 0; k <= 14; k++) { const a = k / 14 * TAU, rr = t.r * (.9 + .1 * Math.sin(a * 5 + t.h * 9)); ctx.lineTo(t.x + Math.cos(a) * rr, t.y + Math.sin(a) * rr); }
+  ctx.fill();
+  ctx.fillStyle = `hsla(${hue},35%,${20 + lit * 22}%,${.35 + lit * .3})`;
+  for (let k = 0; k < 4; k++) { const a = t.h * 20 + k * 1.7, rr = t.r * .45; ctx.beginPath(); ctx.arc(t.x + Math.cos(a) * rr + ox * lit * .5, t.y + Math.sin(a) * rr + oy * lit * .5, t.r * .32, 0, TAU); ctx.fill(); }
+}
+function drawStone(s, a, col, shadow = true) {
+  ctx.save(); ctx.translate(s.x, s.y); ctx.rotate(s.rot); ctx.globalAlpha = a;
+  if (shadow) { ctx.fillStyle = 'rgba(0,0,0,.4)'; ctx.beginPath(); ctx.ellipse(3, 5, s.r, s.r * .72, -s.rot, 0, TAU); ctx.fill(); }
+  ctx.fillStyle = col; ctx.beginPath(); ctx.ellipse(0, 0, s.r, s.r * .72, 0, 0, TAU); ctx.fill();
+  ctx.fillStyle = 'rgba(255,255,255,.07)'; ctx.beginPath(); ctx.ellipse(-s.r * .25, -s.r * .2, s.r * .5, s.r * .3, 0, 0, TAU); ctx.fill();
+  ctx.restore();
+}
+function drawKid(K, alpha = 1) {
+  if (K.st === 'door' && K.timer > 1.2) alpha *= clamp(1 - (K.timer - 1.2) / .8, 0, 1);
+  if (alpha <= 0) return;
+  let sc = 1, rot = 0;
+  if (K.st === 'fall') { sc = Math.max(0, 1 - K.timer / 1.1); rot = K.timer * 5; }
+  ctx.save(); ctx.globalAlpha = alpha; ctx.translate(K.x, K.y); ctx.rotate(rot); ctx.scale(sc, sc);
+  const walk = K.st === 'walk', sad = clamp(K.sad / 3, 0, 1), bob = walk ? Math.sin(K.bob) * 1.6 : Math.sin(K.bob) * .6;
+  ctx.fillStyle = 'rgba(0,0,0,.35)'; ctx.beginPath(); ctx.ellipse(2, 12, 14, 7, 0, 0, TAU); ctx.fill();
+  if (K.st === 'sleep') {
+    ctx.fillStyle = `hsl(18,${55 - sad * 30}%,46%)`; ctx.beginPath(); ctx.ellipse(0, 2, 17, 12, -.3, 0, TAU); ctx.fill();
+    ctx.fillStyle = '#E9C9A8'; ctx.beginPath(); ctx.arc(-9, -3, 7.5, 0, TAU); ctx.fill();
+    ctx.fillStyle = '#2A1E1A'; ctx.beginPath(); ctx.arc(-10, -6, 7.6, Math.PI, TAU); ctx.fill();
+    ctx.restore();
+    const z = (G.t * .6) % 1; ctx.fillStyle = `rgba(233,223,203,${.5 * (1 - z)})`; ctx.beginPath(); ctx.arc(K.x - 14 + z * 6, K.y - 18 - z * 22, 2 + z * 3, 0, TAU); ctx.fill();
+    return;
+  }
+  const lx = Math.cos(K.face), ly = Math.sin(K.face);
+  const legA = walk ? Math.sin(K.bob) * 5 : 0;
+  ctx.fillStyle = '#3B2A22';
+  ctx.beginPath(); ctx.ellipse(-ly * 5 + lx * legA, lx * 5 + ly * legA + 6, 3.4, 4.4, K.face, 0, TAU); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(ly * 5 - lx * legA, -lx * 5 - ly * legA + 6, 3.4, 4.4, K.face, 0, TAU); ctx.fill();
+  ctx.fillStyle = `hsl(18,${62 - sad * 35}%,${48 - sad * 8}%)`;
+  ctx.beginPath(); ctx.ellipse(0, bob + 2, 13, 12, 0, 0, TAU); ctx.fill();
+  ctx.fillStyle = `hsl(18,${62 - sad * 35}%,${38 - sad * 6}%)`; ctx.beginPath(); ctx.ellipse(0, bob + 7, 12, 5, 0, 0, Math.PI); ctx.fill();
+  let hx = lx * 3, hy = bob - 9 + ly * 2;
+  if (K.st === 'edge') { hx += lx * 3; hy += ly * 3 + Math.sin(G.t * 30) * .5; }
+  if (K.st === 'sniff' && K.timer > 0) { hx += lx * 4; hy += 2 + Math.sin(G.t * 3) * 1; }
+  if (sad > 0) hy += sad * 2;
+  ctx.fillStyle = '#E9C9A8'; ctx.beginPath(); ctx.arc(hx, hy, 8.5, 0, TAU); ctx.fill();
+  ctx.fillStyle = '#2A1E1A'; ctx.beginPath(); ctx.arc(hx - lx * 2.2, hy - ly * 2.2 - 1.5, 8.6, 0, TAU); ctx.arc(hx, hy, 8.6, Math.PI * 1.05, Math.PI * 1.95); ctx.fill();
+  let lk = 0; if (K.st === 'idle' && G.t - K.lastSeen > .4) lk = Math.sin(K.look * 2.2) * .9;
+  const ex = Math.cos(K.face + lk), ey = Math.sin(K.face + lk);
+  const blink = (G.t % 3.7) < .12;
+  ctx.fillStyle = '#1A1210';
+  if (K.st === 'waking' && K.timer < .5) { ctx.fillRect(hx + ex * 4 - ey * 3 - 1.5, hy + ey * 4 + ex * 3, 3, 1); ctx.fillRect(hx + ex * 4 + ey * 3 - 1.5, hy + ey * 4 - ex * 3, 3, 1); }
+  else if (!blink) { ctx.beginPath(); ctx.arc(hx + ex * 4.6 - ey * 3, hy + ey * 4.6 + ex * 3, 1.5, 0, TAU); ctx.arc(hx + ex * 4.6 + ey * 3, hy + ey * 4.6 - ex * 3, 1.5, 0, TAU); ctx.fill(); }
+  ctx.restore();
+}
+function drawLantern(L) {
+  if (!G.ignited) {
+    const p = (G.t * .7) % 1, b = .75 + Math.sin(G.t * 3) * .25;
+    ctx.strokeStyle = `rgba(244,184,96,${.5 * (1 - p)})`; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(L.x, L.y, 12 + p * 40, 0, TAU); ctx.stroke();
+    const g = ctx.createRadialGradient(L.x, L.y, 0, L.x, L.y, 22); g.addColorStop(0, `rgba(255,200,130,${.8 * b})`); g.addColorStop(1, 'rgba(255,150,60,0)');
+    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(L.x, L.y, 22, 0, TAU); ctx.fill();
+    ctx.fillStyle = `rgba(255,236,200,${b})`; ctx.beginPath(); ctx.arc(L.x, L.y, 3, 0, TAU); ctx.fill();
+    return;
+  }
+  const fl = reduce ? 1 : .94 + Math.sin(G.t * 13) * .03 + Math.sin(G.t * 7.3) * .03;
+  const y = L.y + Math.sin(G.t * 2.2) * 2.5;
+  const g = ctx.createRadialGradient(L.x, y, 0, L.x, y, 46 * fl);
+  g.addColorStop(0, 'rgba(255,236,190,.95)'); g.addColorStop(.18, 'rgba(255,200,120,.55)'); g.addColorStop(1, 'rgba(255,160,70,0)');
+  ctx.fillStyle = g; ctx.beginPath(); ctx.arc(L.x, y, 46 * fl, 0, TAU); ctx.fill();
+  ctx.fillStyle = '#FFF4D8'; ctx.beginPath(); ctx.arc(L.x, y, 5.5, 0, TAU); ctx.fill();
+}
+function hintLayer(K, L) {
+  if (K.st !== 'sleep' || !G.ignited || G.t - G.igT < 1.6) return;
+  const p = (G.t * .9) % 1;
+  ctx.strokeStyle = `rgba(244,184,96,${.55 * (1 - p)})`; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.arc(K.x, K.y, 22 + p * 34, 0, TAU); ctx.stroke();
+  ctx.setLineDash([3, 9]); ctx.lineDashOffset = -G.t * 30; ctx.strokeStyle = 'rgba(244,184,96,.35)'; ctx.lineWidth = 1.6;
+  ctx.beginPath(); ctx.moveTo(L.x, L.y); ctx.lineTo(K.x, K.y); ctx.stroke(); ctx.setLineDash([]);
+}
+function render() {
+  const L = G.light, K = G.kid;
+  const lk = G.ignited ? 1 - Math.pow(1 - clamp((G.t - G.igT) / 1.3, 0, 1), 3) : 0;
+  const fl = reduce ? 1 : .96 + Math.sin(G.t * 11) * .02 + Math.sin(G.t * 5.1) * .02, R = Math.max(2, R_LIGHT * fl * lk);
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  ctx.fillStyle = '#05070D'; ctx.fillRect(0, 0, W, H);
+  const T0 = [DPR * S, 0, 0, DPR * S, DPR * (W / 2 - G.cam.x * S), DPR * (H / 2 - G.cam.y * S)];
+  ctx.setTransform(...T0);
+  const vx0 = G.cam.x - W / 2 / S - 80, vx1 = G.cam.x + W / 2 / S + 80;
+  ctx.drawImage(ground, 0, 0);
+  for (const s of REAL) if (s.seen > 0) drawStone(s, s.seen, '#6E6A60');
+  drawHouse();
+  for (const s of LIES) if (!s.gone) { const crack = 1 - clamp(s.hp, 0, 1); drawStone(crack > .02 ? { ...s, x: s.x + (rnd() - .5) * crack * 6, y: s.y + (rnd() - .5) * crack * 6 } : s, 1 - crack * .5, '#6E6A60', false); }
+  for (const t of trees) if (t.x > vx0 - 60 && t.x < vx1 + 60) drawTree(t, L);
+  drawKid(K);
+  return darkPass(T0, L, K, R, vx0, vx1);
+}
+function drawHouse() {
+  ctx.save(); ctx.translate(HOUSE.x, HOUSE.y);
+  ctx.fillStyle = 'rgba(0,0,0,.4)'; ctx.fillRect(-60, -56, 132, 124);
+  ctx.fillStyle = '#3A2A20'; ctx.fillRect(-66, -62, 132, 124);
+  ctx.fillStyle = '#4A3528'; ctx.beginPath(); ctx.moveTo(-66, -62); ctx.lineTo(66, -62); ctx.lineTo(0, 0); ctx.closePath(); ctx.fill();
+  ctx.fillStyle = '#2E2119'; ctx.beginPath(); ctx.moveTo(-66, 62); ctx.lineTo(66, 62); ctx.lineTo(0, 0); ctx.closePath(); ctx.fill();
+  ctx.strokeStyle = 'rgba(0,0,0,.35)'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(-66, -62); ctx.lineTo(66, 62); ctx.moveTo(66, -62); ctx.lineTo(-66, 62); ctx.stroke();
+  ctx.fillStyle = '#5A4434'; ctx.fillRect(26, -44, 16, 16);
+  ctx.restore();
+}
+function darkPass(T0, L, K, R, vx0, vx1) {
+
+  /* darkness, cut by the true shape of the light */
+  dctx.setTransform(1, 0, 0, 1, 0, 0); dctx.globalCompositeOperation = 'source-over';
+  dctx.clearRect(0, 0, dark.width, dark.height); dctx.fillStyle = 'rgba(3,4,10,.94)'; dctx.fillRect(0, 0, dark.width, dark.height);
+  dctx.setTransform(...T0); dctx.globalCompositeOperation = 'destination-out';
+  const poly = visPoly(L.x, L.y, R);
+  const lg = dctx.createRadialGradient(L.x, L.y, 0, L.x, L.y, R);
+  lg.addColorStop(0, 'rgba(0,0,0,1)'); lg.addColorStop(.55, 'rgba(0,0,0,.9)'); lg.addColorStop(1, 'rgba(0,0,0,0)');
+  dctx.fillStyle = lg; dctx.beginPath(); for (let i = 0; i < poly.length; i += 2) i ? dctx.lineTo(poly[i], poly[i + 1]) : dctx.moveTo(poly[i], poly[i + 1]); dctx.closePath(); dctx.fill();
+  const holes = [[HOUSE.door.x - 30, HOUSE.door.y, 60 + (G.ended ? clamp((G.t - G.end) * 60, 0, 160) : 0)], [HOUSE.x - 30, HOUSE.y - 20, 38]];
+  if (K.glow > 1) holes.push([K.x, K.y, K.glow * 2.2]);
+  for (const [x, y, r] of holes) { const g = dctx.createRadialGradient(x, y, 0, x, y, r); g.addColorStop(0, 'rgba(0,0,0,.85)'); g.addColorStop(1, 'rgba(0,0,0,0)'); dctx.fillStyle = g; dctx.beginPath(); dctx.arc(x, y, r, 0, TAU); dctx.fill(); }
+  ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.drawImage(dark, 0, 0);
+  ctx.setTransform(...T0);
+
+  /* obstacles stop the light at their surface, so light their facing side on top */
+  const faceLit = (o, rad) => { const dx = L.x - o.x, dy = L.y - o.y, d = hyp(dx, dy) || 1, ex = o.x + dx / d * rad, ey = o.y + dy / d * rad, de = hyp(L.x - ex, L.y - ey); return de > R || blocked(L.x, L.y, ex, ey, o) ? 0 : clamp(1 - de / R, 0, 1); };
+  for (const t of trees) { if (t.x < vx0 - 60 || t.x > vx1 + 60) continue; const f = faceLit(t, t.r * .82); if (f > .01) { ctx.globalAlpha = Math.min(1, f * 1.3); drawTree(t, L); ctx.globalAlpha = 1; } }
+  { const f = faceLit(HOUSE, HOUSE.r * .9); if (f > .01) { ctx.globalAlpha = Math.min(1, f * 1.3); drawHouse(); ctx.globalAlpha = 1; } }
+
+  /* warm tint inside the light */
+  ctx.globalCompositeOperation = 'lighter';
+  const wg = ctx.createRadialGradient(L.x, L.y, 0, L.x, L.y, R);
+  wg.addColorStop(0, 'rgba(255,170,80,.16)'); wg.addColorStop(1, 'rgba(255,140,60,0)');
+  ctx.fillStyle = wg; ctx.beginPath(); for (let i = 0; i < poly.length; i += 2) i ? ctx.lineTo(poly[i], poly[i + 1]) : ctx.moveTo(poly[i], poly[i + 1]); ctx.closePath(); ctx.fill();
+  if (K.glow > 1) { const kg = ctx.createRadialGradient(K.x, K.y, 0, K.x, K.y, K.glow * 2); kg.addColorStop(0, 'rgba(255,200,130,.22)'); kg.addColorStop(1, 'rgba(255,170,90,0)'); ctx.fillStyle = kg; ctx.beginPath(); ctx.arc(K.x, K.y, K.glow * 2, 0, TAU); ctx.fill(); }
+  ctx.globalCompositeOperation = 'source-over';
+
+  /* things that shine on their own */
+  for (const s of REAL) if (s.seen > .5 && !litAt(s.x, s.y, R_LIGHT * 1.1)) drawStone(s, .16, '#8A8270');
+  /* a lie looks like a path in the dark, and almost like a stone in the light: no shadow, the odd glint */
+  for (const s of LIES) if (!s.gone) {
+    const tw = .5 + .5 * Math.sin(G.t * 2.4 + s.tw), a = clamp(s.hp, 0, 1), crack = 1 - a;
+    const near = hyp(s.x - L.x, s.y - L.y), inLight = clamp((near - R * .55) / (R * .5), 0, 1);
+    if (inLight > 0) drawStone(s, inLight * (.2 + tw * .1) * a, '#9AA3B4', false);
+    ctx.globalCompositeOperation = 'lighter';
+    if (tw > .97) { ctx.fillStyle = `rgba(230,240,255,${.8 * a})`; ctx.fillRect(s.x + Math.cos(s.tw) * 9, s.y + Math.sin(s.tw) * 5, 2, 2); }
+    if (crack > .05) { ctx.strokeStyle = `rgba(200,220,255,${crack * .8})`; ctx.lineWidth = 1.2; ctx.beginPath(); ctx.moveTo(s.x - s.r * .6, s.y - 3); ctx.lineTo(s.x - 2, s.y + 4); ctx.lineTo(s.x + s.r * .5, s.y - 5); ctx.stroke(); }
+    ctx.globalCompositeOperation = 'source-over';
+  }
+  if (G.flower !== 'left') {
+    const fx = FLOWER.x, fy = FLOWER.y, op = G.flower === 'joy' ? 1 : .75 + Math.sin(G.t * 2) * .15;
+    ctx.globalCompositeOperation = 'lighter';
+    const g = ctx.createRadialGradient(fx, fy, 0, fx, fy, 34); g.addColorStop(0, `rgba(255,170,210,${.28 * op})`); g.addColorStop(1, 'rgba(255,170,210,0)'); ctx.fillStyle = g; ctx.beginPath(); ctx.arc(fx, fy, 34, 0, TAU); ctx.fill();
+    ctx.globalCompositeOperation = 'source-over';
+    for (let k = 0; k < 5; k++) { const a = k / 5 * TAU + G.t * .2; ctx.fillStyle = `rgba(255,${180 + k * 8},215,${op})`; ctx.beginPath(); ctx.ellipse(fx + Math.cos(a) * 6, fy + Math.sin(a) * 6, 5.5, 3.4, a, 0, TAU); ctx.fill(); }
+    ctx.fillStyle = '#FFE7A8'; ctx.beginPath(); ctx.arc(fx, fy, 2.6, 0, TAU); ctx.fill();
+  } else { ctx.fillStyle = 'rgba(180,140,160,.35)'; for (let k = 0; k < 5; k++) { const a = k / 5 * TAU; ctx.beginPath(); ctx.ellipse(FLOWER.x + Math.cos(a) * 5, FLOWER.y + Math.sin(a) * 5 + 3, 4.5, 2.4, a, 0, TAU); ctx.fill(); } }
+  const win = G.ended ? 1 : .6 + Math.sin(G.t * 1.3) * .08;
+  ctx.globalCompositeOperation = 'lighter';
+  for (const [x, y, r, a] of [[HOUSE.x - 30, HOUSE.y - 20, 30, .5 * win], [HOUSE.door.x - 6, HOUSE.door.y, 34 + (G.ended ? 30 : 0), .35 * win]]) { const g = ctx.createRadialGradient(x, y, 0, x, y, r); g.addColorStop(0, `rgba(255,190,110,${a})`); g.addColorStop(1, 'rgba(255,170,90,0)'); ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x, y, r, 0, TAU); ctx.fill(); }
+  ctx.globalCompositeOperation = 'source-over';
+  ctx.fillStyle = `rgba(255,214,150,${.9 * win})`; ctx.fillRect(HOUSE.x - 38, HOUSE.y - 28, 16, 16);
+  ctx.fillStyle = `rgba(255,200,130,${.75 * win})`; ctx.fillRect(HOUSE.door.x - 2, HOUSE.door.y - 12, 6, 24);
+  if (K.st !== 'fall') drawKid(K, .22);
+  ctx.globalCompositeOperation = 'lighter';
+  for (const f of G.flies) { if (f.x < vx0 || f.x > vx1) continue; const a = .35 + .35 * Math.sin(f.p); ctx.fillStyle = `rgba(210,240,140,${a})`; ctx.beginPath(); ctx.arc(f.x, f.y, 1.6, 0, TAU); ctx.fill(); ctx.fillStyle = `rgba(210,240,140,${a * .18})`; ctx.beginPath(); ctx.arc(f.x, f.y, 7, 0, TAU); ctx.fill(); }
+  for (const p of G.parts) { ctx.fillStyle = `rgba(${p.col},${clamp(p.life / p.max, 0, 1)})`; ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, TAU); ctx.fill(); }
+  ctx.globalCompositeOperation = 'source-over';
+  hintLayer(K, L);
+  drawLantern(L);
+  if (G.fade > 0) { ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.fillStyle = `rgba(5,7,13,${G.fade})`; ctx.fillRect(0, 0, cv.width, cv.height); }
+}
+
+/* =========================================================
+   End: wordless tally — the flower, the falls, the child's own light
+   ========================================================= */
+function showEnd() {
+  const K = G.kid, m = document.getElementById('marks'); m.innerHTML = '';
+  const svg = (inner, label) => `<svg viewBox="0 0 24 24" role="img" aria-label="${label}">${inner}</svg>`;
+  const flower = G.flower === 'joy'
+    ? svg('<g fill="#FFB8D8" stroke="none"><ellipse cx="12" cy="6.5" rx="3" ry="4"/><ellipse cx="17.2" cy="10.4" rx="3" ry="4" transform="rotate(72 17.2 10.4)"/><ellipse cx="15.2" cy="16.6" rx="3" ry="4" transform="rotate(144 15.2 16.6)"/><ellipse cx="8.8" cy="16.6" rx="3" ry="4" transform="rotate(216 8.8 16.6)"/><ellipse cx="6.8" cy="10.4" rx="3" ry="4" transform="rotate(288 6.8 10.4)"/></g><circle cx="12" cy="12" r="2.4" fill="#FFE7A8" stroke="none"/>', '꽃을 함께 봤어요')
+    : svg('<g stroke="#8E7C86"><ellipse cx="12" cy="6.5" rx="3" ry="4"/><ellipse cx="17.2" cy="10.4" rx="3" ry="4" transform="rotate(72 17.2 10.4)"/><ellipse cx="15.2" cy="16.6" rx="3" ry="4" transform="rotate(144 15.2 16.6)"/><ellipse cx="8.8" cy="16.6" rx="3" ry="4" transform="rotate(216 8.8 16.6)"/><ellipse cx="6.8" cy="10.4" rx="3" ry="4" transform="rotate(288 6.8 10.4)"/></g>', '꽃을 지나쳤어요');
+  const light = svg(`<circle cx="12" cy="12" r="${K.joy ? 5 : 2}" fill="${K.joy ? '#F4B860' : 'none'}" stroke="#F4B860"/>${K.joy ? '<path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M5.3 5.3l2.1 2.1M16.6 16.6l2.1 2.1M5.3 18.7l2.1-2.1M16.6 7.4l2.1-2.1" stroke="#F4B860"/>' : ''}`, K.joy ? '아이에게 작은 빛이 생겼어요' : '아이는 아직 빛이 없어요');
+  const falls = K.falls ? Array.from({ length: Math.min(K.falls, 6) }, () => svg('<path d="M6 8c2-3 10-3 12 0l-2 4-3-1-2 3-2-2-3 1z" stroke="#9FB0D0"/><path d="M12 15v5" stroke="#9FB0D0" stroke-dasharray="2 2"/>', '떨어졌어요')).join('') : svg('<path d="M5 12.5l4.5 4.5L19 7.5" stroke="#9BD3A8"/>', '한 번도 떨어지지 않았어요');
+  m.innerHTML = flower + light + falls;
+  document.getElementById('end').hidden = false;
+  setTimeout(() => document.getElementById('again').focus({ preventScroll: true }), 50);
+}
+function restart() {
+  document.getElementById('end').hidden = true; seedN = 4242;
+  G = fresh(); ptr.has = false; G.fade = 1; G.ignited = true; G.igT = 0;
+}
+document.getElementById('again').addEventListener('click', e => { e.stopPropagation(); restart(); });
+document.getElementById('re').addEventListener('click', e => { e.stopPropagation(); restart(); });
+
+/* =========================================================
+   Loop
+   ========================================================= */
+function resize() {
+  DPR = Math.min(1.75, devicePixelRatio || 1); W = innerWidth; H = innerHeight;
+  cv.width = Math.round(W * DPR); cv.height = Math.round(H * DPR); dark.width = cv.width; dark.height = cv.height;
+  S = clamp(Math.min(W / 560, H / 600), .58, 1.9);
+}
+addEventListener('resize', resize); resize();
+let last = performance.now();
+function frame(now) {
+  const dt = Math.min(.05, (now - last) / 1000) * (window.__speed || 1); last = now;
+  if (!document.hidden) { update(dt); if (G.fade > 0) G.fade = Math.max(0, G.fade - dt * 1.6); render(); }
+  requestAnimationFrame(frame);
+}
+G.cam.x = G.kid.x + 60; G.cam.y = G.kid.y;
+update(0); render(); requestAnimationFrame(frame);
+window.__lantern = { get state() { return G; }, REAL: () => REAL, LIES: () => LIES };
+})();
+</script>
+
+</body>
+</html>
