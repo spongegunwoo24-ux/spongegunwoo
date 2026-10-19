@@ -166,157 +166,70 @@ def cable_z(x):
     return TOP_Z + (BOT_Z - TOP_Z) * (x - TOP_X) / (BOT_X - TOP_X)
 
 
-# ---------------------------------------------------------------- 언덕 (6mm 칸, 층마다 6mm)
-CELL, NI, NJ, STEP = 6.0, 15, 20, 6.0
-CORRIDOR = range(8, 12)          # 곤돌라가 지나가는 줄 (y -12..12): 집 없음
-PLAZA = [(i, j) for i in range(0, 4) for j in range(7, 13)]
+# ---------------------------------------------------------------- 언덕 (큰 계단 4단)
+TERRACES = [(-90.0, -66.0, 41.0), (-66.0, -46.0, 31.0), (-46.0, -26.0, 21.0), (-26.0, -8.0, 11.0)]
 
 
-def cell_x(i):
-    return XMIN + CELL * i
+def terrain_z(x):
+    for x0, x1, z in TERRACES:
+        if x0 <= x < x1:
+            return z
+    return GROUND
 
 
-def cell_y(j):
-    return YMIN + CELL * j
+for x0, x1, z in TERRACES:
+    box(x0, x1, YMIN, YMAX, GROUND, z, "03_hill_terrace")
+    # 곤돌라 칸이 지형에 닿지 않는지 확인
+    assert min(cable_z(x0), cable_z(x1)) - HANG - CABIN_H > z, (x0, z)
 
-
-def zlev(L):
-    return GROUND + STEP * L
-
-
-level = {}
-for i in range(NI):
-    for j in range(NJ):
-        xc, yc = cell_x(i) + 3, cell_y(j) + 3
-        v = 0.4 + 6.3 * (-xc / 90) - max(0.0, abs(yc) - 36) / 7 + rng.uniform(-0.55, 0.55)
-        level[i, j] = max(0, min(6, round(v)))
-for c in PLAZA:
-    level[c] = 6
-for i in range(4, NI):
-    lo = min(cable_z(cell_x(i)), cable_z(cell_x(i) + CELL))
-    cap = math.floor((lo - HANG - CABIN_H - 3.0 - GROUND) / STEP)
-    lv = min(cap, round(sum(level[i, j] for j in CORRIDOR) / len(CORRIDOR)))
-    for j in CORRIDOR:
-        level[i, j] = max(0, lv)
-
-for k in range(1, 7):
-    for i in range(NI):
-        j = 0
-        while j < NJ:
-            if level[i, j] >= k:
-                j2 = j
-                while j2 + 1 < NJ and level[i, j2 + 1] >= k:
-                    j2 += 1
-                box(cell_x(i), cell_x(i) + CELL, cell_y(j), cell_y(j2) + CELL,
-                    zlev(k - 1), zlev(k), "03_hill_terrace")
-                j = j2 + 1
-            else:
-                j += 1
-
-# 골목 계단길: 강가 다리에서 꼭대기 정거장 광장까지 구불구불 올라간다.
-WAYPOINTS = [(15, 3), (11, 3), (11, 6), (7, 6), (7, 4), (4, 4), (4, 6), (3, 6), (3, 7)]
-path = [WAYPOINTS[0]]
-for (a, b) in zip(WAYPOINTS, WAYPOINTS[1:]):
-    ci, cj = a
-    while (ci, cj) != b:
-        ci += (b[0] > ci) - (b[0] < ci)
-        if ci == a[0] or ci == b[0]:
-            cj += (b[1] > cj) - (b[1] < cj) if ci == b[0] else 0
-        path.append((ci, cj))
-# 중복 제거
-seen, clean = set(), []
-for c in path:
-    if c not in seen:
-        seen.add(c)
-        clean.append(c)
-path = clean
-path_set = set(path)
-
-
-def lev(c):
-    return 0 if c[0] >= NI else level[c]
-
-
-W = 2.6  # 골목 폭
-for c in path:
-    if c[0] >= NI:
-        continue
-    cx, cy = cell_x(c[0]) + 3, cell_y(c[1]) + 3
-    z = zlev(lev(c))
-    box(cx - W / 2, cx + W / 2, cy - W / 2, cy + W / 2, z, z + 0.3, "05_paths_gray")
-for a, b in zip(path, path[1:]):
-    la, lb = lev(a), lev(b)
-    lo_c, hi_c = (a, b) if la < lb else (b, a)
-    di, dj = hi_c[0] - lo_c[0], hi_c[1] - lo_c[1]
-    lcx, lcy = cell_x(lo_c[0]) + 3, cell_y(lo_c[1]) + 3
-    z0 = zlev(lev(lo_c))
-    if la == lb:
-        # 같은 높이: 두 칸 중심을 잇는 포장
-        hx, hy = cell_x(hi_c[0]) + 3, cell_y(hi_c[1]) + 3
-        box(min(lcx, hx) - W / 2, max(lcx, hx) + W / 2, min(lcy, hy) - W / 2, max(lcy, hy) + W / 2,
-            z0, z0 + 0.3, "05_paths_gray")
-        continue
-    rise = STEP * abs(la - lb)
-    n = int(round(rise / 1.5))
+# 골목 계단길: 강가 다리에서 꼭대기 정거장까지 한 줄로 올라간다.
+LANE_Y0, LANE_Y1 = -18.0, -14.0
+RUN = 8.0
+edges = [(x1, z, TERRACES[k + 1][2] if k + 1 < len(TERRACES) else GROUND)
+         for k, (x0, x1, z) in enumerate(TERRACES)]
+for x_edge, z_hi, z_lo in edges:
+    rise = z_hi - z_lo
+    n = int(round(rise / 1.25))
     for s in range(n):
-        # 낮은 칸 중심에서 높은 칸 쪽 경계까지 계단
-        f0, f1 = s / n * 3.0, 3.0 if s == n - 1 else (s + 1) / n * 3.0
-        top = z0 + rise * (s + 1) / n
-        if di:
-            xa, xb = sorted((lcx + di * f0, lcx + di * 3.0))
-            box(xa, xb, lcy - W / 2, lcy + W / 2, z0, top, "05_paths_gray")
-        else:
-            ya, yb = sorted((lcy + dj * f0, lcy + dj * 3.0))
-            box(lcx - W / 2, lcx + W / 2, ya, yb, z0, top, "05_paths_gray")
+        box(x_edge, x_edge + RUN * (n - s) / n, LANE_Y0, LANE_Y1,
+            z_lo, z_lo + rise * (s + 1) / n, "05_paths_gray")
+for k, (x0, x1, z) in enumerate(TERRACES):
+    start = -80.0 if k == 0 else x0 + RUN
+    box(start, x1, LANE_Y0, LANE_Y1, z, z + 0.3, "05_paths_gray")
+box(-80.0, -76.0, LANE_Y1, -10.0, 41.0, 41.3, "05_paths_gray")    # 정거장 입구로
+box(0.0, 1.0, LANE_Y0, LANE_Y1, GROUND, GROUND + 0.3, "05_paths_gray")
 
-# 집들
-WALLS = ["06_walls_cream", "07_walls_pink", "08_walls_sky"]
-ROOFS = ["09_roof_blue", "10_roof_orange", "19_accent_red"]
-for i in range(NI):
-    for j in range(NJ):
-        c = (i, j)
-        if c in path_set or j in CORRIDOR or c in PLAZA:
-            continue
-        x0, y0, z = cell_x(i), cell_y(j), zlev(level[c])
-        if rng.random() < 0.1:
-            tree(x0 + 3, y0 + 3, z, 0.9, rng)
-            continue
-        ux0 = x0 + rng.uniform(0.4, 0.9)
-        ux1 = x0 + CELL - rng.uniform(0.4, 0.9)
-        uy0 = y0 + rng.uniform(0.4, 0.9)
-        uy1 = y0 + CELL - rng.uniform(0.4, 0.9)
-        h = rng.choice([3.8, 4.2, 4.6, 6.4, 7.0])
-        wall = rng.choice(WALLS)
-        box(ux0, ux1, uy0, uy1, z, z + h, wall)
-        mx = (ux0 + ux1) / 2
-        # 앞(-y)면 문과 창
-        box(mx - 1.4, mx - 0.4, uy0 - 0.2, uy0, z, z + 2.0, "12_brown_details")
-        box(mx + 0.3, mx + 1.4, uy0 - 0.2, uy0, z + 1.0, z + 2.1, "15_glass")
-        if h > 5:
-            box(mx - 1.2, mx + 1.2, uy0 - 0.2, uy0, z + 3.6, z + 4.8, "15_glass")
-        kind = rng.random()
-        if kind < 0.35:
-            # 평평한 초록 옥상 + 물탱크
-            box(ux0 + 0.2, ux1 - 0.2, uy0 + 0.2, uy1 - 0.2, z + h, z + h + 0.35, "11_roof_green")
-            tx, ty = ux1 - 1.2, uy1 - 1.2
-            cyl((tx, ty, z + h), (tx, ty, z + h + 1.5), 0.8, "18_accent_yellow", n=14)
-        else:
-            gable(ux0, ux1, uy0, uy1, z + h, rng.uniform(1.4, 2.0), rng.random() < 0.6,
-                  rng.choice(ROOFS))
+# 집 6채: (가운데 x, 가운데 y, 벽 색, 지붕)
+HOUSES = [
+    (-56.0, -38.0, "06_walls_cream", "09_roof_blue"),
+    (-55.0, 28.0, "08_walls_sky", "flat"),
+    (-36.0, -32.0, "07_walls_pink", "10_roof_orange"),
+    (-37.0, 40.0, "06_walls_cream", "19_accent_red"),
+    (-17.0, -42.0, "08_walls_sky", "10_roof_orange"),
+    (-16.0, 30.0, "07_walls_pink", "09_roof_blue"),
+]
+HW, HD, HH = 11.0, 9.0, 7.5
+for k, (cx, cy, wall, roof) in enumerate(HOUSES):
+    z = terrain_z(cx)
+    x0, x1, y0, y1 = cx - HW / 2, cx + HW / 2, cy - HD / 2, cy + HD / 2
+    box(x0, x1, y0, y1, z, z + HH, wall)
+    box(cx - 1.0, cx + 1.0, y0 - 0.3, y0, z, z + 3.4, "12_brown_details")       # 문
+    for wx in (cx - 3.5, cx + 3.5):
+        box(wx - 1.0, wx + 1.0, y0 - 0.3, y0, z + 4.4, z + 6.2, "15_glass")      # 창
+    if roof == "flat":
+        box(x0 + 0.4, x1 - 0.4, y0 + 0.4, y1 - 0.4, z + HH, z + HH + 0.5, "11_roof_green")
+        cyl((x1 - 2.2, y1 - 2.2, z + HH), (x1 - 2.2, y1 - 2.2, z + HH + 2.6), 1.4,
+            "18_accent_yellow", n=20)
+    else:
+        gable(x0, x1, y0, y1, z + HH, 3.2, k % 2 == 0, roof, o=0.7)
 
-# 곤돌라 아래 통로의 키 작은 덤불
-for i in range(4, NI):
-    for j in CORRIDOR:
-        if rng.random() < 0.45:
-            x, y = cell_x(i) + rng.uniform(1.5, 4.5), cell_y(j) + rng.uniform(1.5, 4.5)
-            z = zlev(level[i, j])
-            limit = cable_z(x) - HANG - CABIN_H - 0.8
-            r = 1.1
-            if z + 2 * r < limit:
-                sphere((x, y, z + r * 0.8), r, "13_trees", n=10, squash=0.8)
+# 나무 몇 그루
+for (tx, ty) in [(-70.0, -42.0), (-76.0, 36.0), (-50.0, -54.0), (-30.0, 52.0), (-12.0, -54.0),
+                 (-3.0, 44.0), (-52.0, 6.0), (-20.0, -6.0)]:
+    tree(tx, ty, terrain_z(tx), 1.4, rng)
 
 # ---------------------------------------------------------------- 위 정거장 (언덕 꼭대기)
-z0 = zlev(6)
+z0 = TERRACES[0][2]
 SX0, SX1, SY = -88.0, -72.0, 10.0
 box(SX0, SX1, -SY, SY, z0, z0 + 0.8, "14_white_structures")               # 승강장 바닥
 box(SX0, SX0 + 1.2, -SY, SY, z0, 56.5, "14_white_structures")              # 뒷벽
@@ -388,7 +301,7 @@ def pylon(x, ground_z):
         cyl((x - 0.9, y, zc - 0.35), (x + 0.9, y, zc - 0.35), 0.3, "17_cable_dark", n=10)
 
 
-pylon(-39.0, zlev(level[8, 9]))
+pylon(-36.0, terrain_z(-36.0))
 pylon(30.0, GROUND)
 
 
@@ -429,24 +342,19 @@ def cabin(x, y, wheelchair=False):
     sphere((x - 0.55, y, f + 4.9), 0.62, "21_people_goods", n=14)                    # 머리
 
 
-for x in (-58.0, 14.0, 47.0):
+for x in (-58.0, 14.0):
     cabin(x, LINE_Y[0], wheelchair=(x == 14.0))
-for x in (-20.0, -4.0, 41.0):
+for x in (-16.0, 46.0):
     cabin(x, LINE_Y[1])
 
 # ---------------------------------------------------------------- 병원
 box(44, 72, 16, 44, GROUND, 25, "14_white_structures")
 box(50, 66, 22, 40, 25, 33, "14_white_structures")
-for zb_ in (12.5, 16.5, 21.0):
+for zb_ in (13.5, 19.5):
     x = 45.5
     while x + 2.6 <= 64.5:
         box(x, x + 2.6, 15.7, 16, zb_, zb_ + 2.0, "15_glass")
         x += 3.6
-for zb_ in (9.0, 13.0, 17.5, 21.5):
-    y = 18
-    while y + 2.6 <= 43:
-        box(43.7, 44, y, y + 2.6, zb_, zb_ + 2.0, "15_glass")
-        y += 3.6
 box(51, 57, 15.8, 16, GROUND, 9.5, "15_glass")                               # 출입문
 box(49, 59, 12, 16, 10.0, 10.6, "14_white_structures")                       # 차양
 for x in (49.3, 58.3):
@@ -478,49 +386,34 @@ box(24.5, 28.0, YMIN, YMAX, GROUND, GROUND + 0.25, "05_paths_gray")            #
 box(28.0, XMAX, -30, -26, GROUND, GROUND + 0.25, "05_paths_gray")             # 시장 앞길
 box(56, XMAX, -14, -10, GROUND, GROUND + 0.25, "05_paths_gray")               # 정거장 광장
 box(80, XMAX, -10, 4, GROUND, GROUND + 0.25, "05_paths_gray")
-box(34, 88, -48.6, -38.4, GROUND, GROUND + 0.25, "05_paths_gray")             # 시장 골목
 for k in range(5):
     x = 64 + k * 1.6
     box(x, x + 0.8, -29.6, -26.4, GROUND + 0.25, GROUND + 0.35, "14_white_structures")  # 횡단보도
 
 # 강 건너는 보행자 다리
-box(1, 27, -41, -37, GROUND + 0.2, GROUND + 1.0, "12_brown_details")
-for x in np.arange(1.5, 27, 3.1):
-    for y in (-41, -37.4):
+box(1, 27, -18, -14, GROUND + 0.2, GROUND + 1.0, "12_brown_details")
+for x in np.arange(1.5, 27, 6.2):
+    for y in (-18, -14.4):
         box(x, x + 0.4, y, y + 0.4, GROUND + 1.0, GROUND + 2.6, "12_brown_details")
-for y in (-41, -37.4):
+for y in (-18, -14.4):
     box(1, 27, y, y + 0.4, GROUND + 2.4, GROUND + 2.8, "12_brown_details")
 
-# ---------------------------------------------------------------- 시장
-x = 34.0
-idx = 0
-while x + 6 <= 88.5:
-    for row in ("A", "B"):
-        if row == "A":
-            yb, yf, d = -54.0, -49.0, 1
-        else:
-            yb, yf, d = -33.0, -38.0, -1
-        box(x, x + 6, min(yb, yf), max(yb, yf), GROUND, 7.5, "12_brown_details")
-        for px in (x + 0.2, x + 5.4):
-            yy = yf + d * 1.2
-            box(px, px + 0.4, yy - 0.2, yy + 0.2, GROUND, 8.6, "12_brown_details")
-        for s in range(4):
-            g = ("21_people_goods", "18_accent_yellow", "13_trees")[(s + idx) % 3]
-            sphere((x + 0.9 + s * 1.4, yf - d * 0.9, 8.1), 0.6, g, n=10)
-        for s in range(4):
-            col = "19_accent_red" if (s + idx) % 2 == 0 else "18_accent_yellow"
-            xs0 = x - 0.2 + s * 1.6
-            ya_, yb_ = yb, yf + d * 1.6
-            convex([(xs0, ya_, 10.0), (xs0 + 1.6, ya_, 10.0), (xs0, yb_, 8.6), (xs0 + 1.6, yb_, 8.6),
-                    (xs0, ya_, 10.3), (xs0 + 1.6, ya_, 10.3), (xs0, yb_, 8.9), (xs0 + 1.6, yb_, 8.9)], col)
-    x += 6.8
-    idx += 1
+# ---------------------------------------------------------------- 시장 (가판대 4칸)
+for k, x in enumerate((38.0, 47.0, 56.0, 65.0)):
+    yb, yf = -54.0, -49.0
+    box(x, x + 8, yb, yf, GROUND, 7.5, "12_brown_details")
+    for px in (x + 0.2, x + 7.4):
+        box(px, px + 0.4, yf + 1.0, yf + 1.4, GROUND, 8.8, "12_brown_details")
+    for s_ in range(3):
+        g = ("21_people_goods", "18_accent_yellow", "13_trees")[(s_ + k) % 3]
+        sphere((x + 1.8 + s_ * 2.2, yf - 1.0, 8.3), 0.8, g, n=12)
+    col = "19_accent_red" if k % 2 == 0 else "18_accent_yellow"
+    convex([(x - 0.2, yb, 10.2), (x + 8.2, yb, 10.2), (x - 0.2, yf + 1.8, 8.8), (x + 8.2, yf + 1.8, 8.8),
+            (x - 0.2, yb, 10.6), (x + 8.2, yb, 10.6), (x - 0.2, yf + 1.8, 9.2), (x + 8.2, yf + 1.8, 9.2)], col)
 
 # ---------------------------------------------------------------- 나무 (오른쪽)
-for (tx, ty) in [(33, -20), (37, -12), (34, 10), (38, 22), (34, 34), (38, 48), (31, -50), (31, -35),
-                 (48, 51), (58, 53), (68, 50), (78, 53), (86, 46), (86, 32), (86, 20), (40, -2),
-                 (-2, -55), (-1, 50), (2, 20), (1.5, -20)]:
-    tree(tx, ty, GROUND, rng.uniform(0.9, 1.25), rng)
+for (tx, ty) in [(34, -36), (36, 10), (36, 36), (58, 52), (80, 52), (86, 24)]:
+    tree(tx, ty, GROUND, 1.4, rng)
 
 
 # ---------------------------------------------------------------- 저장
