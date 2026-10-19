@@ -121,7 +121,7 @@ def main():
         'preview.png': dict(eye=(30, -300, 175), target=(0, -2, 14), fov=42),
         'preview_palace.png': dict(eye=(-30, -40, 55), target=(-52, 36, 7), fov=38),
         'preview_namsan.png': dict(eye=(55, -70, 70), target=(12, 0, 30), fov=42),
-        'preview_river.png': dict(eye=(-75, -105, 32), target=(0, -45, 6), fov=42),
+        'preview_river.png': dict(eye=(8, -47, 17), target=(-22, -36, 5), fov=55),
     }
     only = sys.argv[1:]
     for name, v in views.items():

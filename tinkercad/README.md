@@ -5,6 +5,10 @@ Tinkercad에서 바로 불러올 수 있는 **STL** 파일입니다. 단위는 m
 
 ![전체 미리보기](preview.png)
 
+| 경복궁·광화문 | 남산·N서울타워 | 반포대교 달빛무지개분수 |
+| --- | --- | --- |
+| ![경복궁](preview_palace.png) | ![남산](preview_namsan.png) | ![한강](preview_river.png) |
+
 ## 파일
 
 | 파일 | 설명 |
