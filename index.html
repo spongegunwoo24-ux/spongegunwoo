@@ -1737,6 +1737,126 @@
     .pw-swatch { width: 34px; height: 34px; }
 }
 
+/* =========================================================================
+   블랙아웃 - 정전된 학교 탈출 스토리 액션 게임
+   게임 화면은 일부러 사이트 테마와 무관하게 항상 어둡다. 바깥 안내 카드만 테마 토큰을 쓴다.
+   ========================================================================= */
+.bo-wrap { display: flex; flex-direction: column; gap: 16px; }
+.bo-stage {
+    position: relative; width: 100%; height: min(74vh, 640px); min-height: 380px;
+    background: #05060a; border-radius: 18px; overflow: hidden;
+    border: 1px solid #1c2130; box-shadow: 0 10px 30px rgba(0,0,0,.35);
+    touch-action: none; user-select: none; -webkit-user-select: none; cursor: crosshair;
+}
+.bo-stage:fullscreen { height: 100vh; border-radius: 0; border: none; }
+.bo-stage:-webkit-full-screen { height: 100vh; border-radius: 0; border: none; }
+.bo-stage canvas { display: block; width: 100%; height: 100%; }
+
+.bo-icons { position: absolute; right: 10px; top: 10px; display: flex; gap: 6px; z-index: 6; }
+.bo-icon-btn {
+    width: 36px; height: 36px; border-radius: 10px; border: 1px solid rgba(255,255,255,.14);
+    background: rgba(10,12,20,.6); color: #e8ecf5; font-size: 15px; cursor: pointer;
+    display: flex; align-items: center; justify-content: center; font-family: inherit;
+}
+.bo-icon-btn:hover { background: rgba(40,46,64,.8); }
+
+/* --- 오버레이 (메뉴 / 스토리 / 일시정지 / 사망 / 엔딩) --- */
+.bo-overlay {
+    position: absolute; inset: 0; z-index: 5; display: flex; align-items: center; justify-content: center;
+    padding: 24px 16px; background: radial-gradient(ellipse at center, rgba(8,10,18,.82), rgba(0,0,0,.96));
+    color: #e8ecf5; text-align: center; overflow-y: auto; cursor: default;
+}
+.bo-overlay.bo-red { background: radial-gradient(ellipse at center, rgba(60,0,6,.78), rgba(0,0,0,.97)); }
+.bo-panel { width: 100%; max-width: 560px; display: flex; flex-direction: column; align-items: center; gap: 14px; }
+.bo-logo {
+    font-size: clamp(40px, 9vw, 72px); font-weight: 900; letter-spacing: 6px; color: #f4f1e8;
+    text-shadow: 0 0 18px rgba(255,220,150,.35); animation: bo-flicker 4s infinite;
+}
+.bo-logo-sub { font-size: 14px; font-weight: 600; color: #9aa3b8; margin-top: -6px; }
+@keyframes bo-flicker {
+    0%, 18%, 22%, 60%, 63%, 100% { opacity: 1; }
+    20%, 61.5% { opacity: .25; }
+}
+.bo-btns { display: flex; flex-direction: column; gap: 8px; width: 100%; max-width: 320px; margin-top: 6px; }
+.bo-btn {
+    padding: 13px 18px; border-radius: 12px; border: 1px solid rgba(255,255,255,.16);
+    background: rgba(255,255,255,.06); color: #e8ecf5; font-size: 14px; font-weight: 800;
+    cursor: pointer; font-family: inherit; transition: background .15s, transform .1s;
+}
+.bo-btn:hover { background: rgba(255,255,255,.12); }
+.bo-btn:active { transform: scale(.98); }
+.bo-btn.primary { background: #f2c94c; color: #1b1606; border-color: #f2c94c; }
+.bo-btn.primary:hover { background: #ffd866; }
+.bo-btn.danger { background: #c62828; border-color: #c62828; color: #fff; }
+.bo-btn.ghost { background: transparent; border-color: transparent; color: #8f98ad; padding: 8px 10px; font-size: 12px; }
+.bo-chips { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; }
+.bo-chip {
+    padding: 6px 10px; border-radius: 999px; font-size: 12px; font-weight: 700; cursor: pointer;
+    border: 1px solid rgba(255,255,255,.16); background: transparent; color: #b9c1d4; font-family: inherit;
+}
+.bo-chip:hover { background: rgba(255,255,255,.1); }
+.bo-meta { font-size: 12px; font-weight: 600; color: #8f98ad; line-height: 1.7; }
+.bo-keys { font-size: 12px; color: #737c92; line-height: 1.8; max-width: 460px; }
+.bo-keys b { color: #c9d0e0; font-weight: 800; }
+
+.bo-chap-no { font-size: 12px; font-weight: 800; letter-spacing: 4px; color: #f2c94c; }
+.bo-chap-title { font-size: clamp(30px, 6vw, 44px); font-weight: 900; color: #f4f1e8; margin-top: -6px; }
+.bo-chap-place { font-size: 13px; font-weight: 600; color: #8f98ad; margin-top: -8px; }
+.bo-lines {
+    width: 100%; text-align: left; min-height: 150px; display: flex; flex-direction: column; gap: 9px;
+    font-size: 15px; line-height: 1.65; color: #d7dcea; margin-top: 4px;
+}
+.bo-line-who { display: inline-block; font-size: 11px; font-weight: 800; color: #f2c94c; margin-right: 6px; letter-spacing: .5px; }
+.bo-line.radio { color: #cfe3d2; }
+.bo-line.radio .bo-line-who { color: #7ee2a0; }
+.bo-line.ghost { color: #c7a7d8; font-style: italic; }
+.bo-story-foot { width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 6px; }
+.bo-continue { font-size: 12px; font-weight: 800; color: #f2c94c; opacity: 0; transition: opacity .3s; animation: bo-blink 1.2s infinite; }
+.bo-continue.show { opacity: 1; }
+@keyframes bo-blink { 50% { color: #8a7428; } }
+
+.bo-big { font-size: clamp(30px, 7vw, 52px); font-weight: 900; letter-spacing: 2px; }
+.bo-big.red { color: #ff4d4d; text-shadow: 0 0 22px rgba(255,0,0,.45); }
+.bo-big.gold { color: #f2c94c; text-shadow: 0 0 22px rgba(242,201,76,.35); }
+.bo-sub { font-size: 14px; color: #b9c1d4; font-weight: 600; line-height: 1.6; }
+.bo-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 8px; width: 100%; }
+.bo-stat { background: rgba(255,255,255,.05); border: 1px solid rgba(255,255,255,.1); border-radius: 12px; padding: 10px; }
+.bo-stat-l { font-size: 11px; font-weight: 700; color: #8f98ad; }
+.bo-stat-v { font-size: 18px; font-weight: 900; color: #f4f1e8; margin-top: 2px; }
+.bo-rank { font-size: 64px; font-weight: 900; color: #f2c94c; line-height: 1; text-shadow: 0 0 26px rgba(242,201,76,.4); }
+
+/* --- 터치 조작 --- */
+.bo-touch { position: absolute; inset: 0; z-index: 4; display: none; pointer-events: none; }
+.bo-touch.show { display: block; }
+.bo-joy-zone { position: absolute; left: 0; bottom: 0; width: 55%; height: 70%; pointer-events: auto; }
+.bo-joy-base {
+    position: absolute; width: 110px; height: 110px; margin: -55px 0 0 -55px; border-radius: 50%;
+    border: 2px solid rgba(255,255,255,.18); background: rgba(255,255,255,.05); display: none; pointer-events: none;
+}
+.bo-joy-knob {
+    position: absolute; left: 50%; top: 50%; width: 48px; height: 48px; margin: -24px 0 0 -24px;
+    border-radius: 50%; background: rgba(255,255,255,.28);
+}
+.bo-tbtns { position: absolute; right: 14px; bottom: 14px; display: grid; grid-template-columns: auto auto; gap: 10px; align-items: end; pointer-events: auto; }
+.bo-tbtn {
+    width: 66px; height: 66px; border-radius: 50%; border: 2px solid rgba(255,255,255,.22);
+    background: rgba(12,14,22,.55); color: #f4f1e8; font-size: 12px; font-weight: 800; font-family: inherit;
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px; line-height: 1.1;
+    -webkit-tap-highlight-color: transparent; touch-action: none;
+}
+.bo-tbtn span { font-size: 20px; }
+.bo-tbtn.big { width: 84px; height: 84px; grid-row: span 2; background: rgba(242,201,76,.18); border-color: rgba(242,201,76,.6); }
+.bo-tbtn.on { background: rgba(242,201,76,.45); }
+
+.bo-help-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px 18px; }
+.bo-help-item { font-size: 13px; color: var(--text-secondary); line-height: 1.6; }
+.bo-help-item b { color: var(--text-main); }
+
+@media (max-width: 560px) {
+    .bo-stage { height: min(72vh, 560px); min-height: 340px; border-radius: 14px; }
+    .bo-lines { font-size: 14px; min-height: 130px; }
+}
+
 </style>
 <script src="https://cdn.tailwindcss.com"></script>
 <script>
@@ -1833,6 +1953,7 @@
                     <div class="nav-item" data-tab="mixtape" id="nav-mixtape" onclick="switchTab('mixtape')"><span class="nav-icon">🎵</span><span class="nav-label">1-2 Music</span></div>
                     <div class="nav-item" data-tab="pokemon" id="nav-pokemon" onclick="switchTab('pokemon')"><span class="nav-icon">🎮</span><span class="nav-label">게임</span></div>
                     <div class="nav-item" data-tab="pixelwar" id="nav-pixelwar" onclick="switchTab('pixelwar')"><span class="nav-icon">🎨</span><span class="nav-label">픽셀 전쟁</span></div>
+                    <div class="nav-item" data-tab="blackout" id="nav-blackout" onclick="switchTab('blackout')"><span class="nav-icon">🔦</span><span class="nav-label">블랙아웃</span></div>
 
                     <div class="nav-group" id="nav-group-myprofile">
                         <div class="nav-group-header" onclick="toggleNavGroup('myprofile')">
@@ -2721,6 +2842,53 @@
                     </div>
 
                   </div>
+                </div>
+            </div>
+
+
+            <!-- =====================================================================
+                 블랙아웃: 정전된 밤의 학교에서 탈출하는 1인용 스토리 액션 게임 (5챕터)
+                 서버에 아무것도 저장하지 않는다. 진행 상황은 이 브라우저에만 남는다.
+                 ===================================================================== -->
+            <div id="tab-blackout" class="tab-content">
+                <div class="header">
+                    <h1>블랙아웃 🔦</h1>
+                    <p>정전된 밤의 학교 · 손전등 하나로 버티며 5개의 챕터를 빠져나가라</p>
+                </div>
+                <div class="bo-wrap">
+                    <div class="bo-stage" id="bo-stage">
+                        <canvas id="bo-canvas"></canvas>
+                        <div class="bo-touch" id="bo-touch">
+                            <div class="bo-joy-zone" id="bo-joy-zone">
+                                <div class="bo-joy-base" id="bo-joy-base"><div class="bo-joy-knob" id="bo-joy-knob"></div></div>
+                            </div>
+                            <div class="bo-tbtns">
+                                <button class="bo-tbtn" id="bo-btn-light"><span>🔦</span>ON/OFF</button>
+                                <button class="bo-tbtn big" id="bo-btn-focus"><span>✦</span>빛 집중</button>
+                                <button class="bo-tbtn" id="bo-btn-dash"><span>💨</span>대시</button>
+                            </div>
+                        </div>
+                        <div class="bo-icons">
+                            <button class="bo-icon-btn" id="bo-pause-btn" title="일시정지" style="display:none;">⏸</button>
+                            <button class="bo-icon-btn" id="bo-mute-btn" title="소리">🔊</button>
+                            <button class="bo-icon-btn" id="bo-full-btn" title="전체 화면">⤢</button>
+                        </div>
+                        <div class="bo-overlay" id="bo-overlay"></div>
+                    </div>
+
+                    <div class="card" style="margin-bottom:0;">
+                        <div class="card-title">🎮 조작법 & 생존 수칙</div>
+                        <div class="bo-help-grid">
+                            <div class="bo-help-item"><b>이동</b> WASD / 방향키 · <b>달리기</b> Shift (스태미나 소모)</div>
+                            <div class="bo-help-item"><b>대시</b> Space — 짧은 무적 회피. 포위됐을 때 빠져나가는 용도</div>
+                            <div class="bo-help-item"><b>조준</b> 마우스 · <b>빛 집중</b> 클릭을 꾹 (배터리 빠르게 소모)</div>
+                            <div class="bo-help-item"><b>손전등 끄기</b> F — 들키기 어려워지지만 앞이 안 보인다</div>
+                            <div class="bo-help-item">그림자는 <b>빛을 받으면 굳고</b>, 빛을 모으면 사라진다</div>
+                            <div class="bo-help-item">큰 그림자(추적자)는 <b>죽일 수 없다</b>. 빛을 모아 잠깐 멈추게 하고 도망쳐라</div>
+                            <div class="bo-help-item">휴대폰에서는 왼쪽 아래를 끌어서 이동, 오른쪽 버튼으로 행동한다</div>
+                            <div class="bo-help-item">일시정지 Esc / P · 진행 상황은 이 기기에 자동 저장된다</div>
+                        </div>
+                    </div>
                 </div>
             </div>
 
@@ -14751,6 +14919,1759 @@
         renderSelection();
     })();
 </script>
+
+<script>
+    // =========================================================================
+    // 블랙아웃 - 정전된 학교에서 탈출하는 스토리 액션 게임 (1인용)
+    //
+    //  - 5챕터. 챕터마다 제한 시간이 있고, 체력·손전등 배터리·스태미나를 관리하며 빠져나간다.
+    //  - 그림자는 빛을 받으면 굳고, 빛을 한 점에 모으면(집중) 사라진다.
+    //    추적자(큰 그림자)는 죽일 수 없고, 빛을 모아 잠깐 멈추게 할 수만 있다.
+    //  - 적 길찾기는 플레이어 위치에서 BFS로 만든 거리 지도(flow field) 하나를 모든 적이 같이 쓴다.
+    //  - 손전등 빛은 격자 레이캐스트로 벽에 막히고, 같은 레이캐스트로 "빛에 맞았는지"도 판정한다.
+    //  - 진행 상황은 이 브라우저(localStorage)에만 저장한다. Firebase/기존 모듈과는 무관하다.
+    // =========================================================================
+    (function () {
+        'use strict';
+
+        const $ = (id) => document.getElementById(id);
+        const tab = $('tab-blackout');
+        if (!tab) return;
+        const stage = $('bo-stage');
+        const cv = $('bo-canvas');
+        const ctx = cv.getContext('2d');
+        const overlay = $('bo-overlay');
+        const darkCv = document.createElement('canvas');
+        const dctx = darkCv.getContext('2d');
+
+        const TS = 32;                 // 타일 한 칸 크기 (월드 좌표)
+        const SAVE_KEY = 'bo_save_v1';
+        const MUTE_KEY = 'bo_muted_v1';
+        const FONT = 'Pretendard, "Apple SD Gothic Neo", "Malgun Gothic", sans-serif';
+
+        // 타일 종류
+        const T_FLOOR = 0, T_WALL = 1, T_DESK = 2, T_DOOR = 3, T_EXIT = 4, T_ZONE = 5, T_VENT = 6;
+
+        function loadJSON(key, def) {
+            try { const v = localStorage.getItem(key); return v == null ? def : (JSON.parse(v) ?? def); } catch (e) { return def; }
+        }
+        function saveJSON(key, v) { try { localStorage.setItem(key, JSON.stringify(v)); } catch (e) {} }
+
+        const clamp = (v, a, b) => v < a ? a : (v > b ? b : v);
+        const rand = (a, b) => a + Math.random() * (b - a);
+        const angDiff = (a, b) => { let d = a - b; while (d > Math.PI) d -= Math.PI * 2; while (d < -Math.PI) d += Math.PI * 2; return d; };
+        const fmtTime = (sec) => { sec = Math.max(0, Math.ceil(sec)); return Math.floor(sec / 60) + ':' + String(sec % 60).padStart(2, '0'); };
+        const fmtLong = (sec) => { const m = Math.floor(sec / 60), s = Math.floor(sec % 60); return m + '분 ' + String(s).padStart(2, '0') + '초'; };
+        const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+        // =====================================================================
+        // 챕터 데이터
+        //   # 벽  x 책상(이동만 막고 빛은 통과)  D 잠긴 문  E 출구  R 방송 송출 구역  z 환풍구(그림자 생성)
+        //   P 시작  s 그림자  T 추적자  B 배터리  H 구급상자  F 퓨즈  K 열쇠
+        //   radio: at(초)에 나오거나, on(사건)에 맞춰 나오는 무전/독백
+        // =====================================================================
+        const GUARD = '경비 박씨';
+        const ME = '나';
+        const LEVELS = [
+            {
+                title: '정전', place: '본관 3층 · 1학년 복도', time: 100, goal: 'reach',
+                goalText: '복도 동쪽 끝 비상계단으로', timerLabel: '방화문 잠금까지',
+                battDrain: 0.5, shadowSpeed: 88, spawn: null,
+                intro: [
+                    { text: '밤 9시 47분. 야간 자율학습 2교시.' },
+                    { text: '형광등이 한 번 깜빡이더니, 학교 전체가 한순간에 꺼졌다.' },
+                    { text: "비상등도 켜지지 않는다. 휴대폰은 전부 '서비스 없음'." },
+                    { text: '같이 남아 있던 애들은… 어느새 아무도 보이지 않는다.' },
+                    { text: '복도 끝에서, 무언가 바닥을 긁는 소리가 들려온다.' },
+                    { text: '가방 속 손전등을 켰다. 지금 믿을 건 이 빛 하나뿐이다.' }
+                ],
+                radio: [
+                    { at: 1, who: ME, text: '…일단 계단까지 가자. 복도 오른쪽 끝이다.' },
+                    { at: 6, who: GUARD, text: '치익— 들리나? 여기 경비실이다. 3층에 아직 학생 남아 있나?' },
+                    { at: 12, who: GUARD, text: '잘 들어라. 그것들은 빛을 싫어한다. 비추면 굳어 버려.' },
+                    { at: 19, who: GUARD, text: '가까이 붙으면 빛을 한 점에 모아라. (클릭을 꾹) 배터리는 빨리 닳는다.' },
+                    { at: 27, who: GUARD, text: '손전등을 끄면(F) 놈들 눈에 덜 띈다. 대신 너도 아무것도 못 보지.' },
+                    { at: 36, who: GUARD, text: '숨이 차도 달려야 할 땐 달려(Shift). 붙잡힐 것 같으면 몸을 날려(Space).' },
+                    { on: 'lowbatt', who: ME, text: '배터리가… 얼마 안 남았다. 교실에 여분이 있을지도.' },
+                    { on: 'lowtime', who: GUARD, text: '서둘러! 3층 방화문이 곧 자동으로 잠긴다!' },
+                    { on: 'hurt', who: ME, text: '윽…! 차갑다. 닿은 곳이 얼어붙는 것 같다.' }
+                ],
+                labels: [[5, 1, '1-1반'], [19, 1, '1-2반'], [34, 1, '1-3반'], [5, 12, '화장실'], [16, 12, '음악실'], [26, 12, '미술실'], [38, 12, '창고'], [40, 10, '비상계단 →']],
+                map: [
+                    "############################################",
+                    "#..........#..............#................#",
+                    "#..x.x.x...#..x.x.x.x.....#...x.x.x.x......#",
+                    "#..........#..............#................#",
+                    "#..x.x.x...#..x.x.x.x..P..#...x.x.x.x...B..#",
+                    "#..........#..............#................#",
+                    "#..x.x.x.B.#..x.x.x.x.....#...x.x.x.x......#",
+                    "##.#########.##########.###########.########",
+                    "#..........................................#",
+                    "#.....s.....................s..............E",
+                    "#..........................................#",
+                    "######.#########.############.######.#######",
+                    "#..........#.........#..........#..........#",
+                    "#..H.......#.........#..x....x..#....s.....#",
+                    "#..........#.........#..........#..........#",
+                    "############################################"
+                ]
+            },
+            {
+                title: '퓨즈', place: '본관 2층', time: 150, goal: 'collect', itemName: '퓨즈',
+                goalText: '퓨즈를 찾아라', exitText: '열린 방화문으로 — 동쪽 끝', timerLabel: '예비 전력',
+                battDrain: 0.55, shadowSpeed: 94, spawn: { every: 14, max: 7 },
+                intro: [
+                    { text: '2층으로 내려오자, 아래로 가는 방화문이 굳게 닫혀 있었다.' },
+                    { text: '전자식 잠금이다. 전기가 없으면 열리지 않는다.' },
+                    { who: GUARD, radio: true, text: '2층 배전반에서 퓨즈 세 개가 빠져 있다. …누가 일부러 뽑아 간 것 같군.' },
+                    { text: '누가. 왜.' },
+                    { text: '생각할 시간은 없다. 어둠 속 어딘가에서, 환풍구 덮개가 덜컹거렸다.' }
+                ],
+                radio: [
+                    { at: 1, who: GUARD, text: '퓨즈 신호는 여자화장실, 과학준비실, 그리고 2-1반 쪽에서 잡힌다.' },
+                    { at: 9, who: GUARD, text: '환풍구를 조심해. 놈들은 거기서 계속 기어 나온다.' },
+                    { at: 40, who: GUARD, text: '한곳에 오래 있지 마라. 놈들이 모여든다.' },
+                    { on: 'item1', who: ME, text: '하나.' },
+                    { on: 'item2', who: ME, text: '둘. 하나 남았다.' },
+                    { on: 'open', who: GUARD, text: '전기가 들어왔다! 방화문 열렸어, 복도 동쪽 끝으로!' },
+                    { on: 'lowbatt', who: ME, text: '빛이 약해진다… 배터리, 배터리를 찾아야 해.' },
+                    { on: 'lowtime', who: GUARD, text: '예비 전력이 버티질 못한다! 서둘러!' }
+                ],
+                labels: [[5, 1, '여자화장실'], [15, 1, '2-4반'], [26, 1, '2-3반'], [37, 1, '2-2반'], [5, 11, '보건실'], [18, 11, '과학준비실'], [34, 11, '2-1반'], [39, 7, '방화문']],
+                map: [
+                    "############################################",
+                    "#.........#..........#..........#..........#",
+                    "#..F......#..x.x.x...#...x.x....#......B...#",
+                    "#.........#..........#..........#..........#",
+                    "#..x.x....#..x.x.x...#...x.x....#..x.x.....#",
+                    "#.........#.....z....#..........#..........#",
+                    "####.#########.#########.###########.#######",
+                    "#........................................D.#",
+                    "#.P..............s..............s........D.E",
+                    "#........................................D.#",
+                    "#######.###########.#########.######.#######",
+                    "#..........#..............#................#",
+                    "#..s.......#....x..x..x...#..z.............#",
+                    "#..........#.......F......#.......B........#",
+                    "#...B......#....x..x..x...#.........F......#",
+                    "############################################"
+                ]
+            },
+            {
+                title: '추적자', place: '본관 1층 · 교무실 앞', time: 150, goal: 'collect', itemName: '마스터키',
+                goalText: '교무실에서 마스터키를 찾아라', exitText: '중앙 현관으로 — 남동쪽', timerLabel: '놈들이 몰려오기까지',
+                battDrain: 0.5, shadowSpeed: 96, stalkerSpeed: 124, spawn: { every: 18, max: 6 },
+                intro: [
+                    { text: '1층. 공기가 이상하리만큼 차갑다.' },
+                    { text: '복도 한가운데, 무언가가 서 있다. 다른 그림자들보다 두 배는 크다.' },
+                    { text: '그것은 아주 천천히, 고개를 이쪽으로 돌렸다.' },
+                    { who: GUARD, radio: true, text: '…그놈은 빛으로 못 죽인다. 잠깐 멈추게만 할 수 있어. 절대 멈춰 서지 마라.' },
+                    { who: GUARD, radio: true, text: '현관은 마스터키로만 열린다. 열쇠는 교무실, 교감 선생님 책상 서랍이다.' }
+                ],
+                radio: [
+                    { at: 2, who: GUARD, text: '교무실은 북쪽 가운데 방이다. 교과실 사이로 돌아가.' },
+                    { on: 'stalker', who: ME, text: '…온다. 저게 온다.' },
+                    { at: 16, who: GUARD, text: '그놈은 걷는 너보다 빠르다. 달리거나, 빛을 모아서 붙잡아 둬.' },
+                    { at: 34, who: GUARD, text: '방이 막다른 곳이면 끝이다. 문이 두 개 있는 길로 돌아.' },
+                    { on: 'item1', who: ME, text: '열쇠다…!' },
+                    { on: 'open', who: GUARD, text: '철컥— 좋아, 현관 잠금이 풀렸다! 남동쪽으로 뛰어!' },
+                    { on: 'lowbatt', who: ME, text: '안 돼, 지금 꺼지면 안 돼…' },
+                    { on: 'lowtime', who: GUARD, text: '놈들이 사방에서 몰려온다… 시간이 없어!' }
+                ],
+                labels: [[7, 1, '과학실'], [22, 1, '교무실'], [36, 1, '행정실'], [5, 8, '1층 홀'], [6, 13, '방송반 창고'], [18, 13, '급식실 통로'], [28, 13, '보건실'], [39, 13, '중앙 현관']],
+                map: [
+                    "############################################",
+                    "#..............#.............#.............#",
+                    "#..xx..xx..xx..#..x.......x..#...xx...xx...#",
+                    "#..............#.............#.............#",
+                    "#..xx..xx..xx.....x...K...x.......xx...xx..#",
+                    "#..............#.............#.............#",
+                    "#..xx..xx..xx..#..x.......x..#...xx...xx...#",
+                    "######.#########......z......#######.#######",
+                    "#..........#...###############.....#.......#",
+                    "#.P........#...............................#",
+                    "#..........#....s.........T.........s......#",
+                    "#..........................................#",
+                    "#####.######.#######.######.####.######DDD##",
+                    "#...........#...........#.......#..#.......#",
+                    "#...B.......#..s....z...#...H...#..#...E...#",
+                    "#...........#...........#.......#..#.......#",
+                    "############################################"
+                ]
+            },
+            {
+                title: '방송실', place: '별관 1층', time: 130, goal: 'hold', holdTime: 30,
+                goalText: '방송실(파란 구역)에서 비상 방송 송출', exitText: '남동쪽 비상구로', timerLabel: '비상 전력',
+                battDrain: 0.55, shadowSpeed: 98, stalkerSpeed: 120, spawn: { every: 12, max: 6 }, holdSpawn: { every: 3.2, max: 13 },
+                stalkerOn: 'halfhold',
+                intro: [
+                    { text: '현관을 나서려는 순간, 무전기 너머 박씨 아저씨의 목소리가 떨렸다.' },
+                    { who: GUARD, radio: true, text: '잠깐… 체육관에 아직 애들이 숨어 있다. 그 애들은 지금 무슨 일인지도 몰라.' },
+                    { who: GUARD, radio: true, text: '별관 방송실에서 비상 방송을 내보내야 해. 송출하는 30초 동안, 방송실을 지켜야 한다.' },
+                    { text: '그냥 도망칠 수도 있었다.' },
+                    { text: '하지만 발은 이미 별관 쪽으로 움직이고 있었다.' }
+                ],
+                radio: [
+                    { at: 1, who: GUARD, text: '방송실은 별관 한가운데다. 파란 바닥 위에 서 있으면 방송이 나간다.' },
+                    { at: 8, who: GUARD, text: '송출이 시작되면 소리를 듣고 놈들이 몰려올 거다. 각오해.' },
+                    { on: 'hold', who: GUARD, text: '송출 시작! 30초만 버텨!' },
+                    { on: 'leave', who: GUARD, text: '송출이 끊겼다! 다시 방송실 안으로!' },
+                    { on: 'halfhold', who: GUARD, text: '절반 왔다! …잠깐, 저 큰 놈이 그쪽으로 간다!' },
+                    { on: 'open', who: GUARD, text: '방송 나갔다! 애들이 움직인다… 이제 너도 나와! 남동쪽 비상구!' },
+                    { on: 'lowbatt', who: ME, text: '배터리… 제발.' },
+                    { on: 'lowtime', who: GUARD, text: '비상 전력이 끊긴다!' }
+                ],
+                labels: [[8, 1, '별관 로비'], [23, 1, '자료실'], [35, 1, '시청각실'], [23, 8, '방송실'], [7, 14, '음악실'], [23, 14, '기계실'], [32, 14, '준비실'], [40, 14, '비상구']],
+                map: [
+                    "############################################",
+                    "#z.................#.......#..............z#",
+                    "#..................#.......#...............#",
+                    "#....x....x........#...H...#.....x....x....#",
+                    "#..........................................#",
+                    "#.........#######.###.....###.#######......#",
+                    "#.........#..............................###",
+                    "#..P......#.....#####.....#####.....#......#",
+                    "#...............#RRRRRRRRRRRRR#.....#......#",
+                    "#.........#.....#RRRRRRRRRRRRR#............#",
+                    "#.........#.....#RRRRRRRRRRRRR#.....#......#",
+                    "#.........#.....######...######.....#......#",
+                    "###.......#.........................#......#",
+                    "#.........#######.###.....###.#########DD###",
+                    "#..................#.......#.........#....E#",
+                    "#...B.....x........#...z...#.....B...#.....#",
+                    "#z.................#.......#.........#.....#",
+                    "############################################"
+                ]
+            },
+            {
+                title: '정문', place: '운동장', time: 95, goal: 'collect', itemName: '정문 열쇠',
+                goalText: '경비실에서 정문 열쇠를 찾아라', exitText: '정문으로 — 동쪽 끝', timerLabel: '그림자가 운동장을 덮기까지',
+                battDrain: 0.6, shadowSpeed: 102, stalkerSpeed: 128, stalkerDelay: 3, spawn: { every: 9, max: 10 },
+                intro: [
+                    { text: '비상구를 박차고 나오자, 차가운 밤공기가 폐를 찔렀다.' },
+                    { text: '운동장 너머로 정문이 보인다. 하지만 굳게 잠겨 있다.' },
+                    { who: GUARD, radio: true, text: '정문 열쇠는 경비실에… 치익… 내가… 거기… 치이익—' },
+                    { text: '무전이 끊겼다.' },
+                    { text: '등 뒤에서, 그 큰 그림자가 비상구 문을 찢고 나오는 소리가 들렸다.' }
+                ],
+                radio: [
+                    { at: 2, who: ME, text: '경비실은… 운동장 북서쪽. 열쇠부터.' },
+                    { at: 10, who: '???', text: '…치익… …뒤를… …보지 마…' },
+                    { at: 30, who: ME, text: '숨이… 그래도 멈추면 끝이다.' },
+                    { on: 'item1', who: ME, text: '열쇠! 정문까지 달려!' },
+                    { on: 'open', who: ME, text: '열렸다—!' },
+                    { on: 'lowbatt', who: ME, text: '빛이… 꺼져 간다.' },
+                    { on: 'lowtime', who: ME, text: '바로 뒤에 있다…!' }
+                ],
+                labels: [[5, 1, '경비실'], [22, 2, '운동장'], [37, 9, '정문 →'], [20, 17, '별관 비상구']],
+                map: [
+                    "############################################",
+                    "#.........#................................#",
+                    "#.........#....x.......x.......x...........#",
+                    "#....K....#................................#",
+                    "#.........#.......s...............s........#",
+                    "######.####....x.......x.......x...........#",
+                    "#..........................................#",
+                    "#...xx.........................xx..........#",
+                    "#...xx..........s..............xx......s..D#",
+                    "#.........................................DE",
+                    "#.......x.........x........x.........x....D#",
+                    "#...................B......................#",
+                    "#........s...........................s.....#",
+                    "#..........z...................z...........#",
+                    "#....xx........xx.......xx.........xx......#",
+                    "#..........................................#",
+                    "#..................P.......................#",
+                    "#.......................T..................#",
+                    "############################################"
+                ]
+            }
+        ];
+        const ENDING = [
+            { text: '정문을 빠져나온 순간, 등 뒤의 학교에 일제히 불이 들어왔다.' },
+            { text: '돌아보니 운동장엔 아무것도 없었다. 그림자도, 발자국도.' },
+            { text: '멀리서 체육관 문이 열리고, 친구들이 뛰어나오는 게 보였다.' },
+            { text: '고맙다고 말하려고 경비실 문을 열었다.' },
+            { text: '…경비실은 텅 비어 있었다. 책상 위엔 먼지가 두껍게 쌓여 있었다.' },
+            { text: '다음 날 들은 이야기. 우리 학교 경비 박씨 아저씨는 3년 전, 정전된 밤에 돌아가셨다고 했다.' },
+            { ghost: true, text: '주머니 속 무전기에선, 아직도 가끔 치직거리는 소리가 난다.' }
+        ];
+
+        // =====================================================================
+        // 사운드 (전부 WebAudio로 즉석 합성 - 외부 파일 없음)
+        // =====================================================================
+        const Snd = (function () {
+            let ac = null, master = null, droneGain = null, noiseBuf = null;
+            let muted = !!loadJSON(MUTE_KEY, false);
+
+            function ensure() {
+                if (ac) { if (ac.state === 'suspended') ac.resume().catch(() => {}); return; }
+                const AC = window.AudioContext || window.webkitAudioContext;
+                if (!AC) return;
+                try { ac = new AC(); } catch (e) { ac = null; return; }
+                master = ac.createGain();
+                master.gain.value = muted ? 0 : 0.55;
+                master.connect(ac.destination);
+                noiseBuf = ac.createBuffer(1, ac.sampleRate, ac.sampleRate);
+                const d = noiseBuf.getChannelData(0);
+                for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+                // 낮게 웅웅거리는 배경음. 위협이 가까울수록 커진다.
+                droneGain = ac.createGain();
+                droneGain.gain.value = 0;
+                const lp = ac.createBiquadFilter();
+                lp.type = 'lowpass'; lp.frequency.value = 180;
+                [41, 41.6, 61.7].forEach((f) => {
+                    const o = ac.createOscillator();
+                    o.type = 'sawtooth'; o.frequency.value = f;
+                    o.connect(lp); o.start();
+                });
+                lp.connect(droneGain); droneGain.connect(master);
+            }
+            function tone(freq, dur, type, vol, slideTo, delay) {
+                if (!ac || muted) return;
+                const t0 = ac.currentTime + (delay || 0);
+                const o = ac.createOscillator(), g = ac.createGain();
+                o.type = type || 'sine';
+                o.frequency.setValueAtTime(freq, t0);
+                if (slideTo) o.frequency.exponentialRampToValueAtTime(slideTo, t0 + dur);
+                g.gain.setValueAtTime(0.0001, t0);
+                g.gain.exponentialRampToValueAtTime(vol || 0.2, t0 + 0.012);
+                g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+                o.connect(g); g.connect(master);
+                o.start(t0); o.stop(t0 + dur + 0.05);
+            }
+            function noise(dur, vol, freq, ftype, delay) {
+                if (!ac || muted) return;
+                const t0 = ac.currentTime + (delay || 0);
+                const s = ac.createBufferSource(); s.buffer = noiseBuf;
+                const f = ac.createBiquadFilter(); f.type = ftype || 'lowpass'; f.frequency.value = freq || 1000;
+                const g = ac.createGain();
+                g.gain.setValueAtTime(vol || 0.2, t0);
+                g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+                s.connect(f); f.connect(g); g.connect(master);
+                s.start(t0, Math.random() * 0.5); s.stop(t0 + dur + 0.05);
+            }
+            return {
+                ensure,
+                isMuted: () => muted,
+                toggleMute() {
+                    muted = !muted; saveJSON(MUTE_KEY, muted);
+                    if (master) master.gain.value = muted ? 0 : 0.55;
+                    return muted;
+                },
+                drone(level) {
+                    if (!ac || !droneGain) return;
+                    droneGain.gain.setTargetAtTime(level, ac.currentTime, 0.4);
+                },
+                heartbeat(k) {
+                    tone(62, 0.13, 'sine', 0.35 + k * 0.45, 38);
+                    tone(55, 0.13, 'sine', 0.25 + k * 0.35, 34, 0.19);
+                },
+                pickup() { tone(660, 0.09, 'triangle', 0.18); tone(990, 0.14, 'triangle', 0.16, null, 0.07); },
+                objective() { tone(523, 0.12, 'square', 0.08); tone(784, 0.12, 'square', 0.08, null, 0.1); tone(1046, 0.25, 'square', 0.08, null, 0.2); },
+                hurt() { noise(0.25, 0.45, 600); tone(140, 0.3, 'sawtooth', 0.22, 55); },
+                dash() { noise(0.18, 0.18, 2400, 'bandpass'); },
+                kill() { tone(420, 0.35, 'sawtooth', 0.09, 60); noise(0.3, 0.12, 900); },
+                door() { tone(196, 0.18, 'square', 0.1); tone(294, 0.3, 'square', 0.1, null, 0.16); noise(0.4, 0.2, 400, 'lowpass', 0.05); },
+                beep() { tone(880, 0.08, 'square', 0.07); },
+                roar() { tone(70, 0.9, 'sawtooth', 0.22, 38); noise(0.8, 0.12, 300); },
+                stun() { tone(1200, 0.25, 'sine', 0.1, 300); },
+                radio() { noise(0.12, 0.08, 3000, 'bandpass'); },
+                type() { tone(1700 + Math.random() * 300, 0.015, 'square', 0.015); },
+                click() { tone(500, 0.04, 'square', 0.05); },
+                death() { tone(220, 1.4, 'sawtooth', 0.25, 30); noise(1.2, 0.3, 500); },
+                clear() { [523, 659, 784, 1046].forEach((f, i) => tone(f, 0.3, 'triangle', 0.13, null, i * 0.11)); }
+            };
+        })();
+
+        // =====================================================================
+        // 진행 상태
+        // =====================================================================
+        let save = Object.assign({ unlocked: 0, best: null, clears: 0, bestRank: null }, loadJSON(SAVE_KEY, {}) || {});
+        let mode = 'menu';             // menu | story | play | paused | dying | dead | cleared | ending
+        let L = null;                  // 현재 챕터 런타임
+        let run = null;                // 이번 회차 통계 { fromStart, time, deaths, hits, kills }
+        const P = { x: 0, y: 0, r: 9, hp: 3, maxHp: 3, batt: 100, stam: 100, exhausted: false, inv: 0,
+                    kbx: 0, kby: 0, dashT: 0, dashX: 0, dashY: 0, dashCd: 0, aim: 0, light: true,
+                    moving: false, sprint: false, step: 0, hurtFlash: 0 };
+        let cam = { x: 0, y: 0 }, zoom = 1, shake = 0, fade = 0;
+        let cssW = 0, cssH = 0, dpr = 1;
+        let particles = [];
+        let radioQ = [], radioCur = null;
+        let hbTimer = 0, threat = 0, beepSec = -1, growlT = 3;
+        let tileCv = null;
+
+        // =====================================================================
+        // 입력
+        // =====================================================================
+        const keys = Object.create(null);
+        const input = { dash: false, mouseFocus: false, touchFocus: false, mx: -1, my: -1, joyX: 0, joyY: 0 };
+        let touchMode = !!(window.matchMedia && window.matchMedia('(pointer: coarse)').matches);
+        const GAME_KEYS = new Set(['KeyW', 'KeyA', 'KeyS', 'KeyD', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space', 'ShiftLeft', 'ShiftRight', 'KeyF', 'KeyJ']);
+        const isActive = () => tab.classList.contains('active');
+        const isTypingTarget = (e) => {
+            const t = e.target;
+            return t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable);
+        };
+
+        window.addEventListener('keydown', (e) => {
+            if (!isActive() || isTypingTarget(e)) return;
+            const c = e.code;
+            if (mode === 'play') {
+                if (GAME_KEYS.has(c)) e.preventDefault();
+                keys[c] = true;
+                if (e.repeat) return;
+                if (c === 'Space') input.dash = true;
+                else if (c === 'KeyF') toggleLight();
+                else if (c === 'Escape' || c === 'KeyP') pauseGame();
+            } else if (mode === 'story' || mode === 'ending') {
+                if (c === 'Space' || c === 'Enter') { e.preventDefault(); if (!e.repeat) advanceStory(); }
+            } else if (mode === 'paused') {
+                if ((c === 'Escape' || c === 'KeyP') && !e.repeat) resumeGame();
+            } else if (mode === 'dead') {
+                if ((c === 'Enter' || c === 'Space') && !e.repeat) { e.preventDefault(); retryChapter(); }
+            } else if (mode === 'cleared') {
+                if ((c === 'Enter' || c === 'Space') && !e.repeat) { e.preventDefault(); nextChapter(); }
+            }
+        });
+        window.addEventListener('keyup', (e) => { keys[e.code] = false; });
+        window.addEventListener('blur', () => { for (const k in keys) keys[k] = false; input.mouseFocus = false; input.touchFocus = false; });
+
+        function stagePoint(e) {
+            const r = stage.getBoundingClientRect();
+            return [e.clientX - r.left, e.clientY - r.top];
+        }
+        cv.addEventListener('pointermove', (e) => {
+            if (e.pointerType !== 'mouse') return;
+            [input.mx, input.my] = stagePoint(e);
+        });
+        cv.addEventListener('pointerdown', (e) => {
+            Snd.ensure();
+            if (e.pointerType !== 'mouse') { setTouchMode(true); return; }
+            setTouchMode(false);
+            [input.mx, input.my] = stagePoint(e);
+            if (e.button === 0) input.mouseFocus = true;
+        });
+        window.addEventListener('pointerup', (e) => { if (e.pointerType === 'mouse') input.mouseFocus = false; });
+        cv.addEventListener('contextmenu', (e) => e.preventDefault());
+
+        // --- 터치: 왼쪽은 떠다니는 조이스틱, 오른쪽은 버튼 ---
+        const touchEl = $('bo-touch'), joyZone = $('bo-joy-zone'), joyBase = $('bo-joy-base'), joyKnob = $('bo-joy-knob');
+        let joyId = null, joyCx = 0, joyCy = 0;
+        function setTouchMode(on) {
+            touchMode = on;
+            touchEl.classList.toggle('show', on && mode === 'play');
+        }
+        joyZone.addEventListener('pointerdown', (e) => {
+            Snd.ensure();
+            e.preventDefault();
+            setTouchMode(true);
+            if (joyId !== null) return;
+            joyId = e.pointerId;
+            const r = joyZone.getBoundingClientRect();
+            joyCx = e.clientX - r.left; joyCy = e.clientY - r.top;
+            joyBase.style.left = joyCx + 'px'; joyBase.style.top = joyCy + 'px'; joyBase.style.display = 'block';
+            joyKnob.style.transform = 'translate(0,0)';
+            try { joyZone.setPointerCapture(e.pointerId); } catch (err) {}
+        });
+        joyZone.addEventListener('pointermove', (e) => {
+            if (e.pointerId !== joyId) return;
+            const r = joyZone.getBoundingClientRect();
+            let dx = e.clientX - r.left - joyCx, dy = e.clientY - r.top - joyCy;
+            const d = Math.hypot(dx, dy), max = 46;
+            if (d > max) { dx = dx / d * max; dy = dy / d * max; }
+            input.joyX = dx / max; input.joyY = dy / max;
+            joyKnob.style.transform = 'translate(' + dx + 'px,' + dy + 'px)';
+        });
+        const joyEnd = (e) => {
+            if (e.pointerId !== joyId) return;
+            joyId = null; input.joyX = 0; input.joyY = 0; joyBase.style.display = 'none';
+        };
+        joyZone.addEventListener('pointerup', joyEnd);
+        joyZone.addEventListener('pointercancel', joyEnd);
+
+        const btnFocus = $('bo-btn-focus'), btnDash = $('bo-btn-dash'), btnLight = $('bo-btn-light');
+        btnFocus.addEventListener('pointerdown', (e) => { e.preventDefault(); Snd.ensure(); input.touchFocus = true; btnFocus.classList.add('on'); });
+        const focusEnd = () => { input.touchFocus = false; btnFocus.classList.remove('on'); };
+        btnFocus.addEventListener('pointerup', focusEnd);
+        btnFocus.addEventListener('pointercancel', focusEnd);
+        btnFocus.addEventListener('pointerleave', focusEnd);
+        btnDash.addEventListener('pointerdown', (e) => { e.preventDefault(); input.dash = true; });
+        btnLight.addEventListener('pointerdown', (e) => { e.preventDefault(); toggleLight(); });
+        [btnFocus, btnDash, btnLight].forEach((b) => b.addEventListener('contextmenu', (e) => e.preventDefault()));
+
+        // --- 상단 아이콘 ---
+        const muteBtn = $('bo-mute-btn'), fullBtn = $('bo-full-btn'), pauseBtn = $('bo-pause-btn');
+        const refreshMuteIcon = () => { muteBtn.textContent = Snd.isMuted() ? '🔇' : '🔊'; };
+        refreshMuteIcon();
+        muteBtn.onclick = () => { Snd.ensure(); Snd.toggleMute(); refreshMuteIcon(); };
+        pauseBtn.onclick = () => { if (mode === 'play') pauseGame(); };
+        fullBtn.onclick = () => {
+            const fsEl = document.fullscreenElement || document.webkitFullscreenElement;
+            if (fsEl) { (document.exitFullscreen || document.webkitExitFullscreen).call(document); return; }
+            const req = stage.requestFullscreen || stage.webkitRequestFullscreen;
+            if (req) { try { const p = req.call(stage); if (p && p.catch) p.catch(() => {}); } catch (e) {} }
+        };
+
+        // =====================================================================
+        // 맵
+        // =====================================================================
+        const tileAt = (tx, ty) => (tx < 0 || ty < 0 || tx >= L.W || ty >= L.H) ? T_WALL : L.grid[ty * L.W + tx];
+        const solidAt = (tx, ty) => { const t = tileAt(tx, ty); return t === T_WALL || t === T_DESK || t === T_DOOR; };
+        const opaqueAt = (tx, ty) => { const t = tileAt(tx, ty); return t === T_WALL || t === T_DOOR; };
+
+        function buildLevel(idx) {
+            const def = LEVELS[idx];
+            const H = def.map.length, W = def.map[0].length;
+            const grid = new Uint8Array(W * H);
+            const items = [], enemies = [], vents = [], doors = [];
+            let exit = null, px = TS * 1.5, py = TS * 1.5, zx = 0, zy = 0, zn = 0;
+            for (let y = 0; y < H; y++) {
+                for (let x = 0; x < W; x++) {
+                    const ch = def.map[y][x] || '#';
+                    const cx = x * TS + TS / 2, cy = y * TS + TS / 2;
+                    let t = T_FLOOR;
+                    if (ch === '#') t = T_WALL;
+                    else if (ch === 'x') t = T_DESK;
+                    else if (ch === 'D') { t = T_DOOR; doors.push(y * W + x); }
+                    else if (ch === 'E') { t = T_EXIT; exit = { tx: x, ty: y }; }
+                    else if (ch === 'R') { t = T_ZONE; zx += cx; zy += cy; zn++; }
+                    else if (ch === 'z') { t = T_VENT; vents.push({ x: cx, y: cy }); }
+                    else if ('BHFK'.includes(ch)) items.push({ type: ch, x: cx, y: cy, got: false, bob: Math.random() * 6 });
+                    else if (ch === 's') enemies.push(makeShadow(cx, cy));
+                    else if (ch === 'T') enemies.push(makeStalker(cx, cy, def.stalkerDelay || 0));
+                    else if (ch === 'P') { px = cx; py = cy; }
+                    grid[y * W + x] = t;
+                }
+            }
+            const need = items.filter((it) => it.type === 'F' || it.type === 'K').length;
+            L = {
+                def, idx, W, H, grid, items, enemies, vents, doors, exit, need, got: 0,
+                zone: zn ? { x: zx / zn, y: zy / zn } : null,
+                time: def.time, t: 0, exitOpen: def.goal === 'reach' && doors.length === 0,
+                hold: 0, holdTime: def.holdTime || 0, inZone: false, halfFired: false,
+                fired: new Set(), flow: new Int16Array(W * H), flowT: 0, flowTile: -1,
+                spawnT: def.spawn ? def.spawn.every : 0, stalkerSeen: false, lowBattFired: false, kills: 0
+            };
+            Object.assign(P, { x: px, y: py, hp: P.maxHp, batt: 100, stam: 100, exhausted: false, inv: 1.5,
+                               kbx: 0, kby: 0, dashT: 0, dashCd: 0, light: true, hurtFlash: 0 });
+            P.aim = 0;
+            particles = []; radioQ = []; radioCur = null; shake = 0; fade = 0; beepSec = -1; growlT = 3;
+            input.dash = false;
+            computeFlow(true);
+            buildTileLayer();
+            resize();
+            cam.x = P.x; cam.y = P.y;
+        }
+
+        function makeShadow(x, y) {
+            return { type: 'shadow', x, y, r: 11, hp: 1, stun: 0, aware: 0, lit: 0, wx: x, wy: y, wanderT: 0,
+                     phase: Math.random() * 6, dying: 0, flash: 0, spawnT: 0 };
+        }
+        function makeStalker(x, y, delay) {
+            return { type: 'stalker', x, y, r: 15, stun: 0, focusAcc: 0, lit: 0, phase: Math.random() * 6,
+                     dying: 0, flash: 0, wake: delay || 0, spawnT: 0 };
+        }
+
+        // 바닥/벽/책상/라벨은 거의 안 바뀌므로 한 장에 미리 그려 둔다 (문이 열릴 때만 다시 그림)
+        function buildTileLayer() {
+            tileCv = tileCv || document.createElement('canvas');
+            tileCv.width = L.W * TS; tileCv.height = L.H * TS;
+            const g = tileCv.getContext('2d');
+            const outdoor = L.idx === 4;
+            for (let y = 0; y < L.H; y++) {
+                for (let x = 0; x < L.W; x++) {
+                    const t = L.grid[y * L.W + x];
+                    const px = x * TS, py = y * TS;
+                    if (t === T_WALL) {
+                        g.fillStyle = outdoor ? '#2b3326' : '#454b59';
+                        g.fillRect(px, py, TS, TS);
+                        g.fillStyle = outdoor ? '#36402f' : '#555c6c';
+                        g.fillRect(px, py, TS, 5);
+                        g.fillStyle = 'rgba(0,0,0,.25)';
+                        g.fillRect(px, py + TS - 3, TS, 3);
+                        continue;
+                    }
+                    // 바닥
+                    if (outdoor) {
+                        g.fillStyle = ((x * 7 + y * 13) % 5 === 0) ? '#3b3226' : '#3f3629';
+                    } else {
+                        g.fillStyle = ((x + y) & 1) ? '#30343f' : '#2c303a';
+                    }
+                    g.fillRect(px, py, TS, TS);
+                    if (!outdoor) { g.strokeStyle = 'rgba(0,0,0,.18)'; g.lineWidth = 1; g.strokeRect(px + .5, py + .5, TS - 1, TS - 1); }
+                    if (t === T_ZONE) {
+                        g.fillStyle = 'rgba(56,120,220,.35)';
+                        g.fillRect(px, py, TS, TS);
+                        g.strokeStyle = 'rgba(120,180,255,.25)';
+                        g.strokeRect(px + 3.5, py + 3.5, TS - 7, TS - 7);
+                    } else if (t === T_VENT) {
+                        g.fillStyle = '#15171d';
+                        g.fillRect(px + 5, py + 5, TS - 10, TS - 10);
+                        g.strokeStyle = '#5a606e'; g.lineWidth = 2;
+                        for (let i = 0; i < 4; i++) { g.beginPath(); g.moveTo(px + 7, py + 9 + i * 5); g.lineTo(px + TS - 7, py + 9 + i * 5); g.stroke(); }
+                    } else if (t === T_DESK) {
+                        if (outdoor) {
+                            // 운동장의 나무
+                            g.fillStyle = '#1f2a1b'; g.beginPath(); g.arc(px + TS / 2, py + TS / 2, TS * 0.48, 0, Math.PI * 2); g.fill();
+                            g.fillStyle = '#2c3b25'; g.beginPath(); g.arc(px + TS / 2 - 3, py + TS / 2 - 3, TS * 0.3, 0, Math.PI * 2); g.fill();
+                        } else {
+                            g.fillStyle = '#5b4429'; g.fillRect(px + 3, py + 4, TS - 6, TS - 12);
+                            g.fillStyle = '#76593a'; g.fillRect(px + 3, py + 4, TS - 6, 4);
+                            g.fillStyle = '#3c4250'; g.fillRect(px + 9, py + TS - 7, TS - 18, 5);
+                        }
+                    } else if (t === T_DOOR) {
+                        g.fillStyle = '#6d7380'; g.fillRect(px, py, TS, TS);
+                        g.save(); g.beginPath(); g.rect(px, py, TS, TS); g.clip();
+                        g.strokeStyle = '#d4a017'; g.lineWidth = 5;
+                        for (let i = -TS; i < TS * 2; i += 12) { g.beginPath(); g.moveTo(px + i, py); g.lineTo(px + i + TS, py + TS); g.stroke(); }
+                        g.restore();
+                        g.strokeStyle = '#1b1d22'; g.lineWidth = 2; g.strokeRect(px + 1, py + 1, TS - 2, TS - 2);
+                    } else if (t === T_EXIT) {
+                        g.fillStyle = '#26402f'; g.fillRect(px + 2, py + 2, TS - 4, TS - 4);
+                    }
+                }
+            }
+            // 방 이름 - 바닥에 희미하게 (빛을 비춰야 읽힌다)
+            g.font = '800 13px ' + FONT;
+            g.textAlign = 'center'; g.textBaseline = 'middle';
+            g.fillStyle = 'rgba(230,236,250,.32)';
+            (L.def.labels || []).forEach(([x, y, text]) => g.fillText(text, x * TS + TS / 2, y * TS + TS / 2));
+        }
+
+        // 플레이어 칸에서 BFS - 모든 적이 이 거리 지도를 따라 내려온다
+        function computeFlow(force) {
+            const ptx = Math.floor(P.x / TS), pty = Math.floor(P.y / TS);
+            const key = pty * L.W + ptx;
+            if (!force && key === L.flowTile) return;
+            L.flowTile = key;
+            const f = L.flow; f.fill(-1);
+            if (solidAt(ptx, pty)) return;
+            const q = new Int32Array(L.W * L.H);
+            let head = 0, tail = 0;
+            q[tail++] = key; f[key] = 0;
+            while (head < tail) {
+                const k = q[head++], x = k % L.W, y = (k / L.W) | 0, d = f[k] + 1;
+                if (x > 0 && f[k - 1] < 0 && !solidAt(x - 1, y)) { f[k - 1] = d; q[tail++] = k - 1; }
+                if (x < L.W - 1 && f[k + 1] < 0 && !solidAt(x + 1, y)) { f[k + 1] = d; q[tail++] = k + 1; }
+                if (y > 0 && f[k - L.W] < 0 && !solidAt(x, y - 1)) { f[k - L.W] = d; q[tail++] = k - L.W; }
+                if (y < L.H - 1 && f[k + L.W] < 0 && !solidAt(x, y + 1)) { f[k + L.W] = d; q[tail++] = k + L.W; }
+            }
+        }
+        const flowAt = (tx, ty) => (tx < 0 || ty < 0 || tx >= L.W || ty >= L.H) ? -1 : L.flow[ty * L.W + tx];
+
+        // 격자 DDA 레이캐스트: (x,y)에서 ang 방향으로 maxD 안에 불투명 칸이 있으면 그 거리
+        function castRay(x, y, ang, maxD) {
+            const dx = Math.cos(ang), dy = Math.sin(ang);
+            let tx = Math.floor(x / TS), ty = Math.floor(y / TS);
+            const sx = dx > 0 ? 1 : -1, sy = dy > 0 ? 1 : -1;
+            const tdx = dx !== 0 ? Math.abs(TS / dx) : Infinity;
+            const tdy = dy !== 0 ? Math.abs(TS / dy) : Infinity;
+            let tmx = dx > 0 ? ((tx + 1) * TS - x) / dx : (dx < 0 ? (tx * TS - x) / dx : Infinity);
+            let tmy = dy > 0 ? ((ty + 1) * TS - y) / dy : (dy < 0 ? (ty * TS - y) / dy : Infinity);
+            for (let i = 0; i < 64; i++) {
+                let d;
+                if (tmx < tmy) { d = tmx; tmx += tdx; tx += sx; } else { d = tmy; tmy += tdy; ty += sy; }
+                if (d >= maxD) return maxD;
+                if (opaqueAt(tx, ty)) return d;
+            }
+            return maxD;
+        }
+        const hasLOS = (ax, ay, bx, by) => {
+            const d = Math.hypot(bx - ax, by - ay);
+            return d < 1 || castRay(ax, ay, Math.atan2(by - ay, bx - ax), d) >= d - 1;
+        };
+
+        // 원을 사각형으로 보고 축별로 밀어낸다. 빠른 이동(넉백/대시)은 잘게 쪼개서 벽을 뚫지 않게 한다.
+        function moveEnt(e, dx, dy) {
+            const steps = Math.max(1, Math.ceil(Math.max(Math.abs(dx), Math.abs(dy)) / (TS * 0.35)));
+            for (let i = 0; i < steps; i++) {
+                if (dx) { e.x += dx / steps; pushOut(e, dx > 0 ? 1 : -1, 0); }
+                if (dy) { e.y += dy / steps; pushOut(e, 0, dy > 0 ? 1 : -1); }
+            }
+        }
+        function pushOut(e, sx, sy) {
+            const r = e.r;
+            const x0 = Math.floor((e.x - r) / TS), x1 = Math.floor((e.x + r) / TS);
+            const y0 = Math.floor((e.y - r) / TS), y1 = Math.floor((e.y + r) / TS);
+            for (let ty = y0; ty <= y1; ty++) {
+                for (let tx = x0; tx <= x1; tx++) {
+                    if (!solidAt(tx, ty)) continue;
+                    const l = tx * TS, t = ty * TS;
+                    if (e.x + r <= l || e.x - r >= l + TS || e.y + r <= t || e.y - r >= t + TS) continue;
+                    if (sx > 0) e.x = l - r - 0.01;
+                    else if (sx < 0) e.x = l + TS + r + 0.01;
+                    else if (sy > 0) e.y = t - r - 0.01;
+                    else if (sy < 0) e.y = t + TS + r + 0.01;
+                }
+            }
+        }
+
+        // =====================================================================
+        // 손전등
+        // =====================================================================
+        let flickerOff = 0;
+        function beamState() {
+            const focusing = (input.mouseFocus || input.touchFocus || keys.KeyJ) && P.light && P.batt > 0;
+            const on = P.light && P.batt > 0 && flickerOff <= 0;
+            return {
+                on, focus: on && focusing,
+                ha: focusing ? 0.2 : 0.5,
+                range: focusing ? 330 : 245
+            };
+        }
+        // 0: 안 맞음, 1: 일반 빛, 2: 집중된 빛
+        function inBeam(e, B) {
+            if (!B.on) return 0;
+            const dx = e.x - P.x, dy = e.y - P.y, d = Math.hypot(dx, dy);
+            if (d > B.range + e.r) return 0;
+            if (d < e.r + P.r + 6) return B.focus ? 2 : 1;
+            const a = Math.atan2(dy, dx);
+            const allow = B.ha + Math.asin(Math.min(1, e.r / d));
+            if (Math.abs(angDiff(a, P.aim)) > allow) return 0;
+            if (castRay(P.x, P.y, a, d) < d - e.r) return 0;
+            return B.focus ? 2 : 1;
+        }
+        function toggleLight() {
+            if (mode !== 'play') return;
+            P.light = !P.light;
+            Snd.click();
+        }
+
+        // =====================================================================
+        // 무전 / 자막
+        // =====================================================================
+        function trigger(key) {
+            L.def.radio.forEach((r, i) => {
+                if (r.on === key && !L.fired.has(i)) { L.fired.add(i); radioQ.push(r); }
+            });
+        }
+        function updateRadio(dt) {
+            L.def.radio.forEach((r, i) => {
+                if (r.at !== undefined && !L.fired.has(i) && L.t >= r.at) { L.fired.add(i); radioQ.push(r); }
+            });
+            if (radioCur) {
+                radioCur.t += dt;
+                if (radioCur.t > radioCur.dur) radioCur = null;
+            }
+            if (!radioCur && radioQ.length) {
+                const r = radioQ.shift();
+                radioCur = { who: r.who, text: r.text, t: 0, dur: 2.2 + r.text.length * 0.075 };
+                if (r.who !== ME) Snd.radio();
+            }
+        }
+
+        // =====================================================================
+        // 게임 진행
+        // =====================================================================
+        function openExit() {
+            if (L.exitOpen) return;
+            L.exitOpen = true;
+            L.doors.forEach((k) => { L.grid[k] = T_FLOOR; });
+            buildTileLayer();
+            computeFlow(true);
+            Snd.door();
+            shake = Math.max(shake, 6);
+            trigger('open');
+        }
+
+        function hurtPlayer(src, dmg, power) {
+            if (P.inv > 0 || mode !== 'play') return;
+            P.hp -= dmg;
+            P.inv = 1.1;
+            P.hurtFlash = 1;
+            run.hits++;
+            const a = Math.atan2(P.y - src.y, P.x - src.x);
+            P.kbx = Math.cos(a) * power; P.kby = Math.sin(a) * power;
+            shake = Math.max(shake, 12);
+            Snd.hurt();
+            burst(P.x, P.y, 14, '#c62828', 160);
+            if (P.hp <= 0) { die(src.type === 'stalker' ? '추적자에게 붙잡혔다.' : '그림자에게 둘러싸였다.'); return; }
+            trigger('hurt');
+        }
+
+        function die(reason) {
+            mode = 'dying';
+            fade = 0;
+            run.deaths++;
+            L.deathReason = reason;
+            Snd.death();
+            Snd.drone(0);
+            touchEl.classList.remove('show');
+            pauseBtn.style.display = 'none';
+        }
+
+        function burst(x, y, n, color, spd) {
+            for (let i = 0; i < n; i++) {
+                const a = Math.random() * Math.PI * 2, s = rand(spd * 0.3, spd);
+                particles.push({ x, y, vx: Math.cos(a) * s, vy: Math.sin(a) * s, life: 0, max: rand(0.35, 0.8), color, size: rand(2, 4.5) });
+            }
+        }
+
+        function spawnShadowAtVent(minDist) {
+            const cands = L.vents.filter((v) => Math.hypot(v.x - P.x, v.y - P.y) > minDist);
+            if (!cands.length) return false;
+            const v = cands[(Math.random() * cands.length) | 0];
+            const s = makeShadow(v.x, v.y);
+            s.spawnT = 0.8; s.aware = 6;
+            L.enemies.push(s);
+            burst(v.x, v.y, 10, '#2a1638', 70);
+            return true;
+        }
+
+        function update(dt) {
+            L.t += dt;
+            run.time += dt;
+            L.time -= dt;
+            const def = L.def;
+
+            // ---------- 플레이어 ----------
+            let mx = 0, my = 0;
+            if (keys.KeyA || keys.ArrowLeft) mx -= 1;
+            if (keys.KeyD || keys.ArrowRight) mx += 1;
+            if (keys.KeyW || keys.ArrowUp) my -= 1;
+            if (keys.KeyS || keys.ArrowDown) my += 1;
+            let jm = 0;
+            if (touchMode && (input.joyX || input.joyY)) {
+                mx = input.joyX; my = input.joyY;
+                jm = Math.hypot(mx, my);
+            }
+            let ml = Math.hypot(mx, my);
+            if (ml > 1) { mx /= ml; my /= ml; ml = 1; }
+            P.moving = ml > 0.15;
+
+            const wantSprint = (keys.ShiftLeft || keys.ShiftRight || (touchMode && jm > 0.92));
+            if (P.stam <= 0) P.exhausted = true;
+            if (P.exhausted && P.stam > 35) P.exhausted = false;
+            P.sprint = wantSprint && P.moving && !P.exhausted;
+            if (P.sprint) P.stam = Math.max(0, P.stam - 28 * dt);
+            else P.stam = Math.min(100, P.stam + (P.moving ? 14 : 22) * dt);
+
+            const speed = P.sprint ? 186 : (P.exhausted ? 92 : 118);
+            let vx = mx * speed, vy = my * speed;
+
+            P.dashCd -= dt;
+            if (input.dash) {
+                input.dash = false;
+                if (P.dashCd <= 0 && P.stam >= 25) {
+                    const a = P.moving ? Math.atan2(my, mx) : P.aim;
+                    P.dashX = Math.cos(a); P.dashY = Math.sin(a);
+                    P.dashT = 0.17; P.dashCd = 0.55; P.stam -= 25;
+                    P.inv = Math.max(P.inv, 0.3);
+                    Snd.dash();
+                }
+            }
+            if (P.dashT > 0) {
+                P.dashT -= dt;
+                vx = P.dashX * 560; vy = P.dashY * 560;
+                particles.push({ x: P.x, y: P.y, vx: 0, vy: 0, life: 0, max: 0.25, color: 'rgba(120,150,255,.5)', size: 7 });
+            }
+            const kd = Math.exp(-9 * dt);
+            P.kbx *= kd; P.kby *= kd;
+            moveEnt(P, (vx + P.kbx) * dt, (vy + P.kby) * dt);
+            P.inv -= dt;
+            P.hurtFlash = Math.max(0, P.hurtFlash - dt * 1.6);
+            if (P.moving) P.step += dt * (P.sprint ? 14 : 9);
+
+            // 조준: 마우스 > 터치(이동 방향 + 집중 시 근처 적 보정)
+            if (!touchMode && input.mx >= 0) {
+                const [sx, sy] = w2s(P.x, P.y);
+                P.aim = Math.atan2(input.my - sy, input.mx - sx);
+            } else if (touchMode) {
+                if (P.moving) {
+                    const target = Math.atan2(my, mx);
+                    P.aim += angDiff(target, P.aim) * Math.min(1, dt * 12);
+                }
+                if (input.touchFocus) {
+                    let best = null, bd = 1e9;
+                    L.enemies.forEach((e) => {
+                        if (e.dying) return;
+                        const d = Math.hypot(e.x - P.x, e.y - P.y);
+                        const a = Math.atan2(e.y - P.y, e.x - P.x);
+                        if (d < 300 && Math.abs(angDiff(a, P.aim)) < 0.9 && d < bd && hasLOS(P.x, P.y, e.x, e.y)) { bd = d; best = a; }
+                    });
+                    if (best !== null) P.aim += angDiff(best, P.aim) * Math.min(1, dt * 8);
+                }
+            }
+
+            // 배터리
+            const B0 = beamState();
+            if (P.light && P.batt > 0) P.batt = Math.max(0, P.batt - (B0.focus ? 6.5 : def.battDrain) * dt);
+            if (P.batt < 20 && P.light && P.batt > 0) {
+                if (flickerOff > 0) flickerOff -= dt;
+                else if (Math.random() < dt * (P.batt < 8 ? 2.2 : 0.8)) flickerOff = rand(0.05, 0.22);
+            } else flickerOff = 0;
+            if (P.batt < 18 && !L.lowBattFired) { L.lowBattFired = true; trigger('lowbatt'); }
+            const B = beamState();
+
+            // ---------- 아이템 ----------
+            L.items.forEach((it) => {
+                if (it.got) return;
+                if (Math.hypot(it.x - P.x, it.y - P.y) > 20) return;
+                if (it.type === 'B') { P.batt = Math.min(100, P.batt + 45); it.got = true; Snd.pickup(); if (P.batt >= 18) L.lowBattFired = false; }
+                else if (it.type === 'H') { if (P.hp >= P.maxHp) return; P.hp++; it.got = true; Snd.pickup(); }
+                else {
+                    it.got = true; L.got++; Snd.objective();
+                    burst(it.x, it.y, 18, '#f2c94c', 120);
+                    trigger('item' + L.got);
+                    if (L.got >= L.need) openExit();
+                }
+            });
+
+            // ---------- 방송 송출 (챕터 4) ----------
+            if (def.goal === 'hold' && !L.exitOpen) {
+                const inZone = tileAt(Math.floor(P.x / TS), Math.floor(P.y / TS)) === T_ZONE;
+                if (inZone && !L.inZone) trigger('hold');
+                if (!inZone && L.inZone && L.hold > 0.5) trigger('leave');
+                L.inZone = inZone;
+                if (inZone) {
+                    L.hold += dt;
+                    if (!L.halfFired && L.hold >= L.holdTime / 2) {
+                        L.halfFired = true;
+                        trigger('halfhold');
+                        if (def.stalkerOn === 'halfhold') {
+                            const far = L.vents.slice().sort((a, b) => Math.hypot(b.x - P.x, b.y - P.y) - Math.hypot(a.x - P.x, a.y - P.y))[0];
+                            if (far) { const st = makeStalker(far.x, far.y, 0); st.spawnT = 1; L.enemies.push(st); Snd.roar(); shake = Math.max(shake, 8); }
+                        }
+                    }
+                    if (L.hold >= L.holdTime) openExit();
+                }
+            }
+
+            // ---------- 환풍구 ----------
+            const sp = (def.goal === 'hold' && L.hold > 0 && !L.exitOpen && def.holdSpawn) ? def.holdSpawn : def.spawn;
+            if (sp && L.vents.length) {
+                L.spawnT -= dt;
+                if (L.spawnT <= 0) {
+                    const alive = L.enemies.filter((e) => e.type === 'shadow' && !e.dying).length;
+                    if (alive < sp.max) spawnShadowAtVent(170);
+                    L.spawnT = sp.every * rand(0.8, 1.2);
+                }
+            }
+
+            // ---------- 적 ----------
+            computeFlow(false);
+            const noise = (P.light && P.batt > 0 ? 230 : 105) + (P.sprint ? 90 : 0);
+            let nearest = 1e9;
+            for (const e of L.enemies) {
+                e.phase += dt * 3;
+                e.flash = Math.max(0, e.flash - dt * 4);
+                if (e.dying) { e.dying += dt; continue; }
+                if (e.spawnT > 0) { e.spawnT -= dt; continue; }
+                if (e.type === 'stalker' && e.wake > 0) { e.wake -= dt; continue; }
+                const dx = P.x - e.x, dy = P.y - e.y, d = Math.hypot(dx, dy);
+                const lit = inBeam(e, B);
+                e.lit = lit;
+
+                let spd, chasing;
+                if (e.type === 'shadow') {
+                    if (d < noise && (d < 60 || hasLOS(e.x, e.y, P.x, P.y))) e.aware = 4.5;
+                    else e.aware -= dt;
+                    chasing = e.aware > 0;
+                    spd = chasing ? def.shadowSpeed : 38;
+                    if (lit === 1) { spd *= 0.22; e.aware = Math.max(e.aware, 2); }
+                    if (lit === 2) {
+                        spd *= 0.06;
+                        e.hp -= dt * 1.35; e.flash = 1;
+                        if (Math.random() < dt * 30) particles.push({ x: e.x + rand(-8, 8), y: e.y + rand(-8, 8), vx: rand(-20, 20), vy: rand(-50, -20), life: 0, max: 0.5, color: '#3a2050', size: 3 });
+                        if (e.hp <= 0) { e.dying = 0.0001; run.kills++; L.kills++; Snd.kill(); burst(e.x, e.y, 26, '#2a1638', 150); continue; }
+                    } else e.hp = Math.min(1, e.hp + dt * 0.25);
+                    nearest = Math.min(nearest, d * (chasing ? 1 : 1.6));
+                } else {
+                    chasing = true;
+                    if (!L.stalkerSeen && (lit || d < 210)) { L.stalkerSeen = true; trigger('stalker'); Snd.roar(); shake = Math.max(shake, 7); }
+                    const fd = flowAt(Math.floor(e.x / TS), Math.floor(e.y / TS));
+                    spd = (def.stalkerSpeed || 124) * (fd > 16 ? 0.7 : 1);
+                    if (lit === 1) spd *= 0.72;
+                    if (lit === 2) {
+                        spd *= 0.4; e.focusAcc += dt; e.flash = 0.6;
+                        if (e.focusAcc >= 1.05) { e.stun = 1.5; e.focusAcc = 0; Snd.stun(); burst(e.x, e.y, 16, '#f4f1e8', 120); }
+                    } else e.focusAcc = Math.max(0, e.focusAcc - dt * 0.6);
+                    nearest = Math.min(nearest, d * 0.7);
+                    growlT -= dt;
+                    if (d < 280 && growlT <= 0) { Snd.roar(); growlT = rand(2.6, 4.5); }
+                }
+
+                if (e.stun > 0) { e.stun -= dt; continue; }
+
+                // 이동 목표: 가깝고 보이면 직진, 아니면 거리 지도를 따라 내려간다
+                let tx, ty;
+                if (chasing) {
+                    if (d < TS * 5 && hasLOS(e.x, e.y, P.x, P.y)) { tx = P.x; ty = P.y; }
+                    else {
+                        const ex = Math.floor(e.x / TS), ey = Math.floor(e.y / TS);
+                        const cur = flowAt(ex, ey);
+                        let best = cur, bx = ex, by = ey;
+                        for (let oy = -1; oy <= 1; oy++) for (let ox = -1; ox <= 1; ox++) {
+                            if (!ox && !oy) continue;
+                            if (ox && oy && (solidAt(ex + ox, ey) || solidAt(ex, ey + oy))) continue;
+                            const v = flowAt(ex + ox, ey + oy);
+                            if (v >= 0 && (best < 0 || v < best)) { best = v; bx = ex + ox; by = ey + oy; }
+                        }
+                        if (best < 0) { chasing = false; }
+                        else { tx = bx * TS + TS / 2; ty = by * TS + TS / 2; }
+                    }
+                }
+                if (!chasing) {
+                    e.wanderT -= dt;
+                    if (e.wanderT <= 0 || Math.hypot(e.wx - e.x, e.wy - e.y) < 6) {
+                        const a = Math.random() * Math.PI * 2, r = rand(30, 110);
+                        const nx = e.x + Math.cos(a) * r, ny = e.y + Math.sin(a) * r;
+                        if (!solidAt(Math.floor(nx / TS), Math.floor(ny / TS)) && hasLOS(e.x, e.y, nx, ny)) { e.wx = nx; e.wy = ny; }
+                        e.wanderT = rand(1.5, 3.5);
+                    }
+                    tx = e.wx; ty = e.wy;
+                }
+                const mdx = tx - e.x, mdy = ty - e.y, ml2 = Math.hypot(mdx, mdy);
+                if (ml2 > 0.5) {
+                    const step = Math.min(ml2, spd * dt);
+                    moveEnt(e, mdx / ml2 * step, mdy / ml2 * step);
+                }
+
+                // 접촉
+                if (d < e.r + P.r + 1) {
+                    if (e.type === 'stalker') { hurtPlayer(e, 1, 420); e.stun = 1.2; }
+                    else if (P.inv <= 0) { hurtPlayer(e, 1, 300); e.stun = 1.0; e.aware = 0.6; moveEnt(e, -dx / d * 14, -dy / d * 14); }
+                }
+                if (mode !== 'play') return;
+            }
+            L.enemies = L.enemies.filter((e) => !(e.dying && e.dying > 0.6));
+            // 적끼리 겹치지 않게 살짝 밀어낸다
+            for (let i = 0; i < L.enemies.length; i++) {
+                for (let j = i + 1; j < L.enemies.length; j++) {
+                    const a = L.enemies[i], b = L.enemies[j];
+                    if (a.dying || b.dying) continue;
+                    const dx = b.x - a.x, dy = b.y - a.y, d = Math.hypot(dx, dy), m = a.r + b.r;
+                    if (d > 0.01 && d < m) {
+                        const push = (m - d) / 2;
+                        moveEnt(a, -dx / d * push, -dy / d * push);
+                        moveEnt(b, dx / d * push, dy / d * push);
+                    }
+                }
+            }
+
+            // ---------- 긴장도: 심장 소리 / 배경음 ----------
+            threat = clamp(1 - (nearest - 40) / 340, 0, 1);
+            if (L.time < 20) threat = Math.max(threat, 0.45);
+            hbTimer -= dt;
+            if (hbTimer <= 0) { Snd.heartbeat(threat); hbTimer = 1.25 - threat * 0.9; }
+            Snd.drone(0.012 + threat * 0.05);
+
+            // ---------- 시간 ----------
+            if (L.time <= 20) trigger('lowtime');
+            if (L.time <= 10) {
+                const s = Math.ceil(L.time);
+                if (s !== beepSec) { beepSec = s; Snd.beep(); }
+            }
+            if (L.time <= 0) { L.time = 0; die('시간 안에 빠져나가지 못했다.'); return; }
+
+            // ---------- 출구 ----------
+            if (L.exitOpen && L.exit) {
+                const ex = L.exit.tx * TS + TS / 2, ey = L.exit.ty * TS + TS / 2;
+                if (Math.hypot(ex - P.x, ey - P.y) < TS * 0.75) clearChapter();
+            }
+
+            updateRadio(dt);
+        }
+
+        function updateParticles(dt) {
+            for (const p of particles) { p.life += dt; p.x += p.vx * dt; p.y += p.vy * dt; p.vx *= 0.94; p.vy *= 0.94; }
+            particles = particles.filter((p) => p.life < p.max);
+            if (particles.length > 500) particles.splice(0, particles.length - 500);
+        }
+
+        // =====================================================================
+        // 그리기
+        // =====================================================================
+        function resize() {
+            const r = stage.getBoundingClientRect();
+            cssW = Math.max(1, r.width); cssH = Math.max(1, r.height);
+            dpr = Math.min(2, window.devicePixelRatio || 1);
+            const w = Math.round(cssW * dpr), h = Math.round(cssH * dpr);
+            if (cv.width !== w || cv.height !== h) { cv.width = w; cv.height = h; darkCv.width = w; darkCv.height = h; }
+            zoom = clamp(Math.min(cssW / (TS * 17), cssH / (TS * 10.5)), 0.55, 1.6);
+        }
+        if (window.ResizeObserver) new ResizeObserver(() => { resize(); if (mode !== 'play') draw(); }).observe(stage);
+        window.addEventListener('resize', resize);
+
+        let shx = 0, shy = 0;
+        const w2s = (x, y) => [(x - cam.x) * zoom + cssW / 2 + shx, (y - cam.y) * zoom + cssH / 2 + shy];
+
+        function updateCamera(dt) {
+            const look = P.light ? 34 : 10;
+            let tx = P.x + Math.cos(P.aim) * look, ty = P.y + Math.sin(P.aim) * look;
+            const vw = cssW / zoom, vh = cssH / zoom, mw = L.W * TS, mh = L.H * TS;
+            tx = mw <= vw ? mw / 2 : clamp(tx, vw / 2, mw - vw / 2);
+            ty = mh <= vh ? mh / 2 : clamp(ty, vh / 2, mh - vh / 2);
+            const k = Math.min(1, dt * 7);
+            cam.x += (tx - cam.x) * k; cam.y += (ty - cam.y) * k;
+            shake = Math.max(0, shake - dt * 30);
+            shx = (Math.random() - 0.5) * shake; shy = (Math.random() - 0.5) * shake;
+        }
+
+        function draw() {
+            if (!cssW) resize();
+            ctx.setTransform(1, 0, 0, 1, 0, 0);
+            ctx.fillStyle = '#05060a';
+            ctx.fillRect(0, 0, cv.width, cv.height);
+            if (!L) return;
+            const now = performance.now() / 1000;
+            const B = beamState();
+
+            // ---- 월드 ----
+            const ox = -cam.x * zoom + cssW / 2 + shx, oy = -cam.y * zoom + cssH / 2 + shy;
+            ctx.setTransform(dpr * zoom, 0, 0, dpr * zoom, dpr * ox, dpr * oy);
+            ctx.imageSmoothingEnabled = false;
+            ctx.drawImage(tileCv, 0, 0);
+
+            // 출구 표지판
+            if (L.exit) {
+                const ex = L.exit.tx * TS, ey = L.exit.ty * TS;
+                ctx.fillStyle = L.exitOpen ? '#2ecc71' : '#7a1f1f';
+                ctx.fillRect(ex + 5, ey + 9, TS - 10, 14);
+                ctx.fillStyle = L.exitOpen ? '#06210f' : '#f0b4b4';
+                ctx.font = '900 9px ' + FONT; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+                ctx.fillText('EXIT', ex + TS / 2, ey + 16.5);
+            }
+
+            // 아이템
+            L.items.forEach((it) => {
+                if (it.got) return;
+                const b = Math.sin(now * 3 + it.bob) * 2;
+                drawItem(it.type, it.x, it.y + b);
+            });
+
+            // 적
+            L.enemies.forEach((e) => drawEnemy(e, now));
+
+            // 플레이어
+            drawPlayer(now);
+
+            // 파티클
+            particles.forEach((p) => {
+                ctx.globalAlpha = 1 - p.life / p.max;
+                ctx.fillStyle = p.color;
+                ctx.fillRect(p.x - p.size / 2, p.y - p.size / 2, p.size, p.size);
+            });
+            ctx.globalAlpha = 1;
+
+            // ---- 어둠 ----
+            dctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+            dctx.globalCompositeOperation = 'source-over';
+            dctx.fillStyle = P.light ? 'rgba(2,3,7,.93)' : 'rgba(2,3,7,.955)';
+            dctx.fillRect(0, 0, cssW, cssH);
+            dctx.globalCompositeOperation = 'destination-out';
+            const [psx, psy] = w2s(P.x, P.y);
+            const amb = (P.light ? 62 : 54) * zoom;
+            let g = dctx.createRadialGradient(psx, psy, 0, psx, psy, amb);
+            g.addColorStop(0, 'rgba(0,0,0,.85)'); g.addColorStop(1, 'rgba(0,0,0,0)');
+            dctx.fillStyle = g;
+            dctx.beginPath(); dctx.arc(psx, psy, amb, 0, Math.PI * 2); dctx.fill();
+            let beamPts = null;
+            if (B.on) {
+                beamPts = [];
+                const N = 64;
+                for (let i = 0; i <= N; i++) {
+                    const a = P.aim - B.ha + (B.ha * 2) * (i / N);
+                    const d = castRay(P.x, P.y, a, B.range);
+                    beamPts.push(w2s(P.x + Math.cos(a) * d, P.y + Math.sin(a) * d));
+                }
+                const R = B.range * zoom;
+                g = dctx.createRadialGradient(psx, psy, 0, psx, psy, R);
+                g.addColorStop(0, 'rgba(0,0,0,1)');
+                g.addColorStop(0.55, B.focus ? 'rgba(0,0,0,.97)' : 'rgba(0,0,0,.9)');
+                g.addColorStop(1, 'rgba(0,0,0,0)');
+                dctx.fillStyle = g;
+                dctx.beginPath(); dctx.moveTo(psx, psy);
+                beamPts.forEach(([x, y]) => dctx.lineTo(x, y));
+                dctx.closePath(); dctx.fill();
+            }
+            // 열린 출구와 송출 구역은 희미하게 빛난다
+            const glow = (wx, wy, rad, a) => {
+                const [sx, sy] = w2s(wx, wy), rr = rad * zoom;
+                const gg = dctx.createRadialGradient(sx, sy, 0, sx, sy, rr);
+                gg.addColorStop(0, 'rgba(0,0,0,' + a + ')'); gg.addColorStop(1, 'rgba(0,0,0,0)');
+                dctx.fillStyle = gg; dctx.beginPath(); dctx.arc(sx, sy, rr, 0, Math.PI * 2); dctx.fill();
+            };
+            if (L.exit && L.exitOpen) glow(L.exit.tx * TS + TS / 2, L.exit.ty * TS + TS / 2, 80, 0.75);
+            if (L.zone && !L.exitOpen) glow(L.zone.x, L.zone.y, 120, 0.22 + 0.08 * Math.sin(now * 4));
+            ctx.setTransform(1, 0, 0, 1, 0, 0);
+            ctx.drawImage(darkCv, 0, 0);
+
+            // 손전등 색감 (따뜻한 빛)
+            ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+            if (beamPts) {
+                ctx.globalCompositeOperation = 'lighter';
+                const R = B.range * zoom;
+                g = ctx.createRadialGradient(psx, psy, 0, psx, psy, R);
+                g.addColorStop(0, B.focus ? 'rgba(255,240,200,.22)' : 'rgba(255,225,170,.12)');
+                g.addColorStop(1, 'rgba(255,220,160,0)');
+                ctx.fillStyle = g;
+                ctx.beginPath(); ctx.moveTo(psx, psy);
+                beamPts.forEach(([x, y]) => ctx.lineTo(x, y));
+                ctx.closePath(); ctx.fill();
+                ctx.globalCompositeOperation = 'source-over';
+            }
+
+            // ---- 어둠 위에 그리는 것: 그림자의 눈, 목표물의 반짝임 ----
+            L.enemies.forEach((e) => {
+                if (e.dying) return;
+                const d = Math.hypot(e.x - P.x, e.y - P.y);
+                const maxD = e.type === 'stalker' ? 460 : 330;
+                if (d > maxD) return;
+                const a = clamp(1 - d / maxD, 0, 1) * (e.spawnT > 0 ? 0.4 : 1);
+                const [sx, sy] = w2s(e.x, e.y);
+                const big = e.type === 'stalker';
+                const blink = (Math.sin(e.phase * 0.7) > 0.96) ? 0.15 : 1;
+                const ey = sy - (big ? 9 : 4) * zoom, sep = (big ? 6 : 3.6) * zoom, er = (big ? 2.6 : 1.8) * zoom;
+                ctx.fillStyle = big ? 'rgba(255,240,240,' + (a * blink) + ')' : 'rgba(255,40,40,' + (a * blink * 0.95) + ')';
+                ctx.shadowColor = big ? 'rgba(255,60,60,.9)' : 'rgba(255,0,0,.9)';
+                ctx.shadowBlur = 8;
+                ctx.beginPath(); ctx.arc(sx - sep, ey, er, 0, Math.PI * 2); ctx.arc(sx + sep, ey, er, 0, Math.PI * 2); ctx.fill();
+                ctx.shadowBlur = 0;
+            });
+            L.items.forEach((it) => {
+                if (it.got || (it.type !== 'F' && it.type !== 'K')) return;
+                const d = Math.hypot(it.x - P.x, it.y - P.y);
+                if (d > 300) return;
+                const [sx, sy] = w2s(it.x, it.y);
+                const tw = 0.5 + 0.5 * Math.sin(now * 5 + it.bob);
+                ctx.fillStyle = 'rgba(255,214,90,' + (0.18 + tw * 0.3) * (1 - d / 300) + ')';
+                ctx.beginPath(); ctx.arc(sx, sy, (2 + tw * 2.5) * zoom, 0, Math.PI * 2); ctx.fill();
+            });
+
+            // ---- 화면 효과 ----
+            const lowHp = P.hp === 1 ? 0.25 + 0.15 * Math.sin(now * 6) : 0;
+            const red = Math.max(P.hurtFlash * 0.55, lowHp);
+            if (red > 0.01) {
+                g = ctx.createRadialGradient(cssW / 2, cssH / 2, Math.min(cssW, cssH) * 0.3, cssW / 2, cssH / 2, Math.max(cssW, cssH) * 0.7);
+                g.addColorStop(0, 'rgba(160,0,0,0)'); g.addColorStop(1, 'rgba(160,0,0,' + red + ')');
+                ctx.fillStyle = g; ctx.fillRect(0, 0, cssW, cssH);
+            }
+            if (mode === 'dying') {
+                ctx.fillStyle = 'rgba(60,0,0,' + clamp(fade, 0, 1) * 0.85 + ')';
+                ctx.fillRect(0, 0, cssW, cssH);
+            } else if (mode === 'clearing') {
+                ctx.fillStyle = 'rgba(240,240,230,' + clamp(fade, 0, 1) + ')';
+                ctx.fillRect(0, 0, cssW, cssH);
+            }
+
+            if (mode !== 'story') drawHUD(now);
+        }
+
+        function drawItem(type, x, y) {
+            if (type === 'B') {
+                ctx.fillStyle = '#1e1e1e'; ctx.fillRect(x - 5, y - 8, 10, 16);
+                ctx.fillStyle = '#f2c94c'; ctx.fillRect(x - 5, y - 8, 10, 6);
+                ctx.fillStyle = '#bbb'; ctx.fillRect(x - 2, y - 10, 4, 2);
+            } else if (type === 'H') {
+                ctx.fillStyle = '#f4f4f4'; ctx.fillRect(x - 8, y - 6, 16, 12);
+                ctx.fillStyle = '#d32f2f'; ctx.fillRect(x - 1.5, y - 4.5, 3, 9); ctx.fillRect(x - 4.5, y - 1.5, 9, 3);
+            } else if (type === 'F') {
+                ctx.fillStyle = '#d9dde6'; ctx.fillRect(x - 3, y - 9, 6, 3); ctx.fillRect(x - 3, y + 6, 6, 3);
+                ctx.fillStyle = '#e67e22'; ctx.fillRect(x - 4, y - 6, 8, 12);
+                ctx.fillStyle = '#ffd08a'; ctx.fillRect(x - 1, y - 5, 2, 10);
+            } else if (type === 'K') {
+                ctx.strokeStyle = '#f2c94c'; ctx.lineWidth = 2.5;
+                ctx.beginPath(); ctx.arc(x - 4, y, 4, 0, Math.PI * 2); ctx.stroke();
+                ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + 9, y); ctx.moveTo(x + 6, y); ctx.lineTo(x + 6, y + 4); ctx.moveTo(x + 9, y); ctx.lineTo(x + 9, y + 3); ctx.stroke();
+            }
+        }
+
+        function drawEnemy(e, now) {
+            const big = e.type === 'stalker';
+            const a = e.dying ? Math.max(0, 1 - e.dying / 0.6) : (e.spawnT > 0 ? 1 - e.spawnT : 1);
+            if (a <= 0) return;
+            ctx.save();
+            ctx.globalAlpha = clamp(a, 0, 1);
+            ctx.translate(e.x, e.y);
+            const n = big ? 9 : 7;
+            for (let i = 0; i < n; i++) {
+                const ang = (i / n) * Math.PI * 2 + e.phase * 0.3;
+                const wob = Math.sin(e.phase * 2 + i * 1.7) * (big ? 3 : 2);
+                const rr = e.r * (0.55 + 0.15 * Math.sin(e.phase + i));
+                ctx.fillStyle = big ? 'rgba(10,6,14,.9)' : 'rgba(14,8,22,.88)';
+                ctx.beginPath();
+                ctx.arc(Math.cos(ang) * (e.r * 0.45 + wob), Math.sin(ang) * (e.r * 0.45 + wob), rr, 0, Math.PI * 2);
+                ctx.fill();
+            }
+            if (big) {
+                // 추적자는 위로 길쭉하다
+                ctx.fillStyle = 'rgba(8,4,10,.95)';
+                ctx.beginPath(); ctx.ellipse(0, -8, e.r * 0.7, e.r * 1.15, 0, 0, Math.PI * 2); ctx.fill();
+            }
+            ctx.fillStyle = 'rgba(5,2,8,.95)';
+            ctx.beginPath(); ctx.arc(0, 0, e.r * 0.62, 0, Math.PI * 2); ctx.fill();
+            if (e.flash > 0) {
+                ctx.globalAlpha = e.flash * 0.5;
+                ctx.fillStyle = '#e8d8ff';
+                ctx.beginPath(); ctx.arc(0, 0, e.r * 0.9, 0, Math.PI * 2); ctx.fill();
+            }
+            if (e.stun > 0 && big) {
+                ctx.globalAlpha = 1;
+                ctx.strokeStyle = 'rgba(255,255,255,.7)'; ctx.lineWidth = 2;
+                ctx.beginPath(); ctx.arc(0, -e.r - 10, 6, now * 6, now * 6 + 4); ctx.stroke();
+            }
+            ctx.restore();
+        }
+
+        function drawPlayer(now) {
+            if (P.inv > 0 && mode === 'play' && Math.floor(now * 16) % 2 === 0 && P.dashT <= 0) return;
+            ctx.save();
+            ctx.translate(P.x, P.y);
+            ctx.fillStyle = 'rgba(0,0,0,.35)';
+            ctx.beginPath(); ctx.ellipse(0, 6, 9, 4, 0, 0, Math.PI * 2); ctx.fill();
+            ctx.rotate(P.aim);
+            const sw = P.moving ? Math.sin(P.step) * 2.5 : 0;
+            ctx.fillStyle = '#1f2a44';                         // 교복 (남색)
+            ctx.beginPath(); ctx.ellipse(0, 0, 7, 9.5, 0, 0, Math.PI * 2); ctx.fill();
+            ctx.fillStyle = '#d9dce3';
+            ctx.fillRect(3 + sw * 0.3, -9, 5, 3); ctx.fillRect(3 - sw * 0.3, 6, 5, 3);
+            ctx.fillStyle = '#e8c39e';                         // 머리
+            ctx.beginPath(); ctx.arc(0, 0, 5.2, 0, Math.PI * 2); ctx.fill();
+            ctx.fillStyle = '#1a1410';
+            ctx.beginPath(); ctx.arc(-1.3, 0, 5.2, Math.PI * 0.5, Math.PI * 1.5); ctx.fill();
+            ctx.fillStyle = '#2b2b2b'; ctx.fillRect(7, 3.5, 7, 3); // 손전등
+            if (P.light && P.batt > 0) { ctx.fillStyle = '#fff3c4'; ctx.fillRect(13.5, 3.5, 2, 3); }
+            ctx.restore();
+        }
+
+        function roundRect(c, x, y, w, h, r) {
+            c.beginPath();
+            c.moveTo(x + r, y); c.arcTo(x + w, y, x + w, y + h, r); c.arcTo(x + w, y + h, x, y + h, r);
+            c.arcTo(x, y + h, x, y, r); c.arcTo(x, y, x + w, y, r); c.closePath();
+        }
+
+        function drawHUD(now) {
+            ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+            ctx.textBaseline = 'middle';
+            const small = cssW < 520;
+            const pad = small ? 10 : 14;
+
+            // 체력
+            for (let i = 0; i < P.maxHp; i++) {
+                const full = i < P.hp;
+                const beat = full && i === P.hp - 1 ? 1 + 0.12 * Math.max(0, Math.sin(now * (4 + threat * 8))) : 1;
+                drawHeart(pad + 11 + i * 26, pad + 11, 9 * beat, full);
+            }
+            // 배터리 / 스태미나
+            const bw = small ? 96 : 130;
+            drawBar(pad, pad + 28, bw, 8, P.batt / 100, P.batt < 20 ? '#e74c3c' : '#f2c94c', P.light ? '🔦' : '🔦 OFF');
+            drawBar(pad, pad + 46, bw, 6, P.stam / 100, P.exhausted ? '#7f8c8d' : '#5dade2', P.exhausted ? '헉헉…' : '');
+
+            // 타이머 (가운데)
+            const low = L.time < 20;
+            ctx.textAlign = 'center';
+            ctx.font = '700 11px ' + FONT;
+            ctx.fillStyle = 'rgba(200,206,220,.7)';
+            ctx.fillText(L.def.timerLabel, cssW / 2, pad + 6);
+            const pulse = low ? 1 + 0.08 * Math.max(0, Math.sin(now * 10)) : 1;
+            ctx.font = '900 ' + Math.round((small ? 24 : 30) * pulse) + 'px ' + FONT;
+            ctx.fillStyle = low ? '#ff4d4d' : '#f4f1e8';
+            ctx.fillText(fmtTime(L.time), cssW / 2, pad + 26);
+
+            // 목표 (오른쪽, 아이콘 버튼 아래)
+            ctx.textAlign = 'right';
+            const rx = cssW - pad;
+            ctx.font = '800 11px ' + FONT;
+            ctx.fillStyle = '#f2c94c';
+            ctx.fillText('CH ' + (L.idx + 1) + ' · ' + L.def.title, rx, pad + 46);
+            ctx.font = '700 ' + (small ? 11 : 12) + 'px ' + FONT;
+            ctx.fillStyle = '#e8ecf5';
+            let obj;
+            if (L.exitOpen) obj = '▶ ' + (L.def.exitText || L.def.goalText);
+            else if (L.def.goal === 'collect') obj = L.def.goalText + '  ' + L.got + '/' + L.need;
+            else if (L.def.goal === 'hold') obj = L.def.goalText;
+            else obj = L.def.goalText;
+            ctx.fillText(obj, rx, pad + 64);
+            if (L.def.goal === 'hold' && !L.exitOpen) {
+                const w = small ? 120 : 170;
+                ctx.fillStyle = 'rgba(255,255,255,.12)'; ctx.fillRect(rx - w, pad + 75, w, 7);
+                ctx.fillStyle = L.inZone ? '#5dade2' : '#3c5a78';
+                ctx.fillRect(rx - w, pad + 75, w * clamp(L.hold / L.holdTime, 0, 1), 7);
+                ctx.font = '700 10px ' + FONT; ctx.fillStyle = 'rgba(220,230,245,.8)';
+                ctx.fillText((L.inZone ? '송출 중 ' : '송출 중단 ') + Math.floor(L.hold) + ' / ' + L.holdTime + '초', rx, pad + 92);
+            }
+
+            // 무전 자막
+            if (radioCur) {
+                const shown = radioCur.text.slice(0, Math.floor(radioCur.t * 42));
+                const isRadio = radioCur.who !== ME;
+                const fs = small ? 13 : 15;
+                ctx.font = '600 ' + fs + 'px ' + FONT;
+                const maxW = Math.min(cssW - 40, 620);
+                const lines = wrapText(shown || ' ', maxW - 28);
+                const fullLines = wrapText(radioCur.text, maxW - 28).length;
+                const h = 30 + fullLines * (fs + 6);
+                const by = touchMode ? pad + 100 : cssH - h - 18;   // 터치 모드에선 버튼과 겹치지 않게 위로
+                const bx = (cssW - maxW) / 2;
+                const alpha = radioCur.t > radioCur.dur - 0.4 ? clamp((radioCur.dur - radioCur.t) / 0.4, 0, 1) : 1;
+                ctx.globalAlpha = alpha;
+                ctx.fillStyle = 'rgba(6,8,14,.78)';
+                roundRect(ctx, bx, by, maxW, h, 12); ctx.fill();
+                ctx.strokeStyle = isRadio ? 'rgba(126,226,160,.35)' : 'rgba(255,255,255,.12)'; ctx.lineWidth = 1; ctx.stroke();
+                ctx.textAlign = 'left';
+                ctx.font = '800 11px ' + FONT;
+                ctx.fillStyle = isRadio ? '#7ee2a0' : (radioCur.who === '???' ? '#c7a7d8' : '#f2c94c');
+                ctx.fillText((isRadio ? '📻 ' : '') + radioCur.who, bx + 14, by + 14);
+                ctx.font = '600 ' + fs + 'px ' + FONT;
+                ctx.fillStyle = radioCur.who === '???' ? '#d9c2e6' : '#eef1f7';
+                lines.forEach((ln, i) => ctx.fillText(ln, bx + 14, by + 32 + i * (fs + 6)));
+                ctx.globalAlpha = 1;
+            }
+
+            if (!P.light && mode === 'play') {
+                ctx.textAlign = 'center'; ctx.font = '700 12px ' + FONT;
+                ctx.fillStyle = 'rgba(200,206,220,.55)';
+                ctx.fillText('손전등 꺼짐 — ' + (touchMode ? '🔦 버튼' : 'F') + '로 다시 켜기', cssW / 2, pad + 50);
+            }
+        }
+
+        function wrapText(text, maxW) {
+            const out = [];
+            let line = '';
+            for (const ch of text) {
+                const test = line + ch;
+                if (ctx.measureText(test).width > maxW && line) { out.push(line); line = ch; } else line = test;
+            }
+            if (line) out.push(line);
+            return out;
+        }
+        function drawHeart(x, y, s, full) {
+            ctx.save(); ctx.translate(x, y); ctx.scale(s / 10, s / 10);
+            ctx.beginPath();
+            ctx.moveTo(0, 9);
+            ctx.bezierCurveTo(-14, 0, -9, -12, 0, -5);
+            ctx.bezierCurveTo(9, -12, 14, 0, 0, 9);
+            ctx.closePath();
+            ctx.fillStyle = full ? '#e53935' : 'rgba(255,255,255,.12)';
+            ctx.fill();
+            ctx.lineWidth = 1.5; ctx.strokeStyle = full ? '#ff8a80' : 'rgba(255,255,255,.25)'; ctx.stroke();
+            ctx.restore();
+        }
+        function drawBar(x, y, w, h, v, color, label) {
+            ctx.fillStyle = 'rgba(255,255,255,.12)';
+            roundRect(ctx, x, y, w, h, h / 2); ctx.fill();
+            if (v > 0) { ctx.fillStyle = color; roundRect(ctx, x, y, Math.max(h, w * clamp(v, 0, 1)), h, h / 2); ctx.fill(); }
+            if (label) {
+                ctx.textAlign = 'left'; ctx.font = '700 10px ' + FONT; ctx.fillStyle = 'rgba(230,236,250,.75)';
+                ctx.fillText(label, x + w + 6, y + h / 2);
+            }
+        }
+
+        // =====================================================================
+        // 화면 흐름 (메뉴 → 스토리 → 플레이 → 클리어/사망 → … → 엔딩)
+        // =====================================================================
+        function showOverlay(html, red) {
+            overlay.innerHTML = html;
+            overlay.classList.toggle('bo-red', !!red);
+            overlay.style.display = 'flex';
+            touchEl.classList.remove('show');
+            pauseBtn.style.display = 'none';
+        }
+        function hideOverlay() { overlay.style.display = 'none'; overlay.innerHTML = ''; }
+
+        function showMenu() {
+            mode = 'menu';
+            stopStory();
+            Snd.drone(0);
+            const u = Math.min(save.unlocked, LEVELS.length - 1);
+            const chips = save.unlocked > 0
+                ? '<div class="bo-chips">' + LEVELS.slice(0, u + 1).map((lv, i) => '<button class="bo-chip" data-act="chap" data-i="' + i + '">CH ' + (i + 1) + ' ' + esc(lv.title) + '</button>').join('') + '</div>'
+                : '';
+            const meta = [];
+            if (save.clears) meta.push('클리어 ' + save.clears + '회');
+            if (save.best != null) meta.push('최고 기록 ' + fmtLong(save.best));
+            if (save.bestRank) meta.push('최고 등급 ' + save.bestRank);
+            showOverlay(
+                '<div class="bo-panel">' +
+                    '<div class="bo-logo">BLACKOUT</div>' +
+                    '<div class="bo-logo-sub">정전된 밤의 학교에서, 살아서 나가라</div>' +
+                    '<div class="bo-btns">' +
+                        (save.unlocked > 0 ? '<button class="bo-btn primary" data-act="continue">이어하기 · CH ' + (u + 1) + ' ' + esc(LEVELS[u].title) + '</button>' : '') +
+                        '<button class="bo-btn' + (save.unlocked > 0 ? '' : ' primary') + '" data-act="new">처음부터</button>' +
+                    '</div>' +
+                    chips +
+                    (meta.length ? '<div class="bo-meta">' + meta.join(' · ') + '</div>' : '') +
+                    '<div class="bo-keys"><b>WASD</b> 이동 · <b>Shift</b> 달리기 · <b>Space</b> 대시 · <b>마우스</b> 조준 · <b>클릭(꾹)</b> 빛 집중 · <b>F</b> 손전등 · <b>Esc</b> 일시정지<br>헤드폰을 끼면 더 무섭다.</div>' +
+                '</div>'
+            );
+            L = null;
+            draw();
+        }
+
+        // --- 타자기 연출 ---
+        let story = null;
+        function stopStory() { if (story && story.timer) clearTimeout(story.timer); story = null; }
+        function startStory(header, lines, onDone, footHtml) {
+            stopStory();
+            showOverlay(
+                '<div class="bo-panel">' + header +
+                    '<div class="bo-lines" id="bo-lines"></div>' +
+                    '<div class="bo-story-foot"><button class="bo-btn ghost" data-act="skip">건너뛰기 ⏭</button><span class="bo-continue" id="bo-continue">▶ 클릭 또는 Space</span></div>' +
+                    (footHtml || '') +
+                '</div>'
+            );
+            story = { lines, i: 0, c: 0, el: null, done: false, timer: null, onDone };
+            typeNext();
+        }
+        function lineEl(ln) {
+            const div = document.createElement('div');
+            div.className = 'bo-line' + (ln.radio ? ' radio' : '') + (ln.ghost ? ' ghost' : '');
+            if (ln.who) {
+                const w = document.createElement('span');
+                w.className = 'bo-line-who';
+                w.textContent = (ln.radio ? '📻 ' : '') + ln.who;
+                div.appendChild(w);
+            }
+            const t = document.createElement('span');
+            div.appendChild(t);
+            $('bo-lines').appendChild(div);
+            return t;
+        }
+        function typeNext() {
+            if (!story) return;
+            const s = story;
+            if (s.i >= s.lines.length) { s.done = true; const c = $('bo-continue'); if (c) c.classList.add('show'); return; }
+            const ln = s.lines[s.i];
+            if (!s.el) { s.el = lineEl(ln); s.c = 0; if (ln.radio) Snd.radio(); }
+            s.c++;
+            s.el.textContent = ln.text.slice(0, s.c);
+            if (s.c % 2 === 0) Snd.type();
+            if (s.c >= ln.text.length) {
+                s.i++; s.el = null;
+                s.timer = setTimeout(typeNext, 420);
+            } else {
+                const ch = ln.text[s.c - 1];
+                s.timer = setTimeout(typeNext, (ch === '.' || ch === '…' || ch === ',') ? 140 : 30);
+            }
+        }
+        function finishTyping() {
+            const s = story;
+            if (!s) return;
+            clearTimeout(s.timer);
+            if (s.el) { s.el.textContent = s.lines[s.i].text; s.i++; s.el = null; }
+            while (s.i < s.lines.length) { lineEl(s.lines[s.i]).textContent = s.lines[s.i].text; s.i++; }
+            s.done = true;
+            const c = $('bo-continue'); if (c) c.classList.add('show');
+        }
+        function advanceStory() {
+            if (!story) return;
+            Snd.ensure();
+            if (!story.done) { finishTyping(); return; }
+            const cb = story.onDone;
+            stopStory();
+            cb();
+        }
+
+        function chapterHeader(i) {
+            const lv = LEVELS[i];
+            return '<div class="bo-chap-no">CHAPTER ' + (i + 1) + ' / ' + LEVELS.length + '</div>' +
+                   '<div class="bo-chap-title">' + esc(lv.title) + '</div>' +
+                   '<div class="bo-chap-place">' + esc(lv.place) + '</div>';
+        }
+
+        function startRun(fromIdx) {
+            Snd.ensure();
+            run = { fromStart: fromIdx === 0, time: 0, deaths: 0, hits: 0, kills: 0 };
+            showChapterIntro(fromIdx);
+        }
+        function showChapterIntro(i) {
+            mode = 'story';
+            buildLevel(i);
+            draw();
+            startStory(chapterHeader(i), LEVELS[i].intro, () => beginPlay());
+        }
+        function beginPlay() {
+            hideOverlay();
+            mode = 'play';
+            for (const k in keys) keys[k] = false;
+            input.dash = false;
+            pauseBtn.style.display = '';
+            touchEl.classList.toggle('show', touchMode);
+            lastT = performance.now();
+        }
+        function pauseGame() {
+            if (mode !== 'play') return;
+            mode = 'paused';
+            Snd.drone(0);
+            showOverlay(
+                '<div class="bo-panel">' +
+                    '<div class="bo-big">일시정지</div>' +
+                    '<div class="bo-sub">CH ' + (L.idx + 1) + ' · ' + esc(L.def.title) + ' — 남은 시간 ' + fmtTime(L.time) + '</div>' +
+                    '<div class="bo-btns">' +
+                        '<button class="bo-btn primary" data-act="resume">계속하기</button>' +
+                        '<button class="bo-btn" data-act="retry">챕터 처음부터</button>' +
+                        '<button class="bo-btn" data-act="menu">메뉴로</button>' +
+                    '</div>' +
+                '</div>'
+            );
+        }
+        function resumeGame() {
+            if (mode !== 'paused') return;
+            beginPlay();
+        }
+        function retryChapter() {
+            const i = L ? L.idx : 0;
+            mode = 'story';
+            buildLevel(i);
+            beginPlay();
+        }
+
+        function showDead() {
+            mode = 'dead';
+            const tips = [
+                '그림자에게 붙잡힐 것 같으면 Space로 몸을 날려라. 대시하는 동안은 닿아도 다치지 않는다.',
+                '빛을 모으면(꾹 누르기) 그림자가 사라지지만, 배터리가 열 배 넘게 빨리 닳는다.',
+                '추적자는 빛을 1초 넘게 모으면 잠깐 멈춘다. 그 틈에 달려라.',
+                '손전등을 끄면 그림자가 너를 알아채는 거리가 절반으로 줄어든다.',
+                '달리는 발소리는 멀리까지 들린다. 꼭 필요할 때만 달려라.',
+                '막다른 방에 들어가지 마라. 문이 두 개 있는 길로 돌아라.'
+            ];
+            showOverlay(
+                '<div class="bo-panel">' +
+                    '<div class="bo-big red">붙잡혔다</div>' +
+                    '<div class="bo-sub">' + esc(L.deathReason || '') + '</div>' +
+                    '<div class="bo-meta">💡 ' + esc(tips[(Math.random() * tips.length) | 0]) + '</div>' +
+                    '<div class="bo-btns">' +
+                        '<button class="bo-btn primary" data-act="retry">다시 시도 (Enter)</button>' +
+                        '<button class="bo-btn" data-act="menu">메뉴로</button>' +
+                    '</div>' +
+                '</div>', true
+            );
+        }
+
+        function clearChapter() {
+            mode = 'clearing';
+            fade = 0;
+            Snd.clear();
+            Snd.drone(0);
+            touchEl.classList.remove('show');
+            pauseBtn.style.display = 'none';
+            const next = L.idx + 1;
+            if (next < LEVELS.length && next > save.unlocked) { save.unlocked = next; saveJSON(SAVE_KEY, save); }
+        }
+        function showCleared() {
+            mode = 'cleared';
+            if (L.idx >= LEVELS.length - 1) { showEnding(); return; }
+            showOverlay(
+                '<div class="bo-panel">' +
+                    '<div class="bo-chap-no">CHAPTER ' + (L.idx + 1) + ' CLEAR</div>' +
+                    '<div class="bo-big gold">빠져나왔다</div>' +
+                    '<div class="bo-stats">' +
+                        stat('남은 시간', fmtTime(L.time)) + stat('남은 체력', P.hp + ' / ' + P.maxHp) +
+                        stat('지운 그림자', L.kills) + stat('누적 시간', fmtLong(run.time)) +
+                    '</div>' +
+                    '<div class="bo-btns">' +
+                        '<button class="bo-btn primary" data-act="next">다음 챕터 · ' + esc(LEVELS[L.idx + 1].title) + ' (Enter)</button>' +
+                        '<button class="bo-btn" data-act="menu">메뉴로</button>' +
+                    '</div>' +
+                '</div>'
+            );
+        }
+        const stat = (l, v) => '<div class="bo-stat"><div class="bo-stat-l">' + esc(l) + '</div><div class="bo-stat-v">' + esc(v) + '</div></div>';
+        function nextChapter() {
+            if (mode !== 'cleared' || !L) return;
+            showChapterIntro(L.idx + 1);
+        }
+
+        function rankOf(r) {
+            if (r.deaths === 0 && r.hits <= 3) return 'S';
+            if (r.deaths <= 2) return 'A';
+            if (r.deaths <= 6) return 'B';
+            return 'C';
+        }
+        function showEnding() {
+            mode = 'ending';
+            const rk = rankOf(run);
+            save.clears = (save.clears || 0) + 1;
+            if (run.fromStart && (save.best == null || run.time < save.best)) save.best = Math.round(run.time);
+            if (run.fromStart && (!save.bestRank || 'SABC'.indexOf(rk) < 'SABC'.indexOf(save.bestRank))) save.bestRank = rk;
+            saveJSON(SAVE_KEY, save);
+            startStory('<div class="bo-chap-no">EPILOGUE</div><div class="bo-chap-title">새벽</div>', ENDING, () => {
+                mode = 'ending';
+                showOverlay(
+                    '<div class="bo-panel">' +
+                        '<div class="bo-chap-no">THE END</div>' +
+                        '<div class="bo-rank">' + rk + '</div>' +
+                        '<div class="bo-sub">' + (run.fromStart ? '처음부터 끝까지 살아남았다.' : '이어하기 기록은 최고 기록에 남지 않는다.') + '</div>' +
+                        '<div class="bo-stats">' +
+                            stat('플레이 시간', fmtLong(run.time)) + stat('사망', run.deaths + '회') +
+                            stat('피격', run.hits + '회') + stat('지운 그림자', run.kills) +
+                        '</div>' +
+                        '<div class="bo-meta">S 등급: 한 번도 죽지 않고, 세 번 이하로 맞기</div>' +
+                        '<div class="bo-btns"><button class="bo-btn primary" data-act="menu">처음 화면으로</button></div>' +
+                    '</div>'
+                );
+            });
+        }
+
+        overlay.addEventListener('pointerdown', (e) => {
+            if (e.pointerType === 'touch') touchMode = true;
+            else if (e.pointerType === 'mouse') touchMode = false;
+        });
+        overlay.addEventListener('click', (e) => {
+            Snd.ensure();
+            const btn = e.target.closest('[data-act]');
+            if (!btn) { if (mode === 'story' || mode === 'ending') advanceStory(); return; }
+            const act = btn.dataset.act;
+            Snd.click();
+            if (act === 'new') startRun(0);
+            else if (act === 'continue') startRun(Math.min(save.unlocked, LEVELS.length - 1));
+            else if (act === 'chap') startRun(parseInt(btn.dataset.i, 10) || 0);
+            else if (act === 'skip') { if (story) { finishTyping(); advanceStory(); } }
+            else if (act === 'resume') resumeGame();
+            else if (act === 'retry') retryChapter();
+            else if (act === 'menu') showMenu();
+            else if (act === 'next') nextChapter();
+        });
+
+        // =====================================================================
+        // 메인 루프
+        // =====================================================================
+        let lastT = performance.now();
+        function frame(t) {
+            requestAnimationFrame(frame);
+            const dt = Math.min(0.05, Math.max(0, (t - lastT) / 1000));
+            lastT = t;
+            if (!isActive() || document.hidden) {
+                if (mode === 'play') pauseGame();
+                return;
+            }
+            if (!L) return;
+            if (mode === 'play') {
+                update(dt);
+                updateParticles(dt);
+                updateCamera(dt);
+                draw();
+            } else if (mode === 'dying') {
+                fade += dt / 1.3;
+                updateParticles(dt);
+                updateCamera(dt);
+                draw();
+                if (fade >= 1) showDead();
+            } else if (mode === 'clearing') {
+                fade += dt / 0.9;
+                updateCamera(dt);
+                draw();
+                if (fade >= 1) showCleared();
+            }
+        }
+        requestAnimationFrame(frame);
+
+        // 탭을 처음 열 때 메뉴를 띄운다 (숨겨진 동안은 stage 크기가 0이다)
+        const _prevSwitchTab = window.switchTab;
+        window.switchTab = function (tabId) {
+            if (typeof _prevSwitchTab === 'function') _prevSwitchTab(tabId);
+            if (tabId === 'blackout') requestAnimationFrame(() => { resize(); if (mode === 'menu') showMenu(); else draw(); });
+        };
+        document.addEventListener('fullscreenchange', () => requestAnimationFrame(resize));
+        document.addEventListener('webkitfullscreenchange', () => requestAnimationFrame(resize));
+
+        showMenu();
+    })();
+</script>
+
 
 </body>
 
