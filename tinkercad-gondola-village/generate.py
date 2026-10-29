@@ -1,4 +1,4 @@
-"""산비탈 마을 + 도시형 곤돌라 디오라마 -> Tinkercad용 STL 생성기.
+"""산비탈 마을 + 수소 트램 + 도시형 곤돌라 디오라마 -> Tinkercad용 STL 생성기.
 
 단위는 mm. X: 서(언덕) -> 동(도심), Y: 앞 -> 뒤, Z: 위.
 색깔별로 STL을 나눠 저장하므로 Tinkercad에서 파일마다 색을 지정하면 된다.
@@ -21,25 +21,28 @@ OUT = os.path.join(HERE, "stl")
 COLORS = {
     "01_base_plate":       ("#E9E4DA", "바닥판"),
     "02_ground":           ("#CFE8C4", "평지 잔디"),
-    "03_hill_terrace":     ("#BFD8A2", "언덕 계단식 지형"),
+    "03_hill":             ("#BFD8A2", "매끈한 언덕 비탈"),
     "04_river":            ("#8FC8E8", "강"),
-    "05_paths_gray":       ("#C4C4CC", "도로·골목 계단길·지하철 계단"),
-    "06_walls_cream":      ("#FFF1D0", "집 벽(크림)"),
-    "07_walls_pink":       ("#F8D3D6", "집 벽(분홍)"),
-    "08_walls_sky":        ("#D3E6F5", "집 벽(하늘)"),
-    "09_roof_blue":        ("#8DB3E2", "지붕(파랑)"),
-    "10_roof_orange":      ("#F2B489", "지붕(주황)"),
-    "11_roof_green":       ("#9AD1A5", "옥상 초록 방수면"),
-    "12_brown_details":    ("#A9805F", "문·나무줄기·가판대·다리"),
-    "13_trees":            ("#86C784", "나무"),
-    "14_white_structures": ("#FAFAFA", "곤돌라 정거장·철탑·병원·곤돌라 칸"),
+    "05_paths_gray":       ("#C4C4CC", "도로·트램 선로 바닥·빌라 주차 바닥"),
+    "06_walls_cream":      ("#FFF1D0", "빌라 벽(밝은 크림)"),
+    "07_red_brick":        ("#CF8A72", "빌라 벽(붉은 벽돌)"),
+    "08_walls_sky":        ("#D3E6F5", "빌라 벽(밝은 하늘)"),
+    "09_roof_blue":        ("#8DB3E2", "시장 지붕·자동차(파랑)"),
+    "10_roof_orange":      ("#F2B489", "시장 지붕(주황)"),
+    "11_roof_green":       ("#9AD1A5", "빌라 옥상 초록 방수면"),
+    "12_brown_details":    ("#A9805F", "나무줄기·화단·가판대·나무다리"),
+    "13_trees":            ("#86C784", "둥근 나무"),
+    "14_white_structures": ("#FAFAFA", "곤돌라 정거장·철탑·병원·필로티 기둥·트램 차체"),
     "15_glass":            ("#BDE2F2", "유리(창문·엘리베이터·캐노피)"),
     "16_solar_panels":     ("#3D5A8A", "태양광 패널"),
-    "17_cable_dark":       ("#555B66", "케이블·회전 바퀴"),
-    "18_accent_yellow":    ("#FFD98A", "곤돌라 칸 장식·물탱크·차양"),
-    "19_accent_red":       ("#EE8A8A", "병원 십자가·지붕(빨강)·차양"),
+    "17_cable_dark":       ("#555B66", "케이블·회전 바퀴·트램 레일과 대차"),
+    "18_accent_yellow":    ("#FFD98A", "곤돌라 장식·물탱크·꽃·시장 지붕"),
+    "19_accent_red":       ("#EE8A8A", "병원 십자가·꽃·시장 지붕·자동차"),
     "20_wheelchair_blue":  ("#4A8FD9", "휠체어·지하철 표지"),
     "21_people_goods":     ("#F49A7A", "휠체어 탄 사람·시장 물건"),
+    "22_tram_mint":        ("#7FD3C0", "수소 트램 지붕·띠·노즐"),
+    "23_water":            ("#CDEFFF", "트램 분수와 물줄기"),
+    "24_flowers_pink":     ("#F7A6C8", "화단 꽃(분홍)"),
 }
 parts = {k: [] for k in COLORS}
 
@@ -130,11 +133,8 @@ def tilted_panel(x0, x1, y0, depth, z0, angle_deg, group, t=0.4):
 
 
 def tree(x, y, z, size, rng):
-    cyl((x, y, z), (x, y, z + 1.4 * size), 0.35 * size, "12_brown_details", n=10)
-    if rng.random() < 0.5:
-        sphere((x, y, z + 2.6 * size), 1.5 * size, "13_trees", n=12)
-    else:
-        cone(x, y, z + 1.0 * size, 1.5 * size, 3.6 * size, "13_trees", n=14)
+    cyl((x, y, z - 0.5), (x, y, z + 1.4 * size), 0.35 * size, "12_brown_details", n=6)
+    sphere((x, y, z + 2.6 * size), 1.5 * size * rng.uniform(0.9, 1.1), "13_trees", n=8)
 
 
 rng = random.Random(7)
@@ -166,70 +166,204 @@ def cable_z(x):
     return TOP_Z + (BOT_Z - TOP_Z) * (x - TOP_X) / (BOT_X - TOP_X)
 
 
-# ---------------------------------------------------------------- 언덕 (큰 계단 4단)
-TERRACES = [(-90.0, -66.0, 41.0), (-66.0, -46.0, 31.0), (-46.0, -26.0, 21.0), (-26.0, -8.0, 11.0)]
+# ---------------------------------------------------------------- 언덕: 계단 없는 매끈한 비탈
+HILL_TOP = 41.0
+SLOPE_X0, SLOPE_X1 = -70.0, -4.0     # 이 사이가 비탈, 서쪽은 평평한 꼭대기
+SAMPLES = 16
+
+
+def slope_profile(t):
+    """0(아래)..1(위). 직선과 smoothstep을 섞어 너무 가파르지 않게 이어 준다."""
+    return 0.5 * t + 0.5 * (3 * t * t - 2 * t * t * t)
+
+
+HX = [SLOPE_X0 + (SLOPE_X1 - SLOPE_X0) * k / SAMPLES for k in range(SAMPLES + 1)]
+HZ = [GROUND + (HILL_TOP - GROUND) * slope_profile((SLOPE_X1 - x) / (SLOPE_X1 - SLOPE_X0)) for x in HX]
 
 
 def terrain_z(x):
-    for x0, x1, z in TERRACES:
-        if x0 <= x < x1:
-            return z
-    return GROUND
+    if x <= SLOPE_X0:
+        return HILL_TOP
+    if x >= SLOPE_X1:
+        return GROUND
+    return float(np.interp(x, HX, HZ))
 
 
-for x0, x1, z in TERRACES:
-    box(x0, x1, YMIN, YMAX, GROUND, z, "03_hill_terrace")
-    # 곤돌라 칸이 지형에 닿지 않는지 확인
-    assert min(cable_z(x0), cable_z(x1)) - HANG - CABIN_H > z, (x0, z)
+# 꼭대기 평지 + 비탈을 볼록한 조각들로 쌓는다 (조각 윗면이 지형 그 자체).
+box(XMIN, SLOPE_X0, YMIN, YMAX, GROUND, HILL_TOP, "03_hill")
+for xa, xb, za, zb in zip(HX, HX[1:], HZ, HZ[1:]):
+    convex([(x, y, z) for (x, zt) in ((xa, za), (xb, zb)) for y in (YMIN, YMAX)
+            for z in (GROUND, zt)], "03_hill")
+for x in np.linspace(SLOPE_X0 - 4, SLOPE_X1, 60):
+    assert cable_z(x) - HANG - CABIN_H > terrain_z(x) + 1.0, x
 
-# 골목 계단길: 강가 다리에서 꼭대기 정거장까지 한 줄로 올라간다.
-LANE_Y0, LANE_Y1 = -18.0, -14.0
-RUN = 8.0
-edges = [(x1, z, TERRACES[k + 1][2] if k + 1 < len(TERRACES) else GROUND)
-         for k, (x0, x1, z) in enumerate(TERRACES)]
-for x_edge, z_hi, z_lo in edges:
-    rise = z_hi - z_lo
-    n = int(round(rise / 1.25))
-    for s in range(n):
-        box(x_edge, x_edge + RUN * (n - s) / n, LANE_Y0, LANE_Y1,
-            z_lo, z_lo + rise * (s + 1) / n, "05_paths_gray")
-for k, (x0, x1, z) in enumerate(TERRACES):
-    start = -80.0 if k == 0 else x0 + RUN
-    box(start, x1, LANE_Y0, LANE_Y1, z, z + 0.3, "05_paths_gray")
-box(-80.0, -76.0, LANE_Y1, -10.0, 41.0, 41.3, "05_paths_gray")    # 정거장 입구로
-box(0.0, 1.0, LANE_Y0, LANE_Y1, GROUND, GROUND + 0.3, "05_paths_gray")
 
-# 집 6채: (가운데 x, 가운데 y, 벽 색, 지붕)
-HOUSES = [
-    (-56.0, -38.0, "06_walls_cream", "09_roof_blue"),
-    (-55.0, 28.0, "08_walls_sky", "flat"),
-    (-36.0, -32.0, "07_walls_pink", "10_roof_orange"),
-    (-37.0, 40.0, "06_walls_cream", "19_accent_red"),
-    (-17.0, -42.0, "08_walls_sky", "10_roof_orange"),
-    (-16.0, 30.0, "07_walls_pink", "09_roof_blue"),
-]
-HW, HD, HH = 11.0, 9.0, 7.5
-for k, (cx, cy, wall, roof) in enumerate(HOUSES):
-    z = terrain_z(cx)
-    x0, x1, y0, y1 = cx - HW / 2, cx + HW / 2, cy - HD / 2, cy + HD / 2
-    box(x0, x1, y0, y1, z, z + HH, wall)
-    box(cx - 1.0, cx + 1.0, y0 - 0.3, y0, z, z + 3.4, "12_brown_details")       # 문
-    for wx in (cx - 3.5, cx + 3.5):
-        box(wx - 1.0, wx + 1.0, y0 - 0.3, y0, z + 4.4, z + 6.2, "15_glass")      # 창
-    if roof == "flat":
-        box(x0 + 0.4, x1 - 0.4, y0 + 0.4, y1 - 0.4, z + HH, z + HH + 0.5, "11_roof_green")
-        cyl((x1 - 2.2, y1 - 2.2, z + HH), (x1 - 2.2, y1 - 2.2, z + HH + 2.6), 1.4,
-            "18_accent_yellow", n=20)
-    else:
-        gable(x0, x1, y0, y1, z + HH, 3.2, k % 2 == 0, roof, o=0.7)
+def on_slope(x0, x1, y0, y1, lift, thick, group):
+    """지형을 따라 휘는 띠 (선로 바닥, 화단 등)."""
+    xs = sorted({x0, x1, *[x for x in HX if x0 < x < x1]})
+    for xa, xb in zip(xs, xs[1:]):
+        pts = []
+        for x in (xa, xb):
+            z = terrain_z(x)
+            for y in (y0, y1):
+                pts += [(x, y, z + lift - 0.4), (x, y, z + lift + thick)]
+        convex(pts, group)
 
-# 나무 몇 그루
-for (tx, ty) in [(-70.0, -42.0), (-76.0, 36.0), (-50.0, -54.0), (-30.0, 52.0), (-12.0, -54.0),
-                 (-3.0, 44.0), (-52.0, 6.0), (-20.0, -6.0)]:
-    tree(tx, ty, terrain_z(tx), 1.4, rng)
+
+# ---------------------------------------------------------------- 수소 트램 노선 (언덕 아래 -> 꼭대기)
+TRACK_Y0, TRACK_Y1 = -54.0, -48.0
+TRAM_Y = (TRACK_Y0 + TRACK_Y1) / 2
+TRACK_X0, TRACK_X1 = -84.0, 3.0
+on_slope(TRACK_X0, TRACK_X1, TRACK_Y0, TRACK_Y1, 0.0, 0.3, "05_paths_gray")
+for ry in (TRAM_Y - 1.5, TRAM_Y + 1.5):
+    on_slope(TRACK_X0, TRACK_X1, ry - 0.25, ry + 0.25, 0.3, 0.35, "17_cable_dark")
+
+# 길가 화단 (트램이 물을 뿌려 주는 곳)
+BED_Y0, BED_Y1 = -58.6, -55.0
+BED_X0, BED_X1 = -68.0, -6.0
+on_slope(BED_X0, BED_X1, BED_Y0, BED_Y1, 0.0, 1.0, "12_brown_details")
+FLOWER_COLS = ["24_flowers_pink", "18_accent_yellow", "19_accent_red"]
+k = 0
+for x in np.arange(BED_X0 + 0.9, BED_X1 - 0.5, 1.5):
+    for y in (BED_Y0 + 1.0, BED_Y1 - 1.0):
+        sphere((x, y, terrain_z(x) + 1.0 + 0.5), 0.6, FLOWER_COLS[k % 3], n=8)
+        k += 1
+
+
+# 정류장 두 곳 (아래·꼭대기)
+def tram_stop(x0, x1):
+    z = terrain_z((x0 + x1) / 2)
+    ya, yb = TRACK_Y1 + 0.2, TRACK_Y1 + 3.0
+    box(x0, x1, ya, yb, z - 0.4, z + 0.8, "14_white_structures")
+    for x in (x0 + 0.3, x1 - 0.7):
+        box(x, x + 0.4, yb - 0.6, yb - 0.2, z + 0.8, z + 5.6, "14_white_structures")
+    box(x0 - 0.4, x1 + 0.4, ya - 0.4, yb + 0.2, z + 5.6, z + 6.1, "15_glass")
+
+
+tram_stop(-82.0, -74.0)
+tram_stop(-3.5, 3.0)
+
+
+class Frame:
+    """비탈을 따라 기울어진 트램의 국소 좌표 (u: 길이, v: 폭(+y), w: 지붕 쪽)."""
+
+    def __init__(self, xc, y, half):
+        xa, xb = xc - half, xc + half
+        za, zb = terrain_z(xa), terrain_z(xb)
+        self.t = np.array([xb - xa, 0.0, zb - za])
+        self.t /= np.linalg.norm(self.t)
+        self.n = np.array([-self.t[2], 0.0, self.t[0]])
+        self.o = np.array([xc, y, (za + zb) / 2 + 0.65])   # 레일 윗면
+
+    def p(self, u, v, w):
+        return self.o + u * self.t + np.array([0, v, 0]) + w * self.n
+
+    def box(self, u0, u1, v0, v1, w0, w1, group):
+        convex([self.p(u, v, w) for u in (u0, u1) for v in (v0, v1) for w in (w0, w1)], group)
+
+    def cyl(self, a, b, r, group, n=14):
+        cyl(self.p(*a), self.p(*b), r, group, n=n)
+
+    def sphere(self, c, r, group, n=10):
+        sphere(self.p(*c), r, group, n=n)
+
+
+def hydrogen_tram(xc):
+    L, Wd = 8.0, 2.2     # 반 길이, 반 폭
+    f = Frame(xc, TRAM_Y, L)
+    for u in (-5.0, 5.0):
+        f.box(u - 1.6, u + 1.6, -1.6, 1.6, 0.0, 0.9, "17_cable_dark")             # 대차
+    f.box(-L, L, -Wd, Wd, 0.9, 1.6, "14_white_structures")                          # 바닥
+    for (v0, v1) in ((-Wd, -Wd + 0.3), (Wd - 0.3, Wd)):
+        f.box(-L, L, v0, v1, 1.6, 2.5, "22_tram_mint")                              # 아래 띠
+        for u in (-L, -3.6, 0.8, 4.0 if False else 4.4):
+            f.box(u, u + 0.6, v0, v1, 2.5, 5.3, "14_white_structures")             # 창 기둥
+        f.box(L - 0.6, L, v0, v1, 2.5, 5.3, "14_white_structures")
+    for (u0, u1) in ((-L, -L + 0.5), (L - 0.5, L)):
+        f.box(u0, u1, -Wd, Wd, 1.6, 5.3, "14_white_structures")                     # 앞뒤 운전칸 벽
+    f.box(-L - 0.1, -L + 0.1, -1.6, 1.6, 3.0, 4.8, "15_glass")
+    f.box(L - 0.1, L + 0.1, -1.6, 1.6, 3.0, 4.8, "15_glass")
+    f.box(-L, L, -Wd, Wd, 5.3, 6.0, "22_tram_mint")                                # 지붕
+    for v in (-0.9, 0.9):
+        f.cyl((-5.0, v, 6.6), (5.0, v, 6.6), 0.6, "14_white_structures")           # 수소 탱크
+    # 안에 보이는 작은 분수 장치: 수소 + 산소 -> 물
+    f.cyl((-1.2, 0, 1.6), (-1.2, 0, 2.3), 1.2, "14_white_structures", n=20)
+    f.cyl((-1.2, 0, 2.3), (-1.2, 0, 3.4), 0.25, "14_white_structures", n=10)
+    f.cyl((-1.2, 0, 3.4), (-1.2, 0, 3.6), 0.7, "14_white_structures", n=16)
+    f.sphere((-1.2, 0, 3.9), 0.55, "23_water")
+    for a in range(6):
+        ang = 2 * math.pi * a / 6
+        f.cyl((-1.2 + 0.5 * math.cos(ang), 0.5 * math.sin(ang), 3.5),
+              (-1.2 + 1.0 * math.cos(ang), 1.0 * math.sin(ang), 2.35), 0.12, "23_water", n=6)
+    # 옆구리 노즐에서 화단으로 물줄기 (배출물은 물뿐)
+    for u in (-5.5, -1.0, 3.5):
+        f.cyl((u, -Wd, 1.9), (u, -Wd - 0.5, 1.9), 0.3, "22_tram_mint", n=10)
+        p0 = f.p(u, -Wd - 0.5, 1.9)
+        for dx in (-1.2, 1.2):
+            tx = p0[0] + dx
+            p1 = np.array([tx, (BED_Y0 + BED_Y1) / 2, terrain_z(tx) + 1.6])
+            prev = p0
+            for s in np.linspace(0.1, 1.0, 9):
+                cur = p0 + s * (p1 - p0) + np.array([0, 0, 3.0 * 4 * s * (1 - s) * 0.5])
+                cyl(prev, cur, 0.16, "23_water", n=6)
+                prev = cur
+            for j in range(3):
+                sphere(p1 + np.array([rng.uniform(-0.6, 0.6), rng.uniform(-0.5, 0.5), 0.3]),
+                       0.22, "23_water", n=6)
+
+
+hydrogen_tram(-38.0)
+
+
+# ---------------------------------------------------------------- 3~4층 필로티 빌라
+WALLS = ["07_red_brick", "06_walls_cream", "07_red_brick", "08_walls_sky"]
+CARS = ["09_roof_blue", "19_accent_red", "18_accent_yellow", "14_white_structures"]
+VW, VD, PILOTI, STORY = 11.0, 9.0, 3.0, 2.8
+
+
+def villa(x0, y0, floors, wall, car):
+    x1, y1 = x0 + VW, y0 + VD
+    zp = terrain_z(x0) + 0.3                   # 평평하게 다진 주차 바닥 (비탈 위쪽 기준)
+    box(x0, x1, y0, y1, terrain_z(x1) - 0.5, zp, "05_paths_gray")
+    zb = zp + PILOTI
+    box(x0, x0 + 3.0, y0 + 2.5, y1, zp, zb, wall)                                 # 계단실
+    for x in (x0 + 4.6, x1 - 0.8):
+        for y in (y0, y1 - 0.8):
+            box(x, x + 0.8, y, y + 0.8, zp, zb, "14_white_structures")            # 필로티 기둥
+    box(x0 - 0.2, x1 + 0.2, y0 - 0.2, y1 + 0.2, zb - 0.4, zb, "14_white_structures")
+    top = zb + STORY * floors
+    box(x0, x1, y0, y1, zb, top, wall)
+    for fl in range(floors):
+        z = zb + fl * STORY
+        for wx in (x0 + 1.2, x0 + 4.6, x0 + 8.0):
+            box(wx, wx + 1.8, y0 - 0.25, y0, z + 0.9, z + 2.1, "15_glass")
+        for wy in (y0 + 1.2, y0 + 5.4):
+            box(x1, x1 + 0.25, wy, wy + 2.4, z + 0.9, z + 2.1, "15_glass")
+    box(x0 - 0.15, x1 + 0.15, y0 - 0.15, y1 + 0.15, top, top + 0.5, "14_white_structures")  # 난간
+    box(x0 + 0.5, x1 - 0.5, y0 + 0.5, y1 - 0.5, top + 0.3, top + 0.55, "11_roof_green")
+    cyl((x0 + 2.0, y1 - 2.0, top + 0.5), (x0 + 2.0, y1 - 2.0, top + 2.0), 0.9, "18_accent_yellow", n=12)
+    if car:
+        box(x0 + 4.0, x0 + 8.4, y0 + 1.4, y0 + 3.6, zp, zp + 0.9, car)
+        box(x0 + 5.0, x0 + 7.6, y0 + 1.6, y0 + 3.4, zp + 0.9, zp + 1.6, "15_glass")
+
+
+COLS = [-84.0, -71.0, -57.0, -44.0, -31.0, -18.0]
+ROWS = [-44.0, -33.0, -22.0, 14.0, 26.0, 38.0]
+for y0 in ROWS:
+    for x0 in COLS:
+        if rng.random() < 0.12:
+            tree(x0 + 5.5, y0 + 4.5, terrain_z(x0 + 5.5), 1.5, rng)
+            continue
+        villa(x0, y0, rng.choice([2, 3, 3]), rng.choice(WALLS),
+              rng.choice(CARS) if rng.random() < 0.55 else None)
+
+# 둥근 나무 몇 그루 (언덕)
+for (tx, ty) in [(-86.0, 54.0), (-62.0, 54.0), (-40.0, 55.0), (-16.0, 54.0), (-56.0, 6.0),
+                 (-24.0, -6.0), (-86.5, -46.0), (-1.0, 40.0)]:
+    tree(tx, ty, terrain_z(tx), 1.5, rng)
 
 # ---------------------------------------------------------------- 위 정거장 (언덕 꼭대기)
-z0 = TERRACES[0][2]
+z0 = HILL_TOP
 SX0, SX1, SY = -88.0, -72.0, 10.0
 box(SX0, SX1, -SY, SY, z0, z0 + 0.8, "14_white_structures")               # 승강장 바닥
 box(SX0, SX0 + 1.2, -SY, SY, z0, 56.5, "14_white_structures")              # 뒷벽
@@ -391,14 +525,14 @@ for k in range(5):
     box(x, x + 0.8, -29.6, -26.4, GROUND + 0.25, GROUND + 0.35, "14_white_structures")  # 횡단보도
 
 # 강 건너는 보행자 다리
-box(1, 27, -18, -14, GROUND + 0.2, GROUND + 1.0, "12_brown_details")
+box(1, 27, -46, -42, GROUND + 0.2, GROUND + 1.0, "12_brown_details")
 for x in np.arange(1.5, 27, 6.2):
-    for y in (-18, -14.4):
+    for y in (-46, -42.4):
         box(x, x + 0.4, y, y + 0.4, GROUND + 1.0, GROUND + 2.6, "12_brown_details")
-for y in (-18, -14.4):
+for y in (-46, -42.4):
     box(1, 27, y, y + 0.4, GROUND + 2.4, GROUND + 2.8, "12_brown_details")
 
-# ---------------------------------------------------------------- 시장 (가판대 4칸)
+# ---------------------------------------------------------------- 시장 (알록달록 지붕 가판대 4칸)
 for k, x in enumerate((38.0, 47.0, 56.0, 65.0)):
     yb, yf = -54.0, -49.0
     box(x, x + 8, yb, yf, GROUND, 7.5, "12_brown_details")
@@ -407,9 +541,10 @@ for k, x in enumerate((38.0, 47.0, 56.0, 65.0)):
     for s_ in range(3):
         g = ("21_people_goods", "18_accent_yellow", "13_trees")[(s_ + k) % 3]
         sphere((x + 1.8 + s_ * 2.2, yf - 1.0, 8.3), 0.8, g, n=12)
-    col = "19_accent_red" if k % 2 == 0 else "18_accent_yellow"
-    convex([(x - 0.2, yb, 10.2), (x + 8.2, yb, 10.2), (x - 0.2, yf + 1.8, 8.8), (x + 8.2, yf + 1.8, 8.8),
-            (x - 0.2, yb, 10.6), (x + 8.2, yb, 10.6), (x - 0.2, yf + 1.8, 9.2), (x + 8.2, yf + 1.8, 9.2)], col)
+    col = ("19_accent_red", "18_accent_yellow", "09_roof_blue", "10_roof_orange")[k]
+    for px in (x + 0.2, x + 7.4):
+        box(px, px + 0.4, yb + 0.2, yb + 0.6, GROUND, 8.8, "12_brown_details")
+    gable(x, x + 8, yb, yf + 1.6, 8.8, 2.4, True, col, o=0.5)
 
 # ---------------------------------------------------------------- 나무 (오른쪽)
 for (tx, ty) in [(34, -36), (36, 10), (36, 36), (58, 52), (80, 52), (86, 24)]:
@@ -482,9 +617,10 @@ if os.environ.get("PREVIEW", "1") == "1":
     def to_rgb_255(hexcol):
         return tuple(int(round(v * 255)) for v in to_rgb(hexcol))
 
+    BG = "#F3EBDD"
     light = np.array([-0.4, -0.6, 0.9])
     light /= np.linalg.norm(light)
-    for fname, elev, azim in (("preview.png", 32, -62), ("preview_front.png", 18, -88)):
+    for fname, elev, azim in (("preview.png", 30, -55), ("preview_front.png", 16, -88)):
         polys, cols = [], []
         for name, tris in parts.items():
             base = np.array(to_rgb(COLORS[name][0]))
@@ -499,8 +635,8 @@ if os.environ.get("PREVIEW", "1") == "1":
                     polys.append(t)
                     cols.append(col)
         fig = plt.figure(figsize=(16, 11), dpi=110)
-        ax = fig.add_subplot(111, projection="3d")
-        pc = Poly3DCollection(polys, facecolors=cols, edgecolors="none", linewidths=0)
+        ax = fig.add_subplot(111, projection="3d", proj_type="ortho")
+        pc = Poly3DCollection(polys, facecolors=cols, edgecolors=cols, linewidths=0.25)
         ax.add_collection3d(pc)
         ax.set_xlim(XMIN, XMAX)
         ax.set_ylim(YMIN, YMAX)
@@ -508,14 +644,14 @@ if os.environ.get("PREVIEW", "1") == "1":
         ax.set_box_aspect((180, 120, 65))
         ax.view_init(elev=elev, azim=azim)
         ax.set_axis_off()
-        ax.set_facecolor("#F4F1EA")
-        fig.patch.set_facecolor("#F4F1EA")
+        ax.set_facecolor(BG)
+        fig.patch.set_facecolor(BG)
         plt.subplots_adjust(0, 0, 1, 1)
         out = os.path.join(HERE, fname)
         plt.savefig(out, facecolor=fig.get_facecolor())
         plt.close(fig)
         from PIL import Image, ImageChops
         img = Image.open(out).convert("RGB")
-        diff = ImageChops.difference(img, Image.new("RGB", img.size, to_rgb_255("#F4F1EA")))
+        diff = ImageChops.difference(img, Image.new("RGB", img.size, to_rgb_255(BG)))
         l, t, r, b = diff.getbbox()
         img.crop((max(0, l - 30), max(0, t - 30), min(img.width, r + 30), min(img.height, b + 30))).save(out)
