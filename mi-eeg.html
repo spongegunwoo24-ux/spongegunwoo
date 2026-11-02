@@ -70,7 +70,7 @@
     <tr><th>시간</th><th>단계</th><th>화면</th><th>목적</th></tr>
     <tr><td id="t-fix">0 ~ 2초</td><td>시선 고정</td><td>＋</td><td>EOG 잡음 차단, 준비</td></tr>
     <tr><td id="t-rest">2 ~ 4초</td><td>휴식 (힘 빼기)</td><td>＋ / “힘 빼기”</td><td>Mu 기준선(baseline) 수집</td></tr>
-    <tr><td id="t-act">4 ~ 7초</td><td>동작</td><td>💪 (오른손)</td><td>C3 Mu ERD 수집</td></tr>
+    <tr><td id="t-act">4 ~ 7초</td><td>동작</td><td>✊ (왼손)</td><td>C4 Mu ERD 수집</td></tr>
     <tr><td id="t-brk">7 ~ 8초+</td><td>휴식/전환</td><td>빈 화면</td><td>눈 깜빡임·피로 회복</td></tr>
   </table>
 
@@ -88,7 +88,8 @@
       </label>
       <label>클래스
         <select id="classes">
-          <option value="R">오른손만 (표 그대로)</option>
+          <option value="L" selected>왼손만</option>
+          <option value="R">오른손만</option>
           <option value="RL">오른손 / 왼손 (랜덤·균형)</option>
           <option value="RLF">오른손 / 왼손 / 발</option>
           <option value="RN">오른손 / 무동작(컨트롤)</option>
@@ -159,7 +160,7 @@
 
   const CLASS = {
     R: { arrow: '💪', name: 'right_hand', ko: '오른손' },
-    L: { arrow: '←', name: 'left_hand',  ko: '왼손' },
+    L: { arrow: '✊', name: 'left_hand',  ko: '왼손' },
     F: { arrow: '↓', name: 'feet',       ko: '양발' },
     N: { arrow: '○', name: 'none',       ko: '무동작' },
   };
