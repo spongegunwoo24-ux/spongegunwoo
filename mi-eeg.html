@@ -1,0 +1,406 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>운동 상상 EEG 큐</title>
+<style>
+  :root {
+    --bg: #0b0d10; --panel: #15181d; --line: #262b33; --text: #e8eaed; --muted: #8b93a0;
+    --accent: #4f8cff; --ok: #3ecf8e; --warn: #f5b84a;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text);
+    font-family: system-ui, -apple-system, "Apple SD Gothic Neo", "Malgun Gothic", sans-serif; }
+  button, input, select { font: inherit; }
+  .hidden { display: none !important; }
+
+  /* ---------- 설정 화면 ---------- */
+  #setup { max-width: 720px; margin: 0 auto; padding: 32px 16px 48px; }
+  h1 { font-size: 22px; margin: 0 0 4px; }
+  .sub { color: var(--muted); margin: 0 0 24px; font-size: 14px; }
+  table.proto { width: 100%; border-collapse: collapse; font-size: 14px; margin-bottom: 24px; }
+  table.proto th, table.proto td { text-align: left; padding: 10px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  table.proto th { color: var(--muted); font-weight: 500; }
+  fieldset { border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px 6px; margin: 0 0 16px; background: var(--panel); }
+  legend { padding: 0 6px; color: var(--muted); font-size: 13px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px 16px; margin-bottom: 10px; }
+  label { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: var(--muted); }
+  label.chk { flex-direction: row; align-items: center; gap: 8px; color: var(--text); }
+  input[type=number], input[type=text], select {
+    background: var(--bg); color: var(--text); border: 1px solid var(--line); border-radius: 6px; padding: 7px 8px; width: 100%; }
+  .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+  .btn { background: var(--accent); color: #fff; border: 0; border-radius: 8px; padding: 12px 20px; cursor: pointer; font-weight: 600; }
+  .btn.ghost { background: transparent; border: 1px solid var(--line); color: var(--text); font-weight: 500; }
+  .est { color: var(--muted); font-size: 13px; }
+  .keys { color: var(--muted); font-size: 13px; line-height: 1.7; margin-top: 18px; }
+  kbd { border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 4px; padding: 0 5px; font-size: 12px; }
+
+  /* ---------- 실험 화면 ---------- */
+  #stage { position: fixed; inset: 0; background: #000; cursor: none; user-select: none; }
+  #stim { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+    font-size: min(28vw, 28vh); line-height: 1; color: #fff; }
+  #stim.fix { font-size: min(12vw, 12vh); color: #ddd; }
+  #stim.rest { font-size: min(12vw, 12vh); color: #888; }
+  #stim.msg { white-space: pre-line; font-size: min(5vw, 34px); text-align: center; padding: 0 16px; line-height: 1.6; color: #ddd; }
+  #label { position: absolute; left: 0; right: 0; bottom: 14%; text-align: center; color: #777; font-size: min(4vw, 24px); }
+  #hud { position: absolute; top: 12px; left: 16px; right: 120px; color: #555; font-size: 13px; }
+  #bar { position: absolute; left: 0; bottom: 0; height: 3px; background: #333; width: 0; }
+  /* 포토다이오드 동기화용 사각형 (동작 단계에서만 흰색) */
+  #pd { position: absolute; right: 0; top: 0; width: 60px; height: 60px; background: #000; }
+  #pd.on { background: #fff; }
+
+  /* ---------- 결과 화면 ---------- */
+  #done { max-width: 720px; margin: 0 auto; padding: 32px 16px; }
+  .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; margin: 16px 0 24px; }
+  .stat { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 12px; }
+  .stat b { display: block; font-size: 22px; }
+  .stat span { color: var(--muted); font-size: 12px; }
+  pre { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 12px; font-size: 12px; overflow: auto; max-height: 260px; }
+</style>
+</head>
+<body>
+
+<!-- ===================== 설정 ===================== -->
+<section id="setup">
+  <h1>운동 상상(Motor Imagery) EEG 큐 제시기</h1>
+  <p class="sub">C3/C4 Mu 리듬 ERD 측정용 트라이얼 패러다임. 이벤트 시각은 ms 단위로 기록되어 CSV로 내려받을 수 있습니다.</p>
+
+  <table class="proto">
+    <tr><th>시간</th><th>단계</th><th>화면</th><th>목적</th></tr>
+    <tr><td id="t-fix">0 ~ 2초</td><td>시선 고정</td><td>＋</td><td>EOG 잡음 차단, 준비</td></tr>
+    <tr><td id="t-rest">2 ~ 4초</td><td>휴식 (힘 빼기)</td><td>＋ / “힘 빼기”</td><td>Mu 기준선(baseline) 수집</td></tr>
+    <tr><td id="t-act">4 ~ 7초</td><td>동작</td><td>→ (오른손)</td><td>C3 Mu ERD 수집</td></tr>
+    <tr><td id="t-brk">7 ~ 8초+</td><td>휴식/전환</td><td>빈 화면</td><td>눈 깜빡임·피로 회복</td></tr>
+  </table>
+
+  <fieldset>
+    <legend>세션</legend>
+    <div class="grid">
+      <label>피험자 ID <input type="text" id="subj" value="S01"></label>
+      <label>트라이얼 수 <input type="number" id="nTrials" value="20" min="1" max="500"></label>
+      <label>블록 크기 (N회마다 긴 휴식, 0=없음) <input type="number" id="block" value="10" min="0"></label>
+      <label>과제 유형
+        <select id="task">
+          <option value="imagery">상상 (Motor Imagery)</option>
+          <option value="execution">실제로 쥐기 (Execution)</option>
+        </select>
+      </label>
+      <label>클래스
+        <select id="classes">
+          <option value="R">오른손만 (표 그대로)</option>
+          <option value="RL">오른손 / 왼손 (랜덤·균형)</option>
+          <option value="RLF">오른손 / 왼손 / 발</option>
+          <option value="RN">오른손 / 무동작(컨트롤)</option>
+        </select>
+      </label>
+    </div>
+  </fieldset>
+
+  <fieldset>
+    <legend>타이밍 (초)</legend>
+    <div class="grid">
+      <label>시선 고정 <input type="number" id="dFix" value="2" step="0.1" min="0"></label>
+      <label>휴식 (baseline) <input type="number" id="dRest" value="2" step="0.1" min="0"></label>
+      <label>동작 <input type="number" id="dAct" value="3" step="0.1" min="0.1"></label>
+      <label>전환 (최소) <input type="number" id="dBrk" value="1" step="0.1" min="0"></label>
+      <label>전환 랜덤 추가 (0~N초) <input type="number" id="jit" value="1" step="0.1" min="0"></label>
+    </div>
+    <div class="est" id="est"></div>
+  </fieldset>
+
+  <fieldset>
+    <legend>옵션</legend>
+    <div class="grid">
+      <label class="chk"><input type="checkbox" id="beep" checked> 동작 시작 시 비프음</label>
+      <label class="chk"><input type="checkbox" id="showLabel" checked> 단계 안내 문구 표시</label>
+      <label class="chk"><input type="checkbox" id="pdOn"> 포토다이오드 사각형 (우상단)</label>
+      <label class="chk"><input type="checkbox" id="hudOn" checked> 진행 상황 표시</label>
+    </div>
+  </fieldset>
+
+  <div class="row">
+    <button class="btn" id="startBtn">시작 (전체화면)</button>
+    <button class="btn ghost" id="demoBtn">1회 연습</button>
+  </div>
+
+  <div class="keys">
+    <kbd>Space</kbd> 일시정지/재개 (재개 시 현재 트라이얼을 처음부터 다시 시작, 중단된 트라이얼은 로그에 표시) ·
+    <kbd>Esc</kbd> 중단 후 결과 보기 ·
+    <kbd>M</kbd> 수동 마커 기록 (예: 피험자가 움직였을 때)
+  </div>
+</section>
+
+<!-- ===================== 실험 ===================== -->
+<section id="stage" class="hidden">
+  <div id="hud"></div>
+  <div id="stim"></div>
+  <div id="label"></div>
+  <div id="pd"></div>
+  <div id="bar"></div>
+</section>
+
+<!-- ===================== 결과 ===================== -->
+<section id="done" class="hidden">
+  <h1>세션 종료</h1>
+  <div class="stats" id="stats"></div>
+  <div class="row">
+    <button class="btn" id="csvBtn">이벤트 CSV 다운로드</button>
+    <button class="btn ghost" id="jsonBtn">JSON 다운로드</button>
+    <button class="btn ghost" id="againBtn">설정으로 돌아가기</button>
+  </div>
+  <p class="est" style="margin-top:16px">t_ms = 세션 시작 기준 경과 시간(ms), 화면 갱신 프레임 시각 기준. 앰프 시간과 맞추려면 포토다이오드나 첫 마커를 기준점으로 쓰세요.</p>
+  <pre id="preview"></pre>
+</section>
+
+<script>
+(() => {
+  const $ = id => document.getElementById(id);
+
+  const CLASS = {
+    R: { arrow: '→', name: 'right_hand', ko: '오른손' },
+    L: { arrow: '←', name: 'left_hand',  ko: '왼손' },
+    F: { arrow: '↓', name: 'feet',       ko: '양발' },
+    N: { arrow: '○', name: 'none',       ko: '무동작' },
+  };
+
+  let cfg, trials, events, idx, phaseI, phaseStart, phaseDur, t0, raf, paused, running, practice, audio;
+
+  // ---------- 설정 읽기 / 예상 시간 ----------
+  function readCfg() {
+    const n = id => Math.max(0, parseFloat($(id).value) || 0);
+    return {
+      subject: $('subj').value.trim() || 'S01',
+      nTrials: Math.max(1, parseInt($('nTrials').value) || 1),
+      block: parseInt($('block').value) || 0,
+      task: $('task').value,
+      classes: $('classes').value.split(''),
+      dFix: n('dFix'), dRest: n('dRest'), dAct: Math.max(0.1, n('dAct')), dBrk: n('dBrk'), jit: n('jit'),
+      beep: $('beep').checked, showLabel: $('showLabel').checked, pd: $('pdOn').checked, hud: $('hudOn').checked,
+    };
+  }
+  function updateEst() {
+    const c = readCfg();
+    const a = c.dFix, b = a + c.dRest, d = b + c.dAct, e = d + c.dBrk;
+    $('t-fix').textContent = `0 ~ ${a}초`;
+    $('t-rest').textContent = `${a} ~ ${b}초`;
+    $('t-act').textContent = `${b} ~ ${d}초`;
+    $('t-brk').textContent = `${d} ~ ${e}${c.jit ? '~' + (e + c.jit) : ''}초`;
+    const per = e + c.jit / 2;
+    const min = (per * c.nTrials) / 60;
+    $('est').textContent = `트라이얼당 약 ${per.toFixed(1)}초 · 총 약 ${min.toFixed(1)}분 (블록 휴식 제외)`;
+  }
+  document.querySelectorAll('#setup input, #setup select').forEach(el => el.addEventListener('input', updateEst));
+  updateEst();
+
+  // ---------- 클래스 순서 (균형 + 셔플) ----------
+  function makeOrder(n, classes) {
+    const arr = [];
+    for (let i = 0; i < n; i++) arr.push(classes[i % classes.length]);
+    for (let i = arr.length - 1; i > 0; i--) { const j = Math.random() * (i + 1) | 0; [arr[i], arr[j]] = [arr[j], arr[i]]; }
+    // 같은 클래스 3연속 이상 방지 (가능한 범위에서)
+    for (let i = 2; i < arr.length; i++) {
+      if (arr[i] === arr[i - 1] && arr[i] === arr[i - 2]) {
+        const k = arr.findIndex((v, j) => j > i && v !== arr[i]);
+        if (k > 0) [arr[i], arr[k]] = [arr[k], arr[i]];
+      }
+    }
+    return arr;
+  }
+
+  // ---------- 소리 ----------
+  function beep(freq = 880, ms = 120) {
+    if (!cfg.beep) return;
+    try {
+      audio = audio || new (window.AudioContext || window.webkitAudioContext)();
+      const o = audio.createOscillator(), g = audio.createGain();
+      o.frequency.value = freq; o.connect(g); g.connect(audio.destination);
+      const t = audio.currentTime;
+      g.gain.setValueAtTime(0.0001, t);
+      g.gain.exponentialRampToValueAtTime(0.25, t + 0.01);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + ms / 1000);
+      o.start(t); o.stop(t + ms / 1000 + 0.02);
+    } catch (e) {}
+  }
+
+  // ---------- 화면 ----------
+  const stim = $('stim'), label = $('label'), pd = $('pd'), hud = $('hud'), bar = $('bar');
+  function show(text, cls, lab) {
+    stim.className = cls || '';
+    stim.textContent = text;
+    label.textContent = cfg.showLabel ? (lab || '') : '';
+  }
+  function updateHud() {
+    if (!cfg.hud || practice) { hud.textContent = practice ? '연습' : ''; bar.style.width = '0'; return; }
+    hud.textContent = `${cfg.subject} · 트라이얼 ${Math.min(idx + 1, trials.length)} / ${trials.length}`;
+    bar.style.width = (idx / trials.length * 100) + '%';
+  }
+
+  // ---------- 이벤트 기록 ----------
+  function log(t, type, extra = {}) {
+    const tr = trials[idx];
+    events.push({
+      t_ms: +(t - t0).toFixed(1),
+      wall: new Date(performance.timeOrigin + t).toISOString(),
+      trial: tr ? idx + 1 : '',
+      cls: tr ? CLASS[tr.cls].name : '',
+      event: type,
+      ...extra,
+    });
+  }
+
+  // ---------- 단계 정의 ----------
+  function phases(tr) {
+    const c = CLASS[tr.cls];
+    const verb = cfg.task === 'imagery' ? '쥐는 상상' : '쥐기';
+    const actLabel = tr.cls === 'N' ? '가만히 바라보기' : `${c.ko} ${tr.cls === 'F' ? (cfg.task === 'imagery' ? '움직이는 상상' : '움직이기') : verb}`;
+    return [
+      { key: 'fixation', dur: cfg.dFix, enter: () => show('+', 'fix', '화면 중앙을 바라보세요') },
+      { key: 'rest',     dur: cfg.dRest, enter: () => show('+', 'rest', '힘을 빼고 편안하게') },
+      { key: 'action',   dur: cfg.dAct, enter: () => { show(c.arrow, '', actLabel); pd.classList.toggle('on', cfg.pd); beep(880); } },
+      { key: 'break',    dur: cfg.dBrk + Math.random() * cfg.jit, enter: () => { show('', '', '눈 깜빡여도 됩니다'); pd.classList.remove('on'); } },
+    ];
+  }
+
+  function enterPhase(t) {
+    const p = trials[idx].ph[phaseI];
+    p.enter();
+    phaseStart = t; phaseDur = p.dur * 1000;
+    log(t, p.key + '_start', { dur_ms: Math.round(phaseDur) });
+  }
+
+  function startTrial(t) {
+    phaseI = 0;
+    trials[idx].ph = phases(trials[idx]);
+    updateHud();
+    enterPhase(t);
+  }
+
+  function tick(t) {
+    if (!running) return;
+    raf = requestAnimationFrame(tick);
+    if (paused) return;
+    if (t - phaseStart < phaseDur) return;
+
+    phaseI++;
+    if (phaseI < trials[idx].ph.length) { enterPhase(t); return; }
+
+    // 트라이얼 종료
+    log(t, 'trial_end');
+    idx++;
+    if (idx >= trials.length) { finish(t); return; }
+    if (!practice && cfg.block > 0 && idx % cfg.block === 0) {
+      paused = 'block';
+      log(t, 'block_break_start');
+      updateHud();
+      show(`블록 휴식\n${idx} / ${trials.length} 완료\n\n편하게 쉬고 Space를 누르면 계속합니다`, 'msg');
+      label.textContent = '';
+      return;
+    }
+    startTrial(t);
+  }
+
+  // ---------- 시작 / 종료 ----------
+  function begin(isPractice) {
+    cfg = readCfg();
+    practice = isPractice;
+    const order = isPractice ? [cfg.classes[0]] : makeOrder(cfg.nTrials, cfg.classes);
+    trials = order.map(cls => ({ cls }));
+    events = []; idx = 0; paused = false; running = true;
+
+    $('setup').classList.add('hidden'); $('done').classList.add('hidden'); $('stage').classList.remove('hidden');
+    pd.classList.remove('on');
+    if (document.documentElement.requestFullscreen) document.documentElement.requestFullscreen().catch(() => {});
+    beep(1, 1); // 오디오 컨텍스트 미리 깨우기
+
+    // 3-2-1 카운트다운 후 시작
+    let n = 3;
+    show(n, 'msg'); label.textContent = '곧 시작합니다';
+    hud.textContent = ''; bar.style.width = '0';
+    const iv = setInterval(() => {
+      if (!running) { clearInterval(iv); return; }
+      n--;
+      if (n > 0) { show(n, 'msg'); label.textContent = '곧 시작합니다'; return; }
+      clearInterval(iv);
+      requestAnimationFrame(t => {
+        t0 = t;
+        log(t, 'session_start', { note: `subject=${cfg.subject};task=${cfg.task};classes=${cfg.classes.join('')}` });
+        startTrial(t);
+        raf = requestAnimationFrame(tick);
+      });
+    }, 1000);
+  }
+
+  function finish(t, aborted) {
+    running = false;
+    cancelAnimationFrame(raf);
+    if (t0 != null && events.length) log(t, aborted ? 'session_abort' : 'session_end');
+    if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
+    $('stage').classList.add('hidden');
+    if (practice) { $('setup').classList.remove('hidden'); return; }
+
+    const done = events.filter(e => e.event === 'trial_end').length;
+    const dur = events.length ? events[events.length - 1].t_ms / 1000 : 0;
+    const per = {};
+    events.filter(e => e.event === 'trial_end').forEach(e => per[e.cls] = (per[e.cls] || 0) + 1);
+    const interrupted = events.filter(e => e.event === 'trial_interrupted').length;
+    const markers = events.filter(e => e.event === 'manual_marker').length;
+    $('stats').innerHTML = [
+      [done + ' / ' + trials.length, '완료 트라이얼'],
+      [(dur / 60).toFixed(1) + '분', '세션 길이'],
+      [interrupted, '중단(재시작)된 트라이얼'],
+      [markers, '수동 마커'],
+      ...Object.entries(per).map(([k, v]) => [v, k]),
+    ].map(([b, s]) => `<div class="stat"><b>${b}</b><span>${s}</span></div>`).join('');
+    $('preview').textContent = toCSV().split('\n').slice(0, 30).join('\n') + (events.length > 29 ? '\n…' : '');
+    $('done').classList.remove('hidden');
+  }
+
+  // ---------- 키보드 ----------
+  document.addEventListener('keydown', e => {
+    if (!running) return;
+    const now = performance.now();
+    if (e.code === 'Escape') { e.preventDefault(); finish(now, true); }
+    else if (e.code === 'Space') {
+      e.preventDefault();
+      if (t0 == null) return;
+      if (paused === 'block') {
+        paused = false; log(now, 'block_break_end'); startTrial(now);
+      } else if (paused) {
+        paused = false; log(now, 'resume'); startTrial(now); // 현재 트라이얼을 처음부터
+      } else {
+        paused = true; pd.classList.remove('on');
+        log(now, 'trial_interrupted', { phase: trials[idx].ph[phaseI].key });
+        show('일시정지\n\nSpace: 이 트라이얼부터 다시 시작 · Esc: 종료', 'msg');
+        label.textContent = '';
+      }
+    } else if (e.code === 'KeyM' && t0 != null) {
+      log(now, 'manual_marker');
+    }
+  });
+  // 전체화면이 풀려도 실험은 계속 (Esc로만 종료)
+
+  // ---------- 내보내기 ----------
+  const COLS = ['t_ms', 'wall', 'trial', 'cls', 'event', 'dur_ms', 'phase', 'note'];
+  function toCSV() {
+    const esc = v => v == null ? '' : /[",\n]/.test(String(v)) ? `"${String(v).replace(/"/g, '""')}"` : v;
+    return [COLS.join(','), ...events.map(ev => COLS.map(c => esc(ev[c])).join(','))].join('\n');
+  }
+  function download(name, text, type) {
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([text], { type }));
+    a.download = name; a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  }
+  const stamp = () => new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-');
+  $('csvBtn').onclick = () => download(`MI_${cfg.subject}_${stamp()}.csv`, '﻿' + toCSV(), 'text/csv');
+  $('jsonBtn').onclick = () => download(`MI_${cfg.subject}_${stamp()}.json`,
+    JSON.stringify({ config: cfg, order: trials.map(t => CLASS[t.cls].name), events }, null, 2), 'application/json');
+  $('againBtn').onclick = () => { $('done').classList.add('hidden'); $('setup').classList.remove('hidden'); };
+
+  $('startBtn').onclick = () => { t0 = null; begin(false); };
+  $('demoBtn').onclick = () => { t0 = null; begin(true); };
+})();
+</script>
+</body>
+</html>
