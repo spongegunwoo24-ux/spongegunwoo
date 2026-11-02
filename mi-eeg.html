@@ -70,7 +70,7 @@
     <tr><th>시간</th><th>단계</th><th>화면</th><th>목적</th></tr>
     <tr><td id="t-fix">0 ~ 2초</td><td>시선 고정</td><td>＋</td><td>EOG 잡음 차단, 준비</td></tr>
     <tr><td id="t-rest">2 ~ 4초</td><td>휴식 (힘 빼기)</td><td>＋ / “힘 빼기”</td><td>Mu 기준선(baseline) 수집</td></tr>
-    <tr><td id="t-act">4 ~ 7초</td><td>동작</td><td>✊ (왼손)</td><td>C4 Mu ERD 수집</td></tr>
+    <tr><td id="t-act">4 ~ 7초</td><td>동작</td><td>💪 (왼팔)</td><td>C4 Mu ERD 수집</td></tr>
     <tr><td id="t-brk">7 ~ 8초+</td><td>휴식/전환</td><td>빈 화면</td><td>눈 깜빡임·피로 회복</td></tr>
   </table>
 
@@ -83,16 +83,7 @@
       <label>과제 유형
         <select id="task">
           <option value="imagery">상상 (Motor Imagery)</option>
-          <option value="execution">실제로 쥐기 (Execution)</option>
-        </select>
-      </label>
-      <label>클래스
-        <select id="classes">
-          <option value="L" selected>왼손만</option>
-          <option value="R">오른손만</option>
-          <option value="RL">오른손 / 왼손 (랜덤·균형)</option>
-          <option value="RLF">오른손 / 왼손 / 발</option>
-          <option value="RN">오른손 / 무동작(컨트롤)</option>
+          <option value="execution">실제로 힘주기 (Execution)</option>
         </select>
       </label>
     </div>
@@ -160,7 +151,7 @@
 
   const CLASS = {
     R: { arrow: '💪', name: 'right_hand', ko: '오른손' },
-    L: { arrow: '✊', name: 'left_hand',  ko: '왼손' },
+    L: { arrow: '💪', name: 'left_arm',  ko: '왼팔' },
     F: { arrow: '↓', name: 'feet',       ko: '양발' },
     N: { arrow: '○', name: 'none',       ko: '무동작' },
   };
@@ -175,7 +166,7 @@
       nTrials: Math.max(1, parseInt($('nTrials').value) || 1),
       block: parseInt($('block').value) || 0,
       task: $('task').value,
-      classes: $('classes').value.split(''),
+      classes: ['L'],
       dFix: n('dFix'), dRest: n('dRest'), dAct: Math.max(0.1, n('dAct')), dBrk: n('dBrk'), jit: n('jit'),
       beep: $('beep').checked, showLabel: $('showLabel').checked, pd: $('pdOn').checked, hud: $('hudOn').checked,
     };
@@ -253,7 +244,7 @@
   // ---------- 단계 정의 ----------
   function phases(tr) {
     const c = CLASS[tr.cls];
-    const verb = cfg.task === 'imagery' ? '쥐는 상상' : '쥐기';
+    const verb = cfg.task === 'imagery' ? '힘주는 상상' : '힘주기';
     const actLabel = tr.cls === 'N' ? '가만히 바라보기' : `${c.ko} ${tr.cls === 'F' ? (cfg.task === 'imagery' ? '움직이는 상상' : '움직이기') : verb}`;
     return [
       { key: 'fixation', dur: cfg.dFix, enter: () => show('+', 'fix', '화면 중앙을 바라보세요') },
