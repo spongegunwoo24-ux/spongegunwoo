@@ -1306,239 +1306,365 @@ class Duel {
 const i2key = i => i ? '/' : 'F';
 
 /* =========================================================================
-   GAME 4 — 리듬 줄다리기
+   GAME 4 — 리듬 줄다리기 (화살표가 내려오는 리듬게임 + 줄다리기)
    ========================================================================= */
-const TUG_EVENTS = {
-  swap: { name: '키 체인지!', sub: '빨강 W/S · 파랑 ↑/↓ 로 당기세요', dur: 4, col: '#c77dff' },
-  slip: { name: '미끄러운 바닥!', sub: '3초 동안 힘이 절반', dur: 3, col: '#9fe3ff' },
-  cheer: { name: '응원 타임!', sub: '지고 있는 쪽 힘 1.5배', dur: 4, col: COL.gold }
+const TL = {
+  dir: [-Math.PI / 2, Math.PI, 0, Math.PI / 2],            // ← ↓ ↑ →
+  col: ['#ff6bcb', '#4dd2ff', '#7dff8a', '#ffb347'],
+  keys: [['KeyA', 'KeyS', 'KeyW', 'KeyD'], ['ArrowLeft', 'ArrowDown', 'ArrowUp', 'ArrowRight']],
+  label: [['A', 'S', 'W', 'D'], ['←', '↓', '↑', '→']],
+  bpm: [118, 132, 146],
+  hwX: [110, 830], hwW: 340, laneW: 85, top: 304, judgeY: 628, bottom: 712
 };
+// 마디(16스텝) 안에서 노트가 나오는 위치. 'J'가 붙으면 두 화살표 동시(점프)
+const TUG_PATS = [
+  [[0, 4, 8, 12], [0, 4, 8], [0, 8, 12], [0, 4, 12]],
+  [[0, 4, 6, 8, 12], [0, 2, 4, 8, 10, 12], [0, 4, 8, 10, 12, 14], [0, 3, 6, 8, 12]],
+  [['0J', 4, 6, 8, 12, 14], ['0J', 2, 4, 6, '8J', 12], [0, 2, 4, 6, 8, 10, 12, 14], ['0J', 4, '8J', 10, 12, 14]],
+  [['0J', 4, 6, 7, 8, 12, 14, 15], [0, 2, 4, 5, 6, 8, 10, 12, 13, 14], ['0J', 3, 6, '8J', 10, 12, 14], [0, 2, 4, 6, '8J', 10, 11, 12, 14]],
+  [['0J', 2, 4, 6, '8J', 10, 12, 14], ['0J', 2, 3, 4, 6, '8J', 10, 11, 12, 14], ['0J', '4J', '8J', '12J', 14], [0, 1, 2, 3, 4, 6, '8J', 10, 12, 14]]
+];
+const TUG_PROG = [{ root: 45, tones: [69, 72, 76, 81] }, { root: 41, tones: [65, 69, 72, 77] }, { root: 48, tones: [67, 72, 76, 79] }, { root: 43, tones: [67, 71, 74, 79] }];
+const SEC_NAME = ['워밍업', '8비트', '점프 등장!', '16비트 연타!', '클라이맥스!'];
+
+function drawArrow(x, y, s, rot, fill, o = {}) {
+  ctx.save(); ctx.translate(x, y); ctx.rotate(rot); if (o.scale) ctx.scale(o.scale, o.scale);
+  ctx.beginPath();
+  ctx.moveTo(0, -s); ctx.lineTo(s, -s * .02); ctx.lineTo(s * .45, -s * .02); ctx.lineTo(s * .45, s * .9);
+  ctx.lineTo(-s * .45, s * .9); ctx.lineTo(-s * .45, -s * .02); ctx.lineTo(-s, -s * .02); ctx.closePath();
+  if (fill) { ctx.fillStyle = fill; ctx.fill(); }
+  ctx.lineJoin = 'round'; ctx.lineWidth = o.lw || 3; ctx.strokeStyle = o.stroke || 'rgba(0,0,0,.45)'; ctx.stroke();
+  if (o.shine) { ctx.fillStyle = 'rgba(255,255,255,.45)'; ctx.beginPath(); ctx.moveTo(0, -s * .72); ctx.lineTo(s * .55, -s * .12); ctx.lineTo(-s * .55, -s * .12); ctx.closePath(); ctx.fill(); }
+  ctx.restore();
+}
+
 class Tug {
   constructor() {
     this.score = [0, 0]; this.target = 2; this.round = 0; this.finished = false; this.winner = -1;
-    this.stats = { perfect: [0, 0], good: [0, 0], miss: [0, 0], maxCombo: [0, 0] };
-    this.clouds = Array.from({ length: 6 }, () => ({ x: rand(0, W), y: rand(40, 220), s: rand(.6, 1.3), v: rand(8, 20) }));
+    this.stats = { perfect: [0, 0], great: [0, 0], good: [0, 0], miss: [0, 0], empty: [0, 0], maxCombo: [0, 0] };
+    this.clouds = Array.from({ length: 6 }, () => ({ x: rand(0, W), y: rand(30, 120), s: rand(.5, 1), v: rand(8, 20) }));
     this.crowd = Array.from({ length: 64 }, (_, k) => ({ x: k * 20 + rand(-4, 4), c: pick(['#ff8a8a', '#8ac6ff', '#ffd23f', '#a0e6a0', '#e0b0ff', '#ffc38a']), h: rand(0, TAU), row: k % 2 }));
     this.newRound();
   }
-  exit() { }
+  exit() { this.mi = this.mev ? this.mev.length : 0; }
   newRound() {
-    this.round++; this.pos = 0; this.F = [0, 0]; this.combo = [0, 0]; this.last = [null, null]; this.used = [-1, -1];
-    this.t = 0; this.dur = 40; this.state = 'count'; this.st = 0; this.cd = new Countdown();
-    this.beats = []; this.judge = [null, null]; this.yank = [0, 0]; this.ev = null; this.warn = null; this.nextEv = 10;
-    this.swap = false; this.cheerP = -1; this.roundWinner = null; this.hitFlash = [0, 0]; this.lastEvType = null; this.creakT = 0;
+    this.round++;
+    this.bpm = TL.bpm[Math.min(this.round - 1, 2)];
+    this.travel = [1250, 1100, 980][Math.min(this.round - 1, 2)];   // 화살표가 떨어지는 시간(ms)
+    this.pos = 0; this.F = [0, 0]; this.combo = [0, 0]; this.yank = [0, 0];
+    this.judge = [null, null]; this.laneFx = [[0, 0, 0, 0], [0, 0, 0, 0]];
+    this.state = 'intro'; this.st = 0; this.roundWinner = null; this.notes = []; this.mev = []; this.mi = 0;
+    this.lastSec = -1; this.creakT = 0; this.bannerShown = false; this.secShow = null;
   }
-  startPlay() { this.state = 'play'; this.playStart = Clock.now(); this.beatGen = this.playStart + 500; this.beatIdx = 0; Sound.play('whistle'); }
-  bpmAt(tms) { const tt = (tms - this.playStart) / 1000; return 110 + 50 * clamp(tt / 35, 0, 1); }
-  genBeats() {
-    const now = Clock.now();
-    while (this.beatGen < now + 2500) {
-      const iv = 60000 / this.bpmAt(this.beatGen) / 2;
-      this.beats.push({ t: this.beatGen, i: this.beatIdx++, iv, sched: false });
-      this.beatGen += iv;
-    }
-    this.beats = this.beats.filter(b => b.t > now - 1200);
-    if (Sound.ctx) {
-      for (const b of this.beats) {
-        if (!b.sched && b.t - now < 110) {
-          b.sched = true; if (b.t < now - 30) continue;
-          Sound.play(b.i % 2 === 0 ? 'beatA' : 'beatB', 1, Sound.ctx.currentTime + Math.max(0, (b.t - now) / 1000));
+  startSong() {
+    this.state = 'play'; this.st = 0;
+    this.songStart = Clock.now() + 150;
+    this.buildSong();
+  }
+  buildSong() {
+    const st = 60000 / this.bpm / 4, t0 = this.songStart, bars = 20;
+    let last = -1, dir = 1;
+    const lane = () => {
+      let l;
+      if (last >= 0 && Math.random() < .35) { l = (last + dir + 4) % 4; if (Math.random() < .25) dir = -dir; }
+      else { do { l = randi(0, 3); } while (l === last); }
+      last = l; return l;
+    };
+    for (let bar = 0; bar < bars; bar++) {
+      const sec = bar === 0 ? -1 : Math.min(4, Math.floor((bar - 1) / 4));
+      const ch = TUG_PROG[bar % 4], bt = t0 + bar * 16 * st;
+      for (let s = 0; s < 16; s++) {
+        const t = bt + s * st;
+        if (bar === 0) { if (s % 4 === 0) this.mev.push({ t, k: 'count', n: s / 4 }); continue; }
+        if (s % 4 === 0 && (sec >= 1 || s % 8 === 0)) this.mev.push({ t, k: 'kick' });
+        if (sec >= 3 && s === 10) this.mev.push({ t, k: 'kick' });
+        if (s === 4 || s === 12) this.mev.push({ t, k: 'snare' });
+        const hat = sec >= 4 ? true : sec >= 2 ? s % 2 === 0 : s % 4 === 2;
+        if (hat) this.mev.push({ t, k: 'hat' });
+        if ([0, 3, 6, 8, 11, 14].includes(s)) this.mev.push({ t, k: 'bass', m: ch.root + (s === 6 || s === 14 ? 12 : 0) });
+      }
+      if (sec < 0) continue;
+      if (bar % 4 === 1) this.mev.push({ t: bt, k: 'section', sec });
+      const pat = pick(TUG_PATS[sec]);
+      pat.forEach((v, ix) => {
+        const s = parseInt(v, 10), jump = typeof v === 'string', t = bt + s * st, l = lane();
+        const gold = ix === 0 && bar % 4 === 1 && bar > 1;
+        this.notes.push({ t, lane: l, gold, hit: [false, false], miss: [false, false] });
+        this.mev.push({ t, k: 'lead', m: ch.tones[l] });
+        if (jump) {
+          let l2; do { l2 = randi(0, 3); } while (l2 === l);
+          this.notes.push({ t, lane: l2, gold, hit: [false, false], miss: [false, false], jump: true });
+          this.mev.push({ t, k: 'lead', m: ch.tones[l2] });
         }
+      });
+    }
+    this.songEnd = t0 + bars * 16 * st;
+    this.notes.sort((a, b) => a.t - b.t); this.mev.sort((a, b) => a.t - b.t);
+    this.totalNotes = this.notes.length;
+  }
+  schedMusic() {
+    const now = Clock.now(), c = Sound.ctx;
+    while (this.mi < this.mev.length && this.mev[this.mi].t - now < 140) {
+      const e = this.mev[this.mi++];
+      if (e.k === 'section') { this.secShow = { sec: e.sec, at: e.t }; continue; }
+      if (!c || e.t < now - 40) continue;
+      const t = c.currentTime + Math.max(0, (e.t - now) / 1000), out = Sound.mus;
+      switch (e.k) {
+        case 'kick': Sound.tone(150, .14, { f2: 48, v: .6, t, out }); break;
+        case 'snare': Sound.noise(.13, { type: 'bandpass', f: 1900, q: .7, v: .34, t, out }); Sound.tone(220, .06, { type: 'triangle', v: .1, t, out }); break;
+        case 'hat': Sound.noise(.03, { type: 'highpass', f: 7500, v: .12, t, out }); break;
+        case 'count': Sound.tone(e.n === 3 ? 1568 : 1046, .08, { type: 'square', v: .22, t, out }); break;
+        case 'bass': Sound.note(e.m, .17, { type: 'triangle', v: .38, t, out }); break;
+        case 'lead': Sound.note(e.m, .16, { type: 'square', v: .14, t, out }); Sound.note(e.m + 12, .1, { type: 'triangle', v: .08, t, out }); break;
       }
     }
   }
-  keysFor(p) { return this.swap ? (p ? ['ArrowUp', 'ArrowDown'] : ['KeyW', 'KeyS']) : (p ? ['ArrowLeft', 'ArrowRight'] : ['KeyA', 'KeyD']); }
-  keyLabels(p) { return this.swap ? (p ? ['↑', '↓'] : ['W', 'S']) : (p ? ['←', '→'] : ['A', 'D']); }
-  setJudge(p, text, color) { this.judge[p] = { text, color, t: 0 }; }
-  hit(p, side, t) {
-    if (side === this.last[p]) { this.setJudge(p, '같은 키!', '#ff8a8a'); this.combo[p] = 0; this.stats.miss[p]++; Sound.play('miss'); return; }
-    this.last[p] = side;
+  laneX(p, L) { return TL.hwX[p] + TL.laneW * (L + .5); }
+  setJudge(p, text, color, big = 1) { this.judge[p] = { text, color, t: 0, big }; }
+  press(p, L, t) {
+    this.laneFx[p][L] = Math.max(this.laneFx[p][L], .35);
     let best = null, bd = 1e9;
-    for (const b of this.beats) { const d = Math.abs(t - b.t); if (d < bd) { bd = d; best = b; } }
-    if (!best) return;
-    let q = 0;
-    if (best.i !== this.used[p]) { if (bd <= best.iv * .22) q = 2; else if (bd <= best.iv * .42) q = 1; }
-    if (!q) { this.combo[p] = 0; this.stats.miss[p]++; this.setJudge(p, best.i === this.used[p] ? '너무 빨라!' : 'MISS', '#aab'); Sound.play('miss'); return; }
-    this.used[p] = best.i; this.combo[p]++; this.stats.maxCombo[p] = Math.max(this.stats.maxCombo[p], this.combo[p]);
-    if (q === 2) this.stats.perfect[p]++; else this.stats.good[p]++;
-    let pw = q * (1 + Math.min(this.combo[p], 20) * .05);
-    if (this.ev && this.ev.type === 'slip') pw *= .5;
-    if (this.ev && this.ev.type === 'cheer' && this.cheerP === p) pw *= 1.5;
-    this.F[p] += pw; this.yank[p] = 1; this.hitFlash[p] = 1;
-    this.setJudge(p, q === 2 ? 'PERFECT' : 'GOOD', q === 2 ? COL.gold : '#fff');
-    Sound.play(q === 2 ? 'perfect' : 'good');
-    const off = this.pos * 2, fx = p ? 780 + off + 30 : 500 + off - 30;
-    FX.burst(fx, 520, q === 2 ? 6 : 3, { colors: ['#c9a36a', '#8b6b3e', '#fff'], angle: p ? 0 : Math.PI, spread: .8, max: 200, size: 4, g: 300 });
+    for (const n of this.notes) {
+      if (n.t > t + 140) break;
+      if (n.lane !== L || n.hit[p] || n.miss[p]) continue;
+      const d = Math.abs(t - n.t);
+      if (d <= 135 && d < bd) { bd = d; best = n; }
+    }
+    if (!best) {   // 헛손질: 마구 누르기 방지
+      this.stats.empty[p]++; this.combo[p] = 0; this.F[p] *= .85;
+      this.setJudge(p, '헛손질', '#8f97b8', .7); return;
+    }
+    best.hit[p] = true;
+    let pw, label, col;
+    if (bd <= 45) { pw = 3; label = 'PERFECT'; col = COL.gold; this.stats.perfect[p]++; }
+    else if (bd <= 90) { pw = 2; label = 'GREAT'; col = '#7dff8a'; this.stats.great[p]++; }
+    else { pw = 1; label = 'GOOD'; col = '#9fd8ff'; this.stats.good[p]++; }
+    const c = ++this.combo[p]; this.stats.maxCombo[p] = Math.max(this.stats.maxCombo[p], c);
+    pw *= (1 + Math.min(c, 30) * .03) * (best.gold ? 3 : 1) * (c >= 20 ? 1.25 : 1);
+    this.F[p] += pw; this.yank[p] = 1; this.laneFx[p][L] = 1;
+    this.setJudge(p, label, col, label === 'PERFECT' ? 1.15 : 1);
+    const x = this.laneX(p, L), y = TL.judgeY;
+    FX.burst(x, y, best.gold ? 26 : label === 'PERFECT' ? 14 : 8, { colors: best.gold ? [COL.gold, '#fff', '#ffe9a0'] : [TL.col[L], '#fff'], max: best.gold ? 380 : 260, size: 5, life: .45 });
+    if (best.gold) { FX.text(x, y - 60, '골드 ×3!', COL.gold, 26, .8); Sound.play('item'); }
+    if (c === 20) { FX.text(TL.hwX[p] + TL.hwW / 2, 400, 'FEVER!', PC[p], 44, 1.2); Sound.play('fever'); }
+    else if (c === 10 || c === 50 || c === 100) FX.text(TL.hwX[p] + TL.hwW / 2, 400, `${c} 콤보!`, '#fff', 36, 1);
+  }
+  onMiss(p) {
+    if (this.combo[p] >= 20) FX.text(TL.hwX[p] + TL.hwW / 2, 420, '피버 끝…', '#aab', 26, .8);
+    this.combo[p] = 0; this.F[p] *= .6; this.stats.miss[p]++;
+    this.setJudge(p, 'MISS', '#ff6b6b'); Sound.play('miss');
   }
   update(dt) {
-    this.cd.update(dt); this.st += dt;
+    this.st += dt;
     for (const c of this.clouds) { c.x += c.v * dt; if (c.x > W + 120) c.x = -120; }
-    for (let p = 0; p < 2; p++) { this.yank[p] = Math.max(0, this.yank[p] - dt * 6); this.hitFlash[p] = Math.max(0, this.hitFlash[p] - dt * 5); if (this.judge[p]) { this.judge[p].t += dt; if (this.judge[p].t > .6) this.judge[p] = null; } }
-    if (this.state === 'count') { if (this.cd.done) this.startPlay(); return; }
+    for (let p = 0; p < 2; p++) {
+      this.yank[p] = Math.max(0, this.yank[p] - dt * 6);
+      for (let L = 0; L < 4; L++) this.laneFx[p][L] = Math.max(0, this.laneFx[p][L] - dt * 4);
+      if (this.judge[p]) { this.judge[p].t += dt; if (this.judge[p].t > .5) this.judge[p] = null; }
+    }
+    if (this.state === 'intro') {
+      if (!this.bannerShown) { this.bannerShown = true; FX.banner(`ROUND ${this.round}`, `BPM ${this.bpm} · 화살표가 판정선에 닿을 때 누르세요!`, '#c77dff', 1.4); }
+      if (this.st >= 1.5) this.startSong(); return;
+    }
     if (this.state === 'play') {
-      this.t += dt; this.genBeats();
-      if (!this.ev && !this.warn && this.t >= this.nextEv && this.t < this.dur - 5) {
-        const types = Object.keys(TUG_EVENTS).filter(k => k !== this.lastEvType);
-        const type = pick(types); this.lastEvType = type; this.warn = { type, t: 0 };
-        FX.text(W / 2, 150, '2초 뒤: ' + TUG_EVENTS[type].name, TUG_EVENTS[type].col, 30, 1.6);
-        Sound.play('banner');
+      this.schedMusic();
+      const now = Clock.now();
+      for (const e of Input.events) for (let p = 0; p < 2; p++) {
+        const L = TL.keys[p].indexOf(e.code);
+        if (L >= 0 && e.t > this.songStart + 4 * 60000 / this.bpm - 300) this.press(p, L, e.t);
       }
-      if (this.warn) {
-        this.warn.t += dt;
-        if (this.warn.t >= 2) {
-          const e = TUG_EVENTS[this.warn.type];
-          this.ev = { type: this.warn.type, t: 0, dur: e.dur }; this.warn = null;
-          if (this.ev.type === 'swap') { this.swap = true; this.last = [null, null]; }
-          if (this.ev.type === 'cheer') { this.cheerP = this.pos < 0 ? 1 : this.pos > 0 ? 0 : -1; Sound.play('crowd'); }
-          FX.banner(e.name, this.ev.type === 'cheer' && this.cheerP >= 0 ? `${NAMES[this.cheerP]} 힘 1.5배!` : e.sub, e.col, 1.4);
-        }
+      for (const n of this.notes) {
+        if (n.t > now - 136) break;
+        for (let p = 0; p < 2; p++) if (!n.hit[p] && !n.miss[p]) { n.miss[p] = true; this.onMiss(p); }
       }
-      if (this.ev) {
-        this.ev.t += dt;
-        if (this.ev.t >= this.ev.dur) {
-          if (this.ev.type === 'swap') { this.swap = false; this.last = [null, null]; FX.text(W / 2, 150, '키 원래대로!', '#fff', 26); }
-          this.ev = null; this.cheerP = -1; this.nextEv = this.t + 6;
-        }
-      }
-      for (const e of Input.events) {
-        for (let p = 0; p < 2; p++) {
-          const ks = this.keysFor(p), s = ks.indexOf(e.code);
-          if (s >= 0) this.hit(p, s, e.t);
-        }
-      }
-      const kf = Math.exp(-2 * dt); this.F[0] *= kf; this.F[1] *= kf;
-      const v = (this.F[1] - this.F[0]) * 1.8;
+      const kf = Math.exp(-1.6 * dt); this.F[0] *= kf; this.F[1] *= kf;
+      const v = (this.F[1] - this.F[0]) * 1.15;
       this.pos += v * dt;
-      this.creakT -= dt; if (Math.abs(v) > 6 && this.creakT <= 0) { Sound.play('creak'); this.creakT = .25; }
+      this.creakT -= dt; if (Math.abs(v) > 6 && this.creakT <= 0) { Sound.play('creak'); this.creakT = .3; }
       if (this.pos <= -100) this.endRound(0);
       else if (this.pos >= 100) this.endRound(1);
-      else if (this.t >= this.dur) this.endRound(Math.abs(this.pos) < .5 ? -1 : this.pos < 0 ? 0 : 1);
+      else if (now >= this.songEnd + 200) this.endRound(Math.abs(this.pos) < .5 ? -1 : this.pos < 0 ? 0 : 1);
     } else if (this.state === 'roundEnd') {
-      if (this.st > 2.4) {
+      if (this.st > 2.6) {
         const w = this.score.findIndex(s => s >= this.target);
         if (w >= 0) { this.winner = w; this.finished = true; } else this.newRound();
       }
     }
   }
   endRound(w) {
-    this.state = 'roundEnd'; this.st = 0; this.roundWinner = w; this.swap = false; this.ev = null; this.warn = null;
+    this.state = 'roundEnd'; this.st = 0; this.roundWinner = w; this.mi = this.mev.length;
     this.pos = clamp(this.pos, -100, 100);
     Sound.play('whistle');
     if (w >= 0) {
       this.score[w]++; Sound.play('crowd');
       FX.banner(NAMES[w] + ' 라운드 승리!', `${this.score[0]} : ${this.score[1]}`, PC[w], 2);
-      FX.burst(640 + this.pos * 2, 470, 40, { colors: [PC[w], '#fff', COL.gold], max: 400, shape: 'rect', g: 500, size: 6 });
-    } else FX.banner('무승부!', '이번 판은 다시!', COL.gold, 2);
-    if (w === -1) this.round--;
+      FX.burst(640 + this.pos * 2, 250, 40, { colors: [PC[w], '#fff', COL.gold], max: 400, shape: 'rect', g: 500, size: 6 });
+    } else { FX.banner('무승부!', '이번 판은 다시!', COL.gold, 2); this.round--; }
   }
+  /* ---------- 그리기 ---------- */
   drawTeam(p) {
-    const off = this.pos * 2, dir = p ? 1 : -1, base = p ? 780 : 500;
-    const lean = clamp(.14 + this.F[p] / 12, .14, .55) + this.yank[p] * .1;
+    const off = this.pos * 2, dir = p ? 1 : -1, base = p ? 735 : 545;
+    const lean = clamp(.14 + this.F[p] / 16, .14, .55) + this.yank[p] * .1;
     const winning = this.state === 'roundEnd' && this.roundWinner === p, losing = this.state === 'roundEnd' && this.roundWinner === 1 - p;
-    const behind = p ? this.pos < -30 : this.pos > 30;
+    const behind = p ? this.pos < -30 : this.pos > 30, fever = this.combo[p] >= 20;
     for (let k = 2; k >= 0; k--) {
-      const x = base + off + dir * k * 95, r = k === 0 ? 36 : 29, y = 500 - r * .9;
-      const bob = Math.sin(T * 10 + k) * this.F[p] * .15;
-      drawBlob(x + dir * this.yank[p] * 5, y + bob, r, p, {
+      const x = base + off + dir * k * 72, r = k === 0 ? 28 : 22, y = 290 - r;
+      const bob = Math.sin(T * 10 + k) * Math.min(4, this.F[p] * .2);
+      if (fever && k === 0) { ctx.save(); ctx.globalAlpha = .35 + .2 * Math.sin(T * 12); ctx.fillStyle = PC[p]; circle(x, y, r + 10); ctx.fill(); ctx.restore(); }
+      drawBlob(x + dir * this.yank[p] * 4, y + bob, r, p, {
         rot: dir * (losing ? -.25 : lean), look: { x: -dir, y: 0 }, angry: !losing, happy: winning,
         sweat: behind || losing, mouth: winning ? 'grin' : losing ? 'o' : 'none', dizzy: losing && k === 0
       });
-      ctx.fillStyle = i2l(p); circle(x - dir * r * .55, 455, 8); ctx.fill(); ctx.strokeStyle = 'rgba(0,0,0,.3)'; ctx.lineWidth = 2; ctx.stroke();
+      ctx.fillStyle = i2l(p); circle(x - dir * r * .55, 252, 6); ctx.fill(); ctx.strokeStyle = 'rgba(0,0,0,.3)'; ctx.lineWidth = 2; ctx.stroke();
     }
   }
-  draw() {
-    const g = ctx.createLinearGradient(0, 0, 0, 380); g.addColorStop(0, '#56b4ff'); g.addColorStop(1, '#c6ecff');
-    ctx.fillStyle = g; ctx.fillRect(0, 0, W, 380);
-    ctx.fillStyle = 'rgba(255,250,200,.9)'; circle(1100, 110, 46); ctx.fill();
-    for (const c of this.clouds) { ctx.fillStyle = 'rgba(255,255,255,.9)'; for (let k = 0; k < 4; k++) { circle(c.x + k * 28 * c.s, c.y + (k % 2) * -10 * c.s, 26 * c.s); ctx.fill(); } }
-    // 관중석
-    ctx.fillStyle = '#3d4a7a'; ctx.fillRect(0, 280, W, 100);
-    const cheer = (this.ev && this.ev.type === 'cheer') || this.state === 'roundEnd';
+  drawField() {
+    const g = ctx.createLinearGradient(0, 0, 0, 200); g.addColorStop(0, '#56b4ff'); g.addColorStop(1, '#c6ecff');
+    ctx.fillStyle = g; ctx.fillRect(0, 0, W, 200);
+    ctx.fillStyle = 'rgba(255,250,200,.9)'; circle(1100, 120, 34); ctx.fill();
+    for (const c of this.clouds) { ctx.fillStyle = 'rgba(255,255,255,.9)'; for (let k = 0; k < 4; k++) { circle(c.x + k * 26 * c.s, c.y + (k % 2) * -9 * c.s, 24 * c.s); ctx.fill(); } }
+    ctx.fillStyle = '#3d4a7a'; ctx.fillRect(0, 140, W, 64);
+    const cheer = this.state === 'roundEnd' || this.combo[0] >= 20 || this.combo[1] >= 20;
+    const beat = this.state === 'play' ? Math.max(0, 1 - ((Clock.now() - this.songStart) % (60000 / this.bpm)) / 160) : 0;
     for (const c of this.crowd) {
-      const jump = cheer ? Math.abs(Math.sin(T * 9 + c.h)) * 12 : Math.abs(Math.sin(T * 2 + c.h)) * 2;
-      const y = 318 + c.row * 26 - jump;
-      ctx.fillStyle = c.c; circle(c.x + c.row * 10, y, 10); ctx.fill(); ctx.fillRect(c.x + c.row * 10 - 9, y + 6, 18, 20);
+      const jump = cheer ? Math.abs(Math.sin(T * 9 + c.h)) * 10 : beat * 5;
+      const y = 166 + c.row * 20 - jump;
+      ctx.fillStyle = c.c; circle(c.x + c.row * 10, y, 8); ctx.fill(); ctx.fillRect(c.x + c.row * 10 - 7, y + 5, 14, 16);
     }
-    ctx.fillStyle = '#e6e9f5'; ctx.fillRect(0, 372, W, 10);
-    // 잔디
-    const gg = ctx.createLinearGradient(0, 380, 0, H); gg.addColorStop(0, '#5cc26a'); gg.addColorStop(1, '#2f8a44');
-    ctx.fillStyle = gg; ctx.fillRect(0, 380, W, H - 380);
-    ctx.fillStyle = 'rgba(255,255,255,.06)'; for (let k = 0; k < 8; k++) ctx.fillRect(k * 160, 380, 80, H - 380);
-    // 진흙
-    ctx.fillStyle = '#7a5230'; ctx.beginPath(); ctx.ellipse(640, 505, 120, 22, 0, 0, TAU); ctx.fill();
-    ctx.fillStyle = 'rgba(255,255,255,.12)'; ctx.beginPath(); ctx.ellipse(615, 500, 50, 6, 0, 0, TAU); ctx.fill();
-    // 결승선
+    ctx.fillStyle = '#e6e9f5'; ctx.fillRect(0, 200, W, 6);
+    const gg = ctx.createLinearGradient(0, 206, 0, 300); gg.addColorStop(0, '#5cc26a'); gg.addColorStop(1, '#2f8a44');
+    ctx.fillStyle = gg; ctx.fillRect(0, 206, W, 94);
+    ctx.fillStyle = 'rgba(255,255,255,.06)'; for (let k = 0; k < 8; k++) ctx.fillRect(k * 160, 206, 80, 94);
+    ctx.fillStyle = '#7a5230'; ctx.beginPath(); ctx.ellipse(640, 280, 100, 14, 0, 0, TAU); ctx.fill();
     for (let p = 0; p < 2; p++) {
       const x = p ? 840 : 440;
-      ctx.fillStyle = 'rgba(255,255,255,.85)'; ctx.fillRect(x - 3, 400, 6, 150);
-      ctx.fillStyle = PC[p]; ctx.beginPath(); ctx.moveTo(x, 360); ctx.lineTo(x + (p ? 34 : -34), 372); ctx.lineTo(x, 384); ctx.fill();
-      ctx.fillStyle = '#ddd'; ctx.fillRect(x - 2, 358, 4, 44);
+      ctx.fillStyle = 'rgba(255,255,255,.85)'; ctx.fillRect(x - 3, 214, 6, 86);
+      ctx.fillStyle = '#ddd'; ctx.fillRect(x - 2, 196, 4, 24);
+      ctx.fillStyle = PC[p]; ctx.beginPath(); ctx.moveTo(x, 196); ctx.lineTo(x + (p ? 26 : -26), 204); ctx.lineTo(x, 212); ctx.fill();
     }
-    ctx.save(); ctx.setLineDash([8, 8]); ctx.strokeStyle = 'rgba(255,255,255,.4)'; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(640, 400); ctx.lineTo(640, 560); ctx.stroke(); ctx.restore();
-    // 밧줄
-    const off = this.pos * 2, ry = 455;
-    const sag = 6 + Math.sin(T * 7) * Math.abs(this.F[0] - this.F[1]) * .3;
-    ctx.strokeStyle = '#8b6b3e'; ctx.lineWidth = 13; ctx.lineCap = 'round';
-    ctx.beginPath(); ctx.moveTo(150 + off, ry); ctx.quadraticCurveTo(640 + off, ry + sag, 1130 + off, ry); ctx.stroke();
-    ctx.strokeStyle = '#d8b47a'; ctx.lineWidth = 9; ctx.stroke();
-    ctx.save(); ctx.strokeStyle = 'rgba(120,80,30,.6)'; ctx.lineWidth = 2;
-    for (let x = 160; x < 1130; x += 14) { const xx = x + off, yy = ry + sag * (1 - Math.pow((x - 640) / 490, 2)); ctx.beginPath(); ctx.moveTo(xx - 3, yy - 4); ctx.lineTo(xx + 3, yy + 4); ctx.stroke(); }
-    ctx.restore();
+    const off = this.pos * 2, ry = 252;
+    const sag = 4 + Math.sin(T * 7) * Math.min(6, Math.abs(this.F[0] - this.F[1]) * .3);
+    ctx.lineCap = 'round';
+    ctx.strokeStyle = '#8b6b3e'; ctx.lineWidth = 11; ctx.beginPath(); ctx.moveTo(300 + off, ry); ctx.quadraticCurveTo(640 + off, ry + sag, 980 + off, ry); ctx.stroke();
+    ctx.strokeStyle = '#d8b47a'; ctx.lineWidth = 7; ctx.stroke();
     this.drawTeam(0); this.drawTeam(1);
-    // 리본
-    const rx = 640 + off, rib = ry + sag;
+    const rx = 640 + off, rib = ry + sag / 2;
     ctx.fillStyle = COL.gold; ctx.strokeStyle = '#a07800'; ctx.lineWidth = 2;
-    ctx.beginPath(); ctx.moveTo(rx, rib); ctx.lineTo(rx - 16, rib - 14); ctx.lineTo(rx - 16, rib + 14); ctx.closePath(); ctx.fill(); ctx.stroke();
-    ctx.beginPath(); ctx.moveTo(rx, rib); ctx.lineTo(rx + 16, rib - 14); ctx.lineTo(rx + 16, rib + 14); ctx.closePath(); ctx.fill(); ctx.stroke();
-    ctx.beginPath(); ctx.moveTo(rx - 4, rib); ctx.lineTo(rx - 10, rib + 40 + Math.sin(T * 6) * 3); ctx.lineTo(rx, rib + 34); ctx.lineTo(rx + 10, rib + 40 + Math.cos(T * 6) * 3); ctx.lineTo(rx + 4, rib); ctx.fill();
-    circle(rx, rib, 7); ctx.fill(); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(rx, rib); ctx.lineTo(rx - 13, rib - 11); ctx.lineTo(rx - 13, rib + 11); ctx.closePath(); ctx.fill(); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(rx, rib); ctx.lineTo(rx + 13, rib - 11); ctx.lineTo(rx + 13, rib + 11); ctx.closePath(); ctx.fill(); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(rx - 3, rib); ctx.lineTo(rx - 8, rib + 30 + Math.sin(T * 6) * 3); ctx.lineTo(rx, rib + 25); ctx.lineTo(rx + 8, rib + 30 + Math.cos(T * 6) * 3); ctx.lineTo(rx + 3, rib); ctx.fill();
+    circle(rx, rib, 6); ctx.fill(); ctx.stroke();
   }
-  drawBeatTrack() {
-    const x0 = 330, x1 = 950, y = 640, hx = 420, now = Clock.now();
-    panel(x0, y - 34, x1 - x0, 68, 34, 'rgba(10,14,32,.75)', 'rgba(255,255,255,.15)', 2);
-    ctx.save(); rrect(x0, y - 34, x1 - x0, 68, 34); ctx.clip();
-    if (this.state === 'play') {
-      for (const b of this.beats) {
-        const dtm = b.t - now; if (dtm < -250 || dtm > 1300) continue;
-        const x = hx + dtm / 1000 * 420, big = b.i % 2 === 0;
-        const used0 = this.used[0] === b.i, used1 = this.used[1] === b.i;
-        ctx.globalAlpha = dtm < 0 ? Math.max(0, 1 + dtm / 250) : 1;
-        ctx.fillStyle = big ? '#fff' : 'rgba(255,255,255,.65)'; circle(x, y, big ? 12 : 8); ctx.fill();
-        if (used0) { ctx.fillStyle = COL.p1; ctx.beginPath(); ctx.arc(x, y, big ? 12 : 8, Math.PI, TAU); ctx.fill(); }
-        if (used1) { ctx.fillStyle = COL.p2; ctx.beginPath(); ctx.arc(x, y, big ? 12 : 8, 0, Math.PI); ctx.fill(); }
+  drawHighway(p) {
+    const x0 = TL.hwX[p], w = TL.hwW, top = TL.top, jy = TL.judgeY, bot = TL.bottom, now = Clock.now();
+    const fever = this.combo[p] >= 20;
+    if (fever) { ctx.save(); ctx.shadowColor = PC[p]; ctx.shadowBlur = 24 + 10 * Math.sin(T * 10); panel(x0 - 6, top - 6, w + 12, bot - top + 2, 16, '#0c0f24', PC[p], 4); ctx.restore(); }
+    else panel(x0 - 6, top - 6, w + 12, bot - top + 2, 16, '#0c0f24', hexA(PC[p], .55), 2);
+    ctx.save(); rrect(x0, top, w, bot - top - 6, 12); ctx.clip();
+    const bg = ctx.createLinearGradient(0, top, 0, bot); bg.addColorStop(0, '#0a0d20'); bg.addColorStop(1, hexA(PC[p], fever ? .32 : .16));
+    ctx.fillStyle = bg; ctx.fillRect(x0, top, w, bot - top);
+    for (let L = 0; L < 4; L++) {
+      const lx = x0 + L * TL.laneW;
+      if (L) { ctx.fillStyle = 'rgba(255,255,255,.07)'; ctx.fillRect(lx - 1, top, 2, bot - top); }
+      const held = Input.down.has(TL.keys[p][L]) ? .5 : 0, a = Math.max(held, this.laneFx[p][L]);
+      if (a > 0) {
+        const lg = ctx.createLinearGradient(0, jy, 0, top); lg.addColorStop(0, hexA(TL.col[L], .45 * a)); lg.addColorStop(1, hexA(TL.col[L], 0));
+        ctx.fillStyle = lg; ctx.fillRect(lx, top, TL.laneW, jy - top);
       }
-      ctx.globalAlpha = 1;
+    }
+    if (this.state === 'play') {
+      const beat = 60000 / this.bpm;
+      for (let k = Math.max(0, Math.floor((now - this.songStart) / beat)); ; k++) {
+        const dtm = this.songStart + k * beat - now;
+        if (dtm > this.travel) break; if (dtm < -100) continue;
+        const y = jy - dtm / this.travel * (jy - top);
+        ctx.fillStyle = k % 4 === 0 ? 'rgba(255,255,255,.2)' : 'rgba(255,255,255,.07)'; ctx.fillRect(x0, y - 1, w, k % 4 === 0 ? 3 : 2);
+      }
+    }
+    ctx.fillStyle = 'rgba(255,255,255,.14)'; ctx.fillRect(x0, jy - 2, w, 4);
+    for (let L = 0; L < 4; L++) {
+      const down = Input.down.has(TL.keys[p][L]), fx = this.laneFx[p][L];
+      drawArrow(this.laneX(p, L), jy, 30, TL.dir[L], down ? hexA(TL.col[L], .9) : 'rgba(255,255,255,.06)', { stroke: down ? '#fff' : 'rgba(255,255,255,.45)', lw: 3, scale: 1 + fx * .15 });
+    }
+    if (this.state === 'play') {
+      for (const n of this.notes) {
+        const dtm = n.t - now;
+        if (dtm > this.travel + 60) break;
+        if (dtm < -240 || n.hit[p]) continue;
+        const y = jy - dtm / this.travel * (jy - top);
+        let a = n.miss[p] ? .28 : 1; if (y < top + 40) a *= clamp((y - top + 10) / 50, 0, 1);
+        ctx.save(); ctx.globalAlpha = a;
+        const x = this.laneX(p, n.lane);
+        if (n.gold) {
+          ctx.save(); ctx.globalAlpha = a * (.35 + .25 * Math.sin(T * 14)); ctx.fillStyle = COL.gold; circle(x, y, 38); ctx.fill(); ctx.restore();
+          drawArrow(x, y, 30, TL.dir[n.lane], '#ffd23f', { stroke: '#fff', lw: 4, shine: true });
+        } else drawArrow(x, y, 28, TL.dir[n.lane], TL.col[n.lane], { stroke: 'rgba(255,255,255,.85)', lw: 3, shine: true });
+        ctx.restore();
+      }
     }
     ctx.restore();
-    ctx.lineWidth = 4; ctx.strokeStyle = '#fff'; circle(hx, y, 20); ctx.stroke();
-    if (this.hitFlash[0] > 0) { ctx.strokeStyle = COL.p1; ctx.lineWidth = 6; ctx.globalAlpha = this.hitFlash[0]; ctx.beginPath(); ctx.arc(hx, y, 26, Math.PI, TAU); ctx.stroke(); ctx.globalAlpha = 1; }
-    if (this.hitFlash[1] > 0) { ctx.strokeStyle = COL.p2; ctx.lineWidth = 6; ctx.globalAlpha = this.hitFlash[1]; ctx.beginPath(); ctx.arc(hx, y, 26, 0, Math.PI); ctx.stroke(); ctx.globalAlpha = 1; }
-    txt('박자에 맞춰 한 번씩!', (x0 + x1) / 2 + 60, y - 50, 15, '#fff', { w: 700, stroke: 'rgba(0,0,0,.4)' });
+    for (let L = 0; L < 4; L++) txt(TL.label[p][L], this.laneX(p, L), 690, 17, Input.down.has(TL.keys[p][L]) ? '#fff' : 'rgba(255,255,255,.55)', { w: 900 });
+    const j = this.judge[p], cx = x0 + w / 2;
+    if (j) {
+      const s = j.t < .08 ? lerp(1.5, 1, j.t / .08) : 1;
+      txt(j.text, cx, 430 - j.t * 20, 30 * s * j.big, j.color, { w: 900, stroke: 'rgba(0,0,0,.7)', sw: 6, alpha: .9 * (1 - Math.max(0, j.t - .3) / .2) });
+    }
+    if (this.combo[p] >= 3) {
+      txt(String(this.combo[p]), cx, 500, 46, fever ? PC[p] : 'rgba(255,255,255,.85)', { w: 900, stroke: 'rgba(0,0,0,.6)', sw: 8, alpha: .85 });
+      txt(fever ? 'COMBO · FEVER' : 'COMBO', cx, 532, 14, fever ? PC[p] : 'rgba(255,255,255,.7)', { w: 900 });
+    }
+  }
+  drawCenter() {
+    const cx = 640, now = Clock.now();
+    panel(470, 298, 340, 414, 18, 'rgba(8,10,24,.72)', null);
+    const prog = this.state === 'play' ? clamp((now - this.songStart) / (this.songEnd - this.songStart), 0, 1) : this.state === 'roundEnd' ? 1 : 0;
+    txt('곡 진행', cx, 324, 15, COL.muted, { w: 700 });
+    ctx.fillStyle = 'rgba(255,255,255,.12)'; rrect(500, 340, 280, 10, 5); ctx.fill();
+    ctx.fillStyle = '#c77dff'; rrect(500, 340, 280 * prog, 10, 5); ctx.fill();
+    txt('밧줄 위치', cx, 384, 15, COL.muted, { w: 700 });
+    const gx = 500, gw = 280, gy = 400;
+    ctx.fillStyle = hexA(COL.p1, .35); rrect(gx, gy, gw / 2, 18, 9); ctx.fill();
+    ctx.fillStyle = hexA(COL.p2, .35); rrect(gx + gw / 2, gy, gw / 2, 18, 9); ctx.fill();
+    ctx.fillStyle = '#fff'; ctx.fillRect(cx - 1, gy - 4, 2, 26);
+    const mx = cx + clamp(this.pos, -100, 100) / 100 * gw / 2;
+    ctx.fillStyle = COL.gold; circle(mx, gy + 9, 11); ctx.fill(); ctx.strokeStyle = '#a07800'; ctx.lineWidth = 2; ctx.stroke();
+    txt('당기는 힘', cx, 450, 15, COL.muted, { w: 700 });
+    for (let p = 0; p < 2; p++) {
+      const y = 472 + p * 30, f = clamp(this.F[p] / 18, 0, 1);
+      txt(NAMES[p], 512, y + 6, 15, PC[p], { w: 900, align: 'left' });
+      ctx.fillStyle = 'rgba(255,255,255,.1)'; rrect(560, y, 220, 14, 7); ctx.fill();
+      ctx.fillStyle = PC[p]; rrect(560, y, 220 * f, 14, 7); ctx.fill();
+    }
+    txt('정확도', cx, 548, 15, COL.muted, { w: 700 });
+    for (let p = 0; p < 2; p++) txt(this.accuracy(p), p ? 720 : 560, 578, 26, PC[p], { w: 900 });
+    txt(`BPM ${this.bpm}`, cx, 630, 20, '#c77dff', { w: 900 });
+    if (this.secShow && now - this.secShow.at < 1800 && now >= this.secShow.at) txt(SEC_NAME[this.secShow.sec], cx, 668, 20, COL.gold, { w: 900 });
+    else txt('같은 악보 · 더 정확한 쪽이 이긴다', cx, 668, 14, COL.dim, { w: 700 });
+    // 카운트인 3-2-1-GO (음악 첫 마디에 맞춰서)
+    if (this.state === 'play') {
+      const beat = 60000 / this.bpm, b = Math.floor((now - this.songStart) / beat);
+      if (b >= 0 && b < 4) {
+        const k = ((now - this.songStart) % beat) / beat;
+        txt(['3', '2', '1', 'GO!'][b], cx, 470, (b === 3 ? 96 : 120) * (1 + (1 - k) * .3), b === 3 ? COL.gold : '#fff', { w: 900, stroke: 'rgba(0,0,0,.7)', sw: 12, alpha: 1 - k * .5 });
+      }
+    }
+  }
+  accuracy(p) {
+    const s = this.stats, n = s.perfect[p] + s.great[p] + s.good[p] + s.miss[p];
+    return n ? Math.round((s.perfect[p] + s.great[p] * .7 + s.good[p] * .4) / n * 100) + '%' : '-';
+  }
+  draw() {
+    this.drawField();
+    ctx.fillStyle = '#10142c'; ctx.fillRect(0, 298, W, H - 298);
+    ctx.fillStyle = 'rgba(255,255,255,.04)'; for (let k = 0; k < 20; k++) ctx.fillRect(k * 70, 298, 35, H - 298);
+    this.drawHighway(0); this.drawHighway(1); this.drawCenter();
   }
   drawHUD() {
-    const left = Math.max(0, Math.ceil(this.dur - this.t));
-    drawPipsHUD(this.score, this.target, `ROUND ${this.round}  ·  ${left}초`, this.state === 'play' ? `BPM ${Math.round(this.bpmAt(Clock.now()))}` : '번갈아 누르며 당겨라!');
-    if (this.ev) {
-      const e = TUG_EVENTS[this.ev.type], k = 1 - this.ev.t / this.ev.dur;
-      panel(W / 2 - 150, 92, 300, 40, 14, 'rgba(10,14,32,.8)', e.col, 2);
-      txt(e.name, W / 2, 108, 18, e.col, { w: 900 });
-      ctx.fillStyle = e.col; ctx.fillRect(W / 2 - 130, 122, 260 * k, 4);
-    }
-    this.drawBeatTrack();
-    for (let p = 0; p < 2; p++) {
-      const cx = p ? 1100 : 180, y = 640, labels = this.keyLabels(p), codes = this.keysFor(p);
-      const expect = this.last[p] == null ? -1 : 1 - this.last[p];
-      for (let s = 0; s < 2; s++) drawKeycap(cx - 32 + s * 64, y, labels[s], Input.down.has(codes[s]), PC[p], 50, { hi: expect === s });
-      txt(this.swap ? '키 체인지 중!' : '번갈아 누르기', cx, y - 48, 15, this.swap ? '#c77dff' : COL.ink, { w: 700, stroke: 'rgba(0,0,0,.4)' });
-      const off = this.pos * 2, jx = p ? 780 + off : 500 + off;
-      if (this.combo[p] >= 3) txt(`${this.combo[p]} 콤보`, jx, 396, 22 + Math.min(14, this.combo[p] * .5), COL.gold, { w: 900, stroke: 'rgba(0,0,0,.6)' });
-      const j = this.judge[p];
-      if (j) txt(j.text, jx, 330 - j.t * 30, 26, j.color, { w: 900, stroke: 'rgba(0,0,0,.6)', alpha: 1 - j.t / .6 });
-    }
-    this.cd.draw();
+    const left = this.state === 'play' ? Math.max(0, Math.ceil((this.songEnd - Clock.now()) / 1000)) : null;
+    drawPipsHUD(this.score, this.target, `ROUND ${this.round}`, left != null ? `남은 ${left}초 · 3판 2선승` : '내려오는 화살표에 맞춰 눌러라!');
   }
   getStats() {
-    return [['PERFECT', this.stats.perfect], ['GOOD', this.stats.good], ['MISS', this.stats.miss], ['최대 콤보', this.stats.maxCombo], ['라운드 승', this.score]];
+    return [['PERFECT', this.stats.perfect], ['MISS', this.stats.miss], ['최대 콤보', this.stats.maxCombo], ['정확도', [this.accuracy(0), this.accuracy(1)]], ['라운드 승', this.score]];
   }
 }
 
@@ -1743,10 +1869,10 @@ const GAMES = [
     ctrl: i => [ACT(i, '쏘기')], make: () => new Duel()
   },
   {
-    id: 'tug', name: '리듬 줄다리기', color: '#c77dff', tag: '리듬 · 연타', time: '약 1.5분',
-    desc: '박자에 맞춰 번갈아 눌러 밧줄을 끌어와라!',
-    rules: ['두 키를 번갈아 눌러 밧줄을 당겨요', '아래 박자에 맞추면 PERFECT! 콤보가 쌓일수록 세져요', '마구 누르면 손해 — 한 박자에 한 번만 인정', '키 체인지 · 미끄러운 바닥 · 응원 타임! 3판 2선승'],
-    ctrl: i => [{ label: '번갈아 당기기', keys: i === 0 ? [['A', 'KeyA'], ['D', 'KeyD']] : [['←', 'ArrowLeft'], ['→', 'ArrowRight']] }, { label: '키 체인지 때', keys: i === 0 ? [['W', 'KeyW'], ['S', 'KeyS']] : [['↑', 'ArrowUp'], ['↓', 'ArrowDown']] }],
+    id: 'tug', name: '리듬 줄다리기', color: '#c77dff', tag: '리듬 · 대결', time: '약 1.5~2분',
+    desc: '내려오는 화살표를 박자에 맞춰 눌러 밧줄을 끌어와라!',
+    rules: ['화살표가 판정선에 닿는 순간 같은 방향 키!', '정확할수록 세게 당겨요 (PERFECT > GREAT > GOOD)', '놓치거나 헛손질하면 콤보가 끊기고 힘이 빠져요', '20콤보부터 피버! 금색 화살표는 3배. 3판 2선승'],
+    ctrl: i => [Object.assign(MOVE(i), { label: '화살표 4방향' })],
     make: () => new Tug()
   },
   {
