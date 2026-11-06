@@ -6062,12 +6062,13 @@ const AIF = {
     m.t = (m.t || 0) - dt;
     const coming = (i ? b.vx > 0 : b.vx < 0) && g.lastHit !== i;
     if (m.t <= 0 || !m.tg) {
-      m.t = lv ? 0 : .22;
+      m.t = lv ? .04 : .3;
       let tx = i ? 1060 : 220, ty = 420;
       if (coming && g.subState === 'rally') {
         let x = b.x, y = b.y, vx = b.vx, vy = b.vy;
         for (let k = 0; k < 240; k++) { vy += 1500 / 60; x += vx / 60; y += vy / 60; if (vy > 0 && y + b.r >= g.TY && x >= g.tx0 && x <= g.tx1) { y = g.TY - b.r; vy = -vy * .84; } if ((i ? x >= 990 : x <= 290) && y < g.TY - 10 && vy > -200) break; if (y > g.FL) break; }
-        tx = clamp(x + (i ? 10 : -10), i ? 960 : 90, i ? 1190 : 320); ty = clamp(y + 6 + (lv ? 0 : rand(-28, 28)), 330, 610);
+        if (m.err == null || m.errFor !== g.rally) { m.errFor = g.rally; m.err = chance(lv ? .06 : .22) ? rand(40, 70) * (chance(.5) ? 1 : -1) : rand(-1, 1) * (lv ? 12 : 30); }
+        tx = clamp(x + (i ? 10 : -10), i ? 960 : 90, i ? 1190 : 320); ty = clamp(y + 6 + m.err, 330, 610);
       }
       m.tg = { x: tx, y: ty };
     }
