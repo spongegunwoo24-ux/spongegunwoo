@@ -4236,7 +4236,7 @@ const GF_MAPS = [
 ];
 class Gunfight {
   constructor() {
-    this.score = [0, 0]; this.target = 2; this.round = 0; this.finished = false; this.winner = -1;
+    this.score = [0, 0]; this.target = 3; this.round = 0; this.finished = false; this.winner = -1;
     this.stats = { dmg: [0, 0], shots: [0, 0], hits: [0, 0], heads: [0, 0], nades: [0, 0], picks: [0, 0] };
     this.mapOrder = shuffle([0, 1, 2]);
     this.stars = Array.from({ length: 90 }, () => ({ x: rand(0, W), y: rand(0, H), s: rand(.5, 1.8), p: rand(0, TAU) }));
@@ -4253,7 +4253,7 @@ class Gunfight {
     this.bullets = []; this.nades = []; this.picks = []; this.beams = []; this.pickT = 4; this.t = 0; this.time = 90;
     this.state = 'count'; this.st = 0; this.cd = new Countdown(this.round === 1 ? 3 : 2);
   }
-  mk(i, sp) { return { i, x: sp[0], y: sp[1], vx: 0, vy: 0, kx: 0, face: i ? -1 : 1, aim: i ? Math.PI : 0, gun: 'pistol', ammo: Infinity, mag: 12, reloadT: 0, cd: 0, jumps: 2, ground: false, plat: null, dropT: 0, hp: 100, disp: 100, armor: 0, nades: 3, dead: false, hitT: 0, rec: 0, combo: 0, comboT: 0, inv: 0 }; }
+  mk(i, sp) { return { i, x: sp[0], y: sp[1], vx: 0, vy: 0, kx: 0, face: i ? -1 : 1, aim: i ? Math.PI : 0, gun: 'pistol', ammo: Infinity, mag: 12, reloadT: 0, cd: 0, jumps: 2, ground: false, plat: null, dropT: 0, hp: 300, disp: 300, armor: 0, nades: 3, dead: false, hitT: 0, rec: 0, combo: 0, comboT: 0, inv: 0 }; }
   /* ---------- 피해 ---------- */
   damage(p, amt, from, kx, ky, tag) {
     if (p.dead || this.state !== 'play' || (p.inv > 0 && tag !== 'fall')) return;
@@ -4376,16 +4376,16 @@ class Gunfight {
       if (cy) { if (p.vy >= 0 && py <= cy.y + 6) { p.y = cy.y; p.vy = 0; p.ground = true; p.jumps = 2; p.plat = null; } else { p.y = cy.y + cy.h + 46.01; p.vy = Math.max(0, p.vy); } }
       if (p.y > 840 || p.x < -150 || p.x > W + 150) {
         if (this.state !== 'play') { p.vy = 0; p.y = Math.min(p.y, 900); continue; }
-        if (p.hp <= 25) { this.damage(p, 999, o.i, 0, 0, 'fall'); continue; }
-        p.hp -= 25; const sp = this.map.spawns[p.i]; p.x = sp[0]; p.y = sp[1] - 300; p.vx = p.vy = p.kx = 0; p.inv = 2; p.jumps = 2;
-        Sound.play('fall'); FX.kick(8); FX.text(clamp(p.x, 60, W - 60), 160, `${NAMES[p.i]} 추락! -25`, PC[p.i], 26, 1.1);
+        if (p.hp <= 60) { this.damage(p, 999, o.i, 0, 0, 'fall'); continue; }
+        p.hp -= 60; const sp = this.map.spawns[p.i]; p.x = sp[0]; p.y = sp[1] - 300; p.vx = p.vy = p.kx = 0; p.inv = 2; p.jumps = 2;
+        Sound.play('fall'); FX.kick(8); FX.text(clamp(p.x, 60, W - 60), 160, `${NAMES[p.i]} 추락! -60`, PC[p.i], 26, 1.1);
         continue;
       }
       for (const k of this.picks) {
         if (k.taken || k.landed == null || Math.abs(k.x - p.x) > 32 || Math.abs((k.y - 16) - (p.y - 22)) > 40) continue;
         k.taken = true; this.stats.picks[p.i]++; Sound.play('item');
-        if (k.type === 'hp') { p.hp = Math.min(100, p.hp + 35); FX.text(p.x, p.y - 80, '+35 체력', '#3ddc84', 26); FX.burst(p.x, p.y - 24, 18, { colors: ['#3ddc84', '#fff'], max: 220, size: 4 }); }
-        else if (k.type === 'armor') { p.armor = Math.min(60, p.armor + 40); FX.text(p.x, p.y - 80, '+40 방어구', '#5ab8ff', 26); }
+        if (k.type === 'hp') { p.hp = Math.min(300, p.hp + 90); FX.text(p.x, p.y - 80, '+90 체력', '#3ddc84', 26); FX.burst(p.x, p.y - 24, 18, { colors: ['#3ddc84', '#fff'], max: 220, size: 4 }); }
+        else if (k.type === 'armor') { p.armor = Math.min(150, p.armor + 90); FX.text(p.x, p.y - 80, '+90 방어구', '#5ab8ff', 26); }
         else if (k.type === 'nade') { p.nades = Math.min(5, p.nades + 2); FX.text(p.x, p.y - 80, '수류탄 +2', '#9be15d', 26); }
         else { p.gun = k.type; p.ammo = GF_GUNS[k.type].ammo; p.reloadT = 0; FX.text(p.x, p.y - 80, GF_GUNS[k.type].name + '!', COL.gold, 28); }
       }
@@ -4477,7 +4477,7 @@ class Gunfight {
   drawPlayer(p) {
     if (p.dead) return;
     if (p.inv > 0 && Math.sin(T * 40) > 0) return;
-    const g = GF_GUNS[p.gun], bx = p.x, by = p.y - 22, low = p.hp < 30;
+    const g = GF_GUNS[p.gun], bx = p.x, by = p.y - 22, low = p.hp < 90;
     if (p.armor > 0) { ctx.save(); ctx.globalAlpha = .25 + .1 * Math.sin(T * 6); ctx.strokeStyle = '#5ab8ff'; ctx.lineWidth = 4; circle(bx, by, 30); ctx.stroke(); ctx.restore(); }
     drawBlob(bx, by, 22, p.i, { look: { x: Math.cos(p.aim), y: Math.sin(p.aim) }, angry: p.cd > 0, mouth: p.hitT > 0 ? 'o' : null, sweat: low, sx: p.ground ? 1 : .94, sy: p.ground ? 1 : 1.06 });
     if (p.hitT > 0) { ctx.save(); ctx.globalAlpha = p.hitT * 3; ctx.fillStyle = '#fff'; circle(bx, by, 22); ctx.fill(); ctx.restore(); }
@@ -4493,9 +4493,9 @@ class Gunfight {
     ctx.restore();
     const w = 46, x = bx - w / 2, y = by - 44;
     ctx.fillStyle = 'rgba(0,0,0,.55)'; rrect(x - 2, y - 2, w + 4, 9, 4); ctx.fill();
-    ctx.fillStyle = '#fff'; ctx.fillRect(x, y, w * clamp(p.disp / 100, 0, 1), 5);
-    ctx.fillStyle = p.hp > 60 ? '#3ddc84' : p.hp > 30 ? COL.gold : COL.red; ctx.fillRect(x, y, w * clamp(p.hp / 100, 0, 1), 5);
-    if (p.armor > 0) { ctx.fillStyle = '#5ab8ff'; ctx.fillRect(x, y - 4, w * p.armor / 60, 3); }
+    ctx.fillStyle = '#fff'; ctx.fillRect(x, y, w * clamp(p.disp / 300, 0, 1), 5);
+    ctx.fillStyle = p.hp > 180 ? '#3ddc84' : p.hp > 90 ? COL.gold : COL.red; ctx.fillRect(x, y, w * clamp(p.hp / 300, 0, 1), 5);
+    if (p.armor > 0) { ctx.fillStyle = '#5ab8ff'; ctx.fillRect(x, y - 4, w * p.armor / 150, 3); }
     if (p.reloadT > 0) txt('장전 중…', bx, y - 14, 12, '#fff', { w: 800, stroke: 'rgba(0,0,0,.6)' });
   }
   drawPick(k) {
@@ -4548,11 +4548,11 @@ class Gunfight {
       const left = p.i === 0, x = left ? 40 : W - 470, w = 430, y = 20;
       panel(x - 8, y - 8, w + 16, 82, 14, 'rgba(10,8,24,.82)', PC[p.i], 2);
       ctx.fillStyle = '#2a1e2e'; ctx.fillRect(x, y, w, 22);
-      const dw = w * clamp(p.disp / 100, 0, 1), hw = w * clamp(p.hp / 100, 0, 1);
+      const dw = w * clamp(p.disp / 300, 0, 1), hw = w * clamp(p.hp / 300, 0, 1);
       ctx.fillStyle = '#fff'; ctx.fillRect(left ? x : x + w - dw, y, dw, 22);
-      const hg = ctx.createLinearGradient(0, y, 0, y + 22); const c1 = p.hp > 60 ? '#6be675' : p.hp > 30 ? '#ffe066' : '#ff7a7a', c2 = p.hp > 60 ? '#2fa14a' : p.hp > 30 ? '#d9a400' : '#c22a2a';
+      const hg = ctx.createLinearGradient(0, y, 0, y + 22); const c1 = p.hp > 180 ? '#6be675' : p.hp > 90 ? '#ffe066' : '#ff7a7a', c2 = p.hp > 180 ? '#2fa14a' : p.hp > 90 ? '#d9a400' : '#c22a2a';
       hg.addColorStop(0, c1); hg.addColorStop(1, c2); ctx.fillStyle = hg; ctx.fillRect(left ? x : x + w - hw, y, hw, 22);
-      if (p.armor > 0) { const aw = w * p.armor / 100; ctx.fillStyle = 'rgba(90,184,255,.85)'; ctx.fillRect(left ? x : x + w - aw, y + 16, aw, 6); }
+      if (p.armor > 0) { const aw = w * p.armor / 300; ctx.fillStyle = 'rgba(90,184,255,.85)'; ctx.fillRect(left ? x : x + w - aw, y + 16, aw, 6); }
       txt(`${Math.max(0, Math.ceil(p.hp))}`, left ? x + 8 : x + w - 8, y + 11, 15, '#1a1020', { align: left ? 'left' : 'right', w: 900 });
       txt(NAMES[p.i], left ? x : x + w, y + 40, 17, PC[p.i], { align: left ? 'left' : 'right', w: 900 });
       for (let k = 0; k < this.target; k++) { circle(left ? x + 60 + k * 20 : x + w - 60 - k * 20, y + 40, 6.5); ctx.fillStyle = k < this.score[p.i] ? COL.gold : 'rgba(255,255,255,.2)'; ctx.fill(); }
@@ -5651,9 +5651,9 @@ const GAMES = [
     ctrl: i => [MOVE(i), ACT(i, '강타')], make: () => new Hockey()
   },
   {
-    id: 'gunfight', name: '네온 총격전', color: '#ab47bc', tag: '슈팅 · 체력전', time: '약 2분',
-    desc: '체력 100! 무기 줍고 수류탄 던져서 쓰러뜨려라!',
-    rules: ['체력 0이 되면 KO · 떨어지면 체력 -25 후 부활 · 3판 2선승', '보급 상자: 무기 5종 · 체력 · 방어구 · 수류탄', '머리를 맞히면 헤드샷 1.5배! 상자 뒤에 숨으면 총알 막힘', 'F / 사격(누르고 있기) · G . 수류탄 · 맵 3종 랜덤'],
+    id: 'gunfight', name: '네온 총격전', color: '#ab47bc', tag: '슈팅 · 체력전', time: '약 5~8분',
+    desc: '체력 300! 무기 줍고 수류탄 던져서 쓰러뜨려라!',
+    rules: ['체력 300! 0이 되면 KO · 떨어지면 -60 후 부활 · 5판 3선승', '보급 상자: 무기 5종 · 체력 +90 · 방어구 +90 · 수류탄', '머리를 맞히면 헤드샷 1.5배! 상자 뒤에 숨으면 총알 막힘', 'F / 사격(누르고 있기) · G . 수류탄 · 맵 3종 랜덤'],
     ctrl: i => [Object.assign(MOVE(i), { label: '이동·2단점프·내려가기' }), ACT(i, '사격'), ACT2(i, '수류탄')], make: () => new Gunfight()
   },
   {
