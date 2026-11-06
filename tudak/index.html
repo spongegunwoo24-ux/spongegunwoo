@@ -5756,13 +5756,11 @@ const AIF = {
     if (g.state !== 'serve') for (let k = 0; k < 200 && py < g.G - 90; k++) { vy += 950 / 60; px += vx / 60; py += vy / 60; if (px < b.r) { px = b.r; vx = -vx; } if (px > W - b.r) { px = W - b.r; vx = -vx; } }
     const mine = i ? px > g.NX : px < g.NX;
     let tx = mine ? px + (i ? 10 : -10) : (i ? 960 : 320);
-    if (!lv) tx += Math.sin(Clock.now() / 380) * 28;
+    if (!lv) tx += Math.sin(Clock.now() / 380) * 40;
     w.left = tx - me.x < -8; w.right = tx - me.x > 8;
     const myHalf = i ? b.x > g.NX : b.x < g.NX;
-    if (!lv && me.ground && myHalf && Math.abs(b.x - me.x) < 80 && b.y < me.y - 50 && b.y > me.y - 280 && b.vy > -150 && chance(.2)) w.up = true;
-    if (lv && me.ground && myHalf && Math.abs(b.x - me.x) < 55 && Math.abs(b.x - g.NX) > 90 && b.y < g.NT - 40 && b.y > me.y - 330 && b.vy > 0) w.up = true;
+    if (me.ground && myHalf && Math.abs(b.x - me.x) < 80 && b.y < me.y - 50 && b.y > me.y - 280 && b.vy > -150 && chance(lv ? .3 : .2)) w.up = true;
     if (g.state === 'serve' && g.server === i && me.ground && Math.abs(b.x - me.x) < 34) w.up = true;
-    if (!me.ground && lv && Math.hypot(b.x - me.x, b.y - me.y) < me.r + b.r + 55 && b.y < me.y && b.y < g.NT - 50 && Math.abs(b.x - g.NX) > 70 && chance(.45)) w.act = true;
     return w;
   },
   tank(g, i, lv, m, dt) {
