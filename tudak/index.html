@@ -5213,6 +5213,7 @@ class Hoops {
       const sx = b.x + ux * Lb * .72, sy = b.y + uy * Lb * .72, a = -b.face * b.phi, dx0 = -ux, dy0 = -uy;
       const ax = dx0 * Math.cos(a) - dy0 * Math.sin(a), ay = dx0 * Math.sin(a) + dy0 * Math.cos(a);
       const nh = { x: sx + ax * this.arm, y: sy + ay * this.arm };
+      b.pvx = b.hvx; b.pvy = b.hvy;   // 떼는 순간 팔이 내려가기 전, 스윙하던 속도로 던지기 위해 저장
       if (b.hp) { b.hvx = (nh.x - b.hp.x) / Math.max(dt, 1e-4); b.hvy = (nh.y - b.hp.y) / Math.max(dt, 1e-4); }
       b.hp = { x: nh.x, y: nh.y }; b.hand = nh; b.sh = { x: sx, y: sy }; b.head = { x: b.x + ux * Lb, y: b.y + uy * Lb };
     }
@@ -5225,8 +5226,8 @@ class Hoops {
       if (bl.holder) {
         const h = bl.holder; bl.x = h.hand.x; bl.y = h.hand.y; bl.vx = h.hvx; bl.vy = h.hvy;
         if (release[h.team] || this.state !== 'play') {
-          const sp = Math.hypot(h.hvx, h.hvy), cap = 1700, k = sp > cap ? cap / sp : 1;
-          bl.vx = h.hvx * k; bl.vy = h.hvy * k - 120; h.cd = .35; bl.holder = null; this.stats.shots[h.team]++;
+          const tvx = release[h.team] ? h.pvx || 0 : h.hvx, tvy = release[h.team] ? h.pvy || 0 : h.hvy, sp = Math.hypot(tvx, tvy), cap = 1700, k = sp > cap ? cap / sp : 1;
+          bl.vx = tvx * k; bl.vy = tvy * k - 120; h.cd = .35; bl.holder = null; this.stats.shots[h.team]++;
           Sound.noise(.12, { type: 'bandpass', f: 800, f2: 2000, v: .12 });
         } else {
           for (const b of this.bodies) if (b.team !== h.team && b.cd <= 0 && Math.hypot(b.hand.x - bl.x, b.hand.y - bl.y) < bl.r + 16) { bl.holder = b; b.cd = .3; h.cd = .5; this.stats.steals[b.team]++; FX.text(bl.x, bl.y - 40, '스틸!', PC[b.team], 26); Sound.play('pass'); break; }
@@ -5823,7 +5824,18 @@ const AIF = {
         const ok2 = (c, r) => c >= 0 && r >= 0 && c < C && r < R;
         let worth = false;
         for (const [dx, dy] of D4) for (let k = 1; k <= me.range; k++) { const c = mc + dx * k, r = mr + dy * k; if (!ok2(c, r)) break; const v = g.g[r * C + c]; if (v === 1) break; const [oc2, or2] = g.cellOf(o.x, o.y); if (o.alive && c === oc2 && r === or2) worth = true; if (v === 2) { if (k === 1) worth = true; break; } }
-        if (worth && myB < me.bombs && !g.bombAt(mc, mr) && chance(lv ? .9 : .5)) {
+        // 어려움: 여기 폭탄을 두면 상대가 도망갈 안전한 칸이 없는지(가두기) 검사
+        let trap = false;
+        if (lv && o.alive && myB < me.bombs && !g.bombAt(mc, mr)) {
+          const [oc2, or2] = g.cellOf(o.x, o.y);
+          if (Math.abs(oc2 - mc) + Math.abs(or2 - mr) <= me.range + 2) {
+            const dz3 = blastMap({ c: mc, r: mr, range: me.range, fuse: 2.4, t: 0 }), seen = new Int16Array(C * R).fill(-1), q = [or2 * C + oc2]; seen[q[0]] = 0; let safeN = 0;
+            while (q.length) { const k = q.shift(), c = k % C, r = (k / C) | 0; if (dz3[k] >= 99) safeN++; if (seen[k] >= 5) continue; for (const [dx, dy] of D4) { const nc = c + dx, nr = r + dy, nk = nr * C + nc; if (nc < 0 || nr < 0 || nc >= C || nr >= R || g.g[nk] || seen[nk] >= 0 || (nc === mc && nr === mr) || g.bombAt(nc, nr)) continue; seen[nk] = seen[k] + 1; q.push(nk); } }
+            if (safeN === 0) trap = true;
+          }
+        }
+        if (trap) worth = true;
+        if (worth && myB < me.bombs && !g.bombAt(mc, mr) && chance(lv ? (trap ? 1 : .9) : .5)) {
           const dz2 = blastMap({ c: mc, r: mr, range: me.range, fuse: 2.4, t: 0 }), b2 = bfs(dz2);
           let esc = -1, ed = 1e9; for (let k = 0; k < C * R; k++) if (b2.dist[k] >= 0 && dz2[k] >= 99 && b2.dist[k] <= (lv ? 4 : 5) && b2.dist[k] < ed) { ed = b2.dist[k]; esc = k; }
           if (esc >= 0) { AI.tap(s, 'act'); m.goal = esc; m.t = .25; return {}; }
@@ -5832,7 +5844,7 @@ const AIF = {
         if (items.length && (lv || chance(.6))) goal = items.reduce((a, b) => dist[a] < dist[b] ? a : b);
         else {
           goal = nearest(k => { if (dz[k] < 99) return false; const c = k % C, r = (k / C) | 0; return D4.some(([dx, dy]) => ok2(c + dx, r + dy) && g.g[(r + dy) * C + c + dx] === 2); });
-          if (goal < 0) { const [oc2, or2] = g.cellOf(o.x, o.y); goal = nearest(k => dz[k] >= 99 && Math.abs(k % C - oc2) + Math.abs(((k / C) | 0) - or2) <= 2); }
+          if (goal < 0 || (lv && g.t > 35)) { const [oc2, or2] = g.cellOf(o.x, o.y), g2 = nearest(k => dz[k] >= 99 && Math.abs(k % C - oc2) + Math.abs(((k / C) | 0) - or2) <= 2 && (k % C === oc2 || ((k / C) | 0) === or2)); if (g2 >= 0) goal = g2; else if (goal < 0) goal = nearest(k => dz[k] >= 99 && Math.abs(k % C - oc2) + Math.abs(((k / C) | 0) - or2) <= 2); }
         }
       }
       if (goal != null && goal >= 0) { let k = goal; const path = []; while (k >= 0 && k !== here) { path.unshift(k); k = par[k]; } m.goal = goal; m.next = path[0] != null ? path[0] : here; }
@@ -6096,46 +6108,142 @@ const AIF = {
     if (coming && lv && Math.hypot(b.x - me.x, b.y - me.y) < 100 && b.y < g.TY - 40 && chance(.25)) w.act = true;
     return w;
   },
-  hoops(g, i, lv, m, dt) {
+  hoops(g, i, lv, m, dt) { const w0 = hoopsAI(g, i, lv, m, dt); m.upLast = !!(w0 && w0.up); return w0; }
+};
+function hoopsAI(g, i, lv, m, dt) {
     if (g.state !== 'play') return {};
+    const was = !!m.upLast;
     const bl = g.ball, mine = g.bodies.filter(b => b.team === i), hoop = g.hoops.find(h => h.team === i), w = {};
     m.t = (m.t || 0) - dt;
     if (bl.holder && bl.holder.team === i) {
       const h = bl.holder, hx = (hoop.x1 + hoop.x2) / 2, toward = Math.sign(hx - h.x) === Math.sign(h.hvx || 1);
       m.holdT = (m.holdT || 0) + dt; w.up = true;
-      const sp = Math.hypot(h.hvx, h.hvy), k = sp > 1700 ? 1700 / sp : 1;
-      const err = hoopPredict(g, hoop, bl.x, bl.y, h.hvx * k, h.hvy * k - 120, bl.r);
-      const tol = lv ? 0 : 22;
-      if (m.prevHeld && err <= tol && h.phi > .8 && chance(lv ? 1 : .55)) w.up = false;
-      else if (m.prevHeld && h.phi >= 2.8 && Math.abs(h.hvy) < 60 && h.ground) {
+      if (m.plan) { m.plan.t += dt; if (m.plan.t >= m.plan.tau) { w.up = false; m.plan = null; m.holdT = 0; return w; } }
+      else if (!was && !h.ground && h.coy <= 0) { w.up = false; return w; }   // 공중에서 잡았으면 착지까지 기다림
+      else if (!was && h.cd <= .3) {
+        // 땅에서 공을 들었음: 여러 타이밍을 미리 계산해서 가장 좋은 슛/패스를 고른다
+        const opts = hoopPlan(g, h, hoop, bl.r), fwd = o2 => (o2.land - h.x) * h.face;
+        let pickO = null; const hits = opts.filter(o2 => o2.err <= (lv ? 0 : 10));
+        if (hits.length && chance(lv ? 1 : .5)) pickO = lv ? hits.find(o2 => o2.dunk) || hits[hits.length >> 1] : pick(hits);
+        else {
+          const zone = opts.filter(o2 => o2.land != null && (hx - o2.land) * h.face < 330 && (hx - o2.land) * h.face > -40);
+          const ranked = (zone.length ? zone : opts.filter(o2 => o2.land != null)).sort((p2, q2) => (zone.length ? Math.abs((hx - p2.land) * h.face - 200) - Math.abs((hx - q2.land) * h.face - 200) : fwd(q2) - fwd(p2)));
+          if (ranked.length) pickO = lv ? ranked[0] : ranked[Math.min(ranked.length - 1, (Math.random() * 4) | 0)];
+        }
+        if (pickO) { m.plan = { tau: pickO.tau + (lv ? 0 : rand(-.05, .05)), t: 0 }; return w; }
+      }
+      const nx = hoopNextHand(g, h, dt); nx.vx = h.hvx; nx.vy = h.hvy; const sp = Math.hypot(nx.vx, nx.vy), k = sp > 1700 ? 1700 / sp : 1;
+      const err = hoopPredict(g, hoop, nx.x, nx.y, nx.vx * k, nx.vy * k - 120, bl.r);
+      const tol = lv ? 0 : 22, far = Math.abs(hx - h.x) > (lv ? 400 : 360), fwd = (hx - h.x) > 0 ? nx.vx * k : -nx.vx * k;
+      if (was && err <= tol && h.phi > .8 && chance(lv ? 1 : .55)) w.up = false;
+      else if (!m.plan && was && far && h.phi > .8 && hoopPredict.land != null && (hx - hoopPredict.land) * h.face < (lv ? 330 : 420) && (hx - hoopPredict.land) * h.face > -40 && chance(lv ? .9 : .3)) w.up = false;   // 멀면 골대 앞에 떨어지게 띄워 보내고 쫓아가기
+      else if (!m.plan && was && h.phi >= 2.8 && Math.abs(h.hvy) < 60 && h.ground) {
         // 스윙이 끝났는데 슛 각이 안 나왔으면 앞으로 툭 던지고 다시 잡기
         w.up = false; m.re = lv ? .1 : .25;
       }
       if (m.holdT > 2.6) { w.up = false; m.holdT = 0; }
       if (!w.up) m.holdT = 0;
-      m.prevHeld = w.up;
     } else {
-      m.holdT = 0; m.prevHeld = false;
+      m.holdT = 0; m.plan = null;
+      if (m.hk > 0 && !bl.holder) { m.hk -= dt; w.up = true; return w; }
       if (m.re > 0) { m.re -= dt; if (m.re <= 0) { w.up = true; m.t = .5; } return w; }
-      const near = mine.some(b => Math.abs(b.x - bl.x) < (lv ? 150 : 110) && bl.y < b.y - 30 && bl.y > b.y - 320);
-      if (near && m.t <= 0) { w.up = true; m.t = lv ? .45 : .8; }
-      else if (m.t > (lv ? .12 : .3)) w.up = true;
-      else if (m.t <= 0 && chance(lv ? .05 : .02)) { w.up = true; m.t = .3; }
+      // 어려움: 점프 타이밍을 몸 물리로 시뮬레이션해서 공을 잡을 수 있으면 바로 점프
+      m.sim = (m.sim || 0) - dt;
+      if (!bl.holder && m.t <= 0 && m.sim <= 0) {
+        m.sim = lv ? 0 : .18; let bestT = 9, opt = null;
+        const wait = Math.min(...mine.map(b => { const t2 = hoopCatchT(g, b, false, 0, bl, .5); return t2 < 0 ? 9 : t2; }));
+        for (const hd of [.12, .5]) for (const b of mine) { const t2 = hoopCatchT(g, b, true, hd, bl, .8); if (t2 >= 0 && t2 < bestT - (hd > .2 ? .15 : 0)) { bestT = t2; opt = hd; } }
+        if (opt != null && bestT < wait - .05 && chance(lv ? 1 : .35)) { w.up = true; m.t = opt + .25; m.hk = opt; return w; }
+        if (wait < 9) return w;   // 가만히 있어도 손에 들어옴
+      }
+      const near = !lv && mine.some(b => Math.abs(b.x - bl.x) < 110 && bl.y < b.y - 30 && bl.y > b.y - 320);
+      const ahead = mine.some(b => (bl.x - b.x) * b.face > -30 && Math.abs(bl.x - b.x) < 700);
+      const oh = bl.holder && bl.holder.team !== i ? bl.holder : null, threat = oh && mine.some(b => Math.abs(b.x - oh.x) < 170);
+      if (m.hk > 0) { m.hk -= dt; w.up = true; return w; }
+      if ((near || threat) && m.t <= 0) { w.up = true; m.t = lv ? .45 : .8; m.hk = .4; }
+      else if (ahead && !oh && m.t <= 0 && mine.some(b => b.ground) && chance(lv ? .6 : .15)) { w.up = true; m.t = lv ? .55 : .9; m.hk = .08; }   // 공 쪽으로 깡총
+      else if (m.t <= 0 && chance(lv ? .03 : .02)) { w.up = true; m.t = .3; m.hk = .12; }
     }
     return w;
-  }
-};
+}
 
+
+function hoopSimBody(g, b0, press, holdDur, T, cb) {
+  // 몸 물리를 그대로 따라 시뮬레이션: 매 프레임 cb(t, 손x, 손y, 손vx, 손vy, 누르는중)
+  const st = 1 / 60, G = g.grav, FL = g.floor, S = g.size, Lb = 92 * S, hr = 24 * S;
+  const b = { x: b0.x, y: b0.y, vx: b0.vx, vy: b0.vy, th: b0.th, om: b0.om, phi: b0.phi, ground: b0.ground, coy: b0.coy };
+  if (press && (b.ground || b.coy > 0)) {
+    if (Math.abs(b.th) > 1.3) b.om += -Math.sign(b.th) * 7;
+    b.vy = -840 * Math.sqrt(G / 1500); b.vx = Math.sin(b.th) * 420 + b0.face * 170; b.om += b0.face * 4.2; b.ground = false;
+  } else if (press) return null;
+  let px = b0.hand.x, py = b0.hand.y, pvx = b0.hvx || 0, pvy = b0.hvy || 0;
+  for (let t = 0; t < T; t += st) {
+    const held = press ? t < holdDur : false, tp = held ? 3 : .3;
+    b.phi += (tp - b.phi) * (1 - Math.exp(-(held ? 10 : 7) * st));
+    b.vy += G * st; b.x += b.vx * st; b.y += b.vy * st; b.th += b.om * st;
+    if (b.y >= FL) { b.y = FL; b.vy = 0; b.ground = true; } else b.ground = false;
+    if (b.ground) { b.vx *= Math.exp(-5 * st); b.om += (-b.th * 16 - b.om * 4.5) * st; } else b.om *= Math.exp(-.5 * st);
+    const ux = Math.sin(b.th), uy = -Math.cos(b.th), hy0 = b.y + uy * Lb;
+    if (hy0 > FL - hr) { b.y -= hy0 - (FL - hr); if (b.vy > 0) b.vy *= -.3; b.om *= .6; }
+    b.x = clamp(b.x, 40, W - 40);
+    const sx = b.x + ux * Lb * .72, sy = b.y + uy * Lb * .72, a = -b0.face * b.phi;
+    const ax = -ux * Math.cos(a) + uy * Math.sin(a), ay = -ux * Math.sin(a) - uy * Math.cos(a);
+    const hx = sx + ax * g.arm, hy = sy + ay * g.arm;
+    const vx = (hx - px) / st, vy = (hy - py) / st, r = cb(t, hx, hy, vx, vy, held, pvx, pvy); if (r !== undefined) return r;
+    px = hx; py = hy; pvx = vx; pvy = vy;
+  }
+  return null;
+}
+function hoopCatchT(g, b0, press, holdDur, bl0, T) {
+  // 지금 누르고 holdDur초 동안 유지하면, T초 안에 이 선수 손이 공에 닿는 가장 빠른 시간 (없으면 -1)
+  const st = 1 / 60, G = g.grav, FL = g.floor, o = { x: bl0.x, y: bl0.y, vx: bl0.vx, vy: bl0.vy }, R = bl0.r + 12;
+  const r = hoopSimBody(g, b0, press, holdDur, T, (t, hx, hy) => {
+    o.vy += G * st; o.x += o.vx * st; o.y += o.vy * st;
+    if (o.y > FL - bl0.r) { o.y = FL - bl0.r; if (o.vy > 0) o.vy = -o.vy * g.bounce; o.vx *= .985; }
+    if (o.x < bl0.r || o.x > W - bl0.r) { o.vx = -o.vx * .7; o.x = clamp(o.x, bl0.r, W - bl0.r); }
+    if (Math.hypot(hx - o.x, hy - o.y) < R) return t;
+  });
+  return r == null ? -1 : r;
+}
+function hoopPlan(g, h, hoop, r) {
+  // 공 든 채 땅에 있을 때: "지금 누르고 tau초 뒤 놓기"를 여러 개 시뮬레이션해서 결과 목록 반환
+  const out = [], cx = (hoop.x1 + hoop.x2) / 2, half = (hoop.x2 - hoop.x1) / 2 - 6;
+  for (let tau = .04; tau <= 1.05; tau += tau < .4 ? .015 : .05) {
+    const res = hoopSimBody(g, h, true, tau, tau + .05, (t, hx, hy, vx0, vy0, held, vx, vy) => {
+      if (held) return;
+      const sp = Math.hypot(vx, vy), k = sp > 1700 ? 1700 / sp : 1, err = hoopPredict(g, hoop, hx, hy, vx * k, vy * k - 120, r);
+      return { tau, err, land: hoopPredict.land };
+    });
+    if (res) out.push(res);
+  }
+  let py = null;
+  const dunk = hoopSimBody(g, h, true, 9, 1.5, (t, hx, hy) => { if (py != null && py < hoop.y && hy >= hoop.y) return Math.abs(hx - cx) < half ? 0 : 999; py = hy; });
+  if (dunk === 0) out.push({ tau: 9, err: 0, land: cx, dunk: true });
+  return out;
+}
+function hoopNextHand(g, b, dt) {
+  // 버튼을 떼는 그 프레임에 팔이 내려가기 시작하므로, 다음 프레임 손 위치/속도를 미리 계산
+  dt = Math.max(dt, 1 / 240);
+  const S = g.size, Lb = 92 * S, phi = b.phi + (.3 - b.phi) * (1 - Math.exp(-7 * dt));
+  let vy = b.vy + g.grav * dt, y = b.y + vy * dt; const x = b.x + b.vx * dt;
+  if (y >= g.floor) y = g.floor;
+  const th = b.th + b.om * dt, ux = Math.sin(th), uy = -Math.cos(th);
+  const sx = x + ux * Lb * .72, sy = y + uy * Lb * .72, a = -b.face * phi, dx0 = -ux, dy0 = -uy;
+  const ax = dx0 * Math.cos(a) - dy0 * Math.sin(a), ay = dx0 * Math.sin(a) + dy0 * Math.cos(a);
+  const hx = sx + ax * g.arm, hy = sy + ay * g.arm;
+  return { x: hx, y: hy, vx: (hx - b.hand.x) / dt, vy: (hy - b.hand.y) / dt };
+}
 function hoopPredict(g, hoop, x, y, vx, vy, r) {
   // 지금 놓으면 공이 골대로 들어가는지: 0 = 들어감, 값이 클수록 빗나감
-  const G = g.grav, st = 1 / 120, bb = hoop.bb, cx = (hoop.x1 + hoop.x2) / 2, half = (hoop.x2 - hoop.x1) / 2 - 3;
-  const o = { x, y }; let best = 1e9;
+  const G = g.grav, st = 1 / 180, bb = hoop.bb, cx = (hoop.x1 + hoop.x2) / 2, half = (hoop.x2 - hoop.x1) / 2 - 3;
+  const o = { x, y }; let best = 1e9; hoopPredict.land = null;
   for (let t = 0; t < 1.8; t += st) {
     const py = o.y; vy += G * st; o.x += vx * st; o.y += vy * st;
     const n = pushCircleRect(o, r, bb); if (n) { const vn = vx * n.x + vy * n.y; if (vn < 0) { vx -= 1.7 * vn * n.x; vy -= 1.7 * vn * n.y; } }
-    for (const rx of [hoop.x1, hoop.x2]) if (Math.hypot(o.x - rx, o.y - hoop.y) < r + 4) return 40;
+    for (const rx of [hoop.x1, hoop.x2]) { const dx = o.x - rx, dy = o.y - hoop.y, d = Math.hypot(dx, dy), mn = r + 4; if (d < mn && d > 0) { const nx = dx / d, ny = dy / d; o.x = rx + nx * mn; o.y = hoop.y + ny * mn; const vn = vx * nx + vy * ny; if (vn < 0) { vx -= 1.6 * vn * nx; vy -= 1.6 * vn * ny; } } }
     if (py < hoop.y && o.y >= hoop.y) { const e = Math.max(0, Math.abs(o.x - cx) - half + 6); if (e === 0) return 0; best = Math.min(best, e); }
-    if (o.y > g.floor || o.x < 0 || o.x > W) break;
+    if (o.y > g.floor - r) { hoopPredict.land = o.x; break; }
+    if (o.x < 0 || o.x > W) { hoopPredict.land = clamp(o.x, 0, W); break; }
   }
   return best;
 }
