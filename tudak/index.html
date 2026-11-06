@@ -5550,10 +5550,10 @@ class PlatShoot {
    AI — 가상 키보드로 플레이어를 조종 (쉬움 lv=0 / 어려움 lv=1)
    ========================================================================= */
 const VS = { mode: 'friend' };
-try { const v = localStorage.getItem('tudak-vs'); if (v === 'easy' || v === 'hard' || v === 'friend') VS.mode = v; } catch (e) { }
-const VS_LABEL = { friend: '친구 대전', easy: 'AI 쉬움', hard: 'AI 어려움' };
-function cycleVS() { VS.mode = VS.mode === 'friend' ? 'easy' : VS.mode === 'easy' ? 'hard' : 'friend'; try { localStorage.setItem('tudak-vs', VS.mode); } catch (e) { } Sound.play('move'); }
-function pname(i) { return i === 1 && VS.mode !== 'friend' ? '파랑 AI' : NAMES[i]; }
+try { const v = localStorage.getItem('tudak-vs'); if (v === 'easy' || v === 'hard' || v === 'friend' || v === 'watch') VS.mode = v; } catch (e) { }
+const VS_LABEL = { friend: '친구 대전', easy: 'AI 쉬움', hard: 'AI 어려움', watch: 'AI 관전' };
+function cycleVS() { VS.mode = VS.mode === 'friend' ? 'easy' : VS.mode === 'easy' ? 'hard' : VS.mode === 'hard' ? 'watch' : 'friend'; try { localStorage.setItem('tudak-vs', VS.mode); } catch (e) { } Sound.play('move'); }
+function pname(i) { return VS.mode === 'watch' ? NAMES[i] + ' AI' : i === 1 && VS.mode !== 'friend' ? '파랑 AI' : NAMES[i]; }
 const AIK = [
   { left: 'KeyA', right: 'KeyD', up: 'KeyW', down: 'KeyS', act: 'KeyF', act2: 'KeyG' },
   { left: 'ArrowLeft', right: 'ArrowRight', up: 'ArrowUp', down: 'ArrowDown', act: 'Slash', act2: 'Period' }
@@ -6395,9 +6395,9 @@ class MenuScene {
     txt('투닥투닥 스타디움', W / 2, 46, 50, COL.ink, { w: 900, stroke: '#0a0e22', sw: 10 });
     txt('투닥투닥 스타디움', W / 2, 46, 50, gr, { w: 900 });
     drawBlob(200, 48, 26, 0, { look: { x: 1, y: 0 }, mouth: 'grin', sy: 1 + Math.sin(T * 5) * .05 });
-    { const ai = VS.mode !== 'friend', col = VS.mode === 'hard' ? COL.red : VS.mode === 'easy' ? COL.green : COL.gold;
+    { const ai = VS.mode !== 'friend', col = VS.mode === 'watch' ? '#c77dff' : VS.mode === 'hard' ? COL.red : VS.mode === 'easy' ? COL.green : COL.gold;
       panel(1010, 18, 250, 60, 16, 'rgba(10,14,32,.85)', col, 3);
-      txt(ai ? '🤖' : '👥', 1040, 48, 22, '#fff', { w: 900 });
+      txt(VS.mode === 'watch' ? '👀' : ai ? '🤖' : '👥', 1040, 48, 22, '#fff', { w: 900 });
       txt('대전 상대', 1150, 34, 12, COL.muted, { w: 800 });
       txt(VS_LABEL[VS.mode], 1150, 56, 20, col, { w: 900 });
       txt('Tab', 1236, 48, 11, COL.dim, { w: 800 }); }
@@ -6441,11 +6441,12 @@ function shade(hex, k) {
 }
 
 class IntroScene {
-  constructor(ses) { this.ses = ses; this.def = ses.def; this.ready = [false, VS.mode !== 'friend']; this.t = 0; this.goT = -1; }
+  constructor(ses) { this.ses = ses; this.def = ses.def; this.ready = [VS.mode === 'watch', VS.mode !== 'friend']; this.t = 0; this.goT = -1; }
   enter() { if (!Music.on || Music.pat !== PAT.menu) Music.start(PAT.menu); }
   update(dt) {
     this.t += dt; FX.update(dt);
-    if (pressed('Tab') && this.goT < 0) { cycleVS(); this.ready[1] = VS.mode !== 'friend'; }
+    if (pressed('Tab') && this.goT < 0) { cycleVS(); this.ready[1] = VS.mode !== 'friend'; this.ready[0] = VS.mode === 'watch'; this.t = .26; }
+    if (VS.mode === 'watch' && this.t < 1.4) this.ready[0] = this.ready[1] = false; else if (VS.mode === 'watch') this.ready[0] = this.ready[1] = true;
     if (pressed('Escape')) { Sound.play('back'); setScene(new MenuScene(this.ses.mode === 'olympic' ? 0 : this.ses.list[0] + 1)); return; }
     if (pressed('KeyM')) Sound.toggleMute();
     if (this.t > .25) for (let i = 0; i < 2; i++) if (!this.ready[i] && actPressed(i)) {
@@ -6460,7 +6461,7 @@ class IntroScene {
     const d = this.def;
     drawStageBg(hexA(d.color, .18));
     const head = this.ses.mode === 'olympic' ? (this.ses.tiebreak ? '5종 경기 · 연장전!' : `5종 경기 · ${this.ses.i + 1} / 5 종목`) : '자유 플레이';
-    txt(head + '  ·  ' + VS_LABEL[VS.mode] + ' (Tab)', W / 2, 44, 22, VS.mode === 'friend' ? COL.muted : VS.mode === 'hard' ? '#ff8a8a' : '#8ae6a8', { w: 800 });
+    txt(head + '  ·  ' + VS_LABEL[VS.mode] + ' (Tab)', W / 2, 44, 22, VS.mode === 'friend' ? COL.muted : VS.mode === 'watch' ? '#d9a8ff' : VS.mode === 'hard' ? '#ff8a8a' : '#8ae6a8', { w: 800 });
     if (this.ses.mode === 'olympic') this.drawMedals(W / 2, 78);
     panel(80, 104, 360, 316, 26, shade(d.color, -.55), d.color, 3);
     ctx.save(); rrect(80, 104, 360, 316, 26); ctx.clip();
@@ -6478,7 +6479,7 @@ class IntroScene {
     });
     for (let i = 0; i < 2; i++) this.drawCtrl(i, i ? 650 : 80, 440, 550, 200);
     const both = this.ready[0] && this.ready[1];
-    txt(both ? '시작!' : (VS.mode === 'friend' ? '각자 액션 키를 눌러 준비하세요' : 'F 를 눌러 AI와 대결 시작!') + '   ·   Tab 상대 바꾸기   ·   Esc 뒤로', W / 2, 682, both ? 30 : 19, both ? COL.gold : COL.muted, { w: 800 });
+    txt(both ? '시작!' : (VS.mode === 'friend' ? '각자 액션 키를 눌러 준비하세요' : VS.mode === 'watch' ? 'AI끼리 대결합니다! 곧 시작' : 'F 를 눌러 AI와 대결 시작!') + '   ·   Tab 상대 바꾸기   ·   Esc 뒤로', W / 2, 682, both ? 30 : 19, both ? COL.gold : COL.muted, { w: 800 });
     FX.draw();
   }
   drawMedals(x, y) {
@@ -6493,7 +6494,7 @@ class IntroScene {
     if (r) { ctx.save(); ctx.shadowColor = PC[i]; ctx.shadowBlur = 24; panel(x, y, w, h, 24, hexA(PC[i], .25), PC[i], 4); ctx.restore(); }
     else panel(x, y, w, h, 24, 'rgba(14,19,42,.85)', hexA(PC[i], .5), 2);
     drawBlob(x + 56, y + 52, 30, i, { look: { x: 1, y: 0 }, mouth: r ? 'grin' : null, happy: r, noShadow: true, sy: r ? 1 + Math.sin(T * 10) * .05 : 1 });
-    txt(i === 1 && VS.mode !== 'friend' ? `P2 파랑 · AI ${VS.mode === 'hard' ? '어려움' : '쉬움'}` : `P${i + 1} ${NAMES[i]}`, x + 100, y + 52, 28, PC[i], { align: 'left', w: 900 });
+    txt(VS.mode === 'watch' ? `P${i + 1} ${NAMES[i]} · AI 어려움` : i === 1 && VS.mode !== 'friend' ? `P2 파랑 · AI ${VS.mode === 'hard' ? '어려움' : '쉬움'}` : `P${i + 1} ${NAMES[i]}`, x + 100, y + 52, 28, PC[i], { align: 'left', w: 900 });
     let cx = x + 40; const groups = this.def.ctrl(i);
     for (const gr of groups) {
       const isMove = gr.keys.length === 4;
@@ -6511,7 +6512,7 @@ class IntroScene {
       }
     }
     const rx = x + w - 120, ry = y + 60;
-    if (r) { txt(i === 1 && VS.mode !== 'friend' ? 'AI 대기 중' : '준비 완료!', rx, ry, 26, COL.gold, { w: 900 }); }
+    if (r) { txt((i === 1 && VS.mode !== 'friend') || VS.mode === 'watch' ? 'AI 대기 중' : '준비 완료!', rx, ry, 26, COL.gold, { w: 900 }); }
     else { drawKeycap(rx - 40, ry, i ? '/' : 'F', Input.down.has(i ? 'Slash' : 'KeyF'), PC[i], 44, { hi: Math.sin(T * 6) > 0 }); txt('눌러 준비', rx + 30, ry, 18, COL.ink, { w: 700 }); }
   }
 }
@@ -6519,7 +6520,7 @@ function hexA(hex, a) { const n = parseInt(hex.slice(1), 16); return `rgba(${n >
 
 class PlayScene {
   constructor(ses) { this.ses = ses; this.def = ses.def; this.game = this.def.make(); this.paused = false; this.endT = 0; this.pSel = 0; }
-  enter() { if (VS.mode !== 'friend') AI.start(this.def.id, VS.mode === 'hard' ? 1 : 0, [1]); else AI.stop(); }
+  enter() { if (VS.mode === 'watch') AI.start(this.def.id, 1, [0, 1]); else if (VS.mode !== 'friend') AI.start(this.def.id, VS.mode === 'hard' ? 1 : 0, [1]); else AI.stop(); }
   exit() { AI.stop(); if (this.game.exit) this.game.exit(); if (this.paused) this.setPaused(false); }
   onBlur() { if (!this.paused && !this.game.finished) this.setPaused(true); }
   setPaused(p) {
@@ -6555,6 +6556,7 @@ class PlayScene {
     ctx.restore();
     this.game.drawHUD();
     FX.drawUI();
+    if (VS.mode === 'watch' && !this.paused) { panel(W / 2 - 70, H - 34, 140, 26, 13, 'rgba(10,8,24,.7)', '#c77dff', 2); txt('AI 관전 중 · Esc', W / 2, H - 21, 13, '#d9a8ff', { w: 800 }); }
     if (this.paused) {
       ctx.save(); ctx.fillStyle = 'rgba(5,7,18,.8)'; ctx.fillRect(0, 0, W, H); ctx.restore();
       txt('일시정지', W / 2, 250, 72, COL.ink, { w: 900 });
