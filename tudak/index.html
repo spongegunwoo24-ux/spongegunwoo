@@ -2070,8 +2070,10 @@ class Volley {
   trySpike(p) {
     const b = this.ball, d = Math.hypot(b.x - p.x, b.y - p.y);
     if (d < p.r + b.r + 60 && b.y < p.y + 12) {
-      const tx = p.i ? 330 : 950;
+      const tx = p.i ? 300 : 980;
       let dir = norm(tx - b.x, this.G - b.y); if (dir.y < .12) dir = norm(dir.x, .12);
+      const tN = (this.NX - b.x) / dir.x;
+      if (tN > 0 && b.y + dir.y * tN > this.NT - 70) dir = norm(this.NX - b.x, (this.NT - 90) - b.y);   // 그대로면 네트에 걸림 → 네트 위로
       b.vx = dir.x * 1020; b.vy = dir.y * 1020; p.spCd = .8;
       if (this.state === 'serve') { this.state = 'play'; this.st = 0; }
       this.stats.spike[p.i]++; this.stats.touch[p.i]++;
@@ -5595,23 +5597,23 @@ function gomokuPick(g, me, lv) {
     let near = false; for (let dy = -2; dy <= 2 && !near; dy++) for (let dx = -2; dx <= 2; dx++) if (g.at(x + dx, y + dy) > 0) { near = true; break; }
     if (near) cand.push({ x, y });
   }
-  const val = (n, open, c) => n >= 5 ? (c === 1 && n > 5 ? 0 : 1e6) : n === 4 ? (open === 2 ? 5e4 : open === 1 ? 4e3 : 0) : n === 3 ? (open === 2 ? 3e3 : open === 1 ? 200 : 0) : n === 2 ? (open === 2 ? 150 : open === 1 ? 20 : 0) : open === 2 ? 6 : 1;
+  const WV = [0, 2, 24, 300, 6000, 1e6];
   const score = (x, y, c) => {
-    const i = y * 15 + x; g.b[i] = c; let s = 0;
-    for (const [dx, dy] of GDIRS) {
-      let n = 1, a = 1, b = 1; while (g.at(x + dx * a, y + dy * a) === c) { n++; a++; } while (g.at(x - dx * b, y - dy * b) === c) { n++; b++; }
-      const open = (g.at(x + dx * a, y + dy * a) === 0 ? 1 : 0) + (g.at(x - dx * b, y - dy * b) === 0 ? 1 : 0);
-      s += val(n, open, c);
+    let sc = 0;
+    for (const [dx, dy] of GDIRS) for (let k = -4; k <= 0; k++) {
+      let n = 0, ok = true;
+      for (let j = 0; j < 5; j++) { const xx = x + dx * (k + j), yy = y + dy * (k + j), v = (xx === x && yy === y) ? c : g.at(xx, yy); if (v === -1 || (v !== 0 && v !== c)) { ok = false; break; } if (v === c) n++; }
+      if (ok) sc += WV[n];
     }
-    g.b[i] = 0; return s;
+    return sc;
   };
   for (const c of cand) {
     if (mc === 1 && g.forbidden(c.x, c.y)) { c.s = -1e9; continue; }
-    c.s = score(c.x, c.y, mc) * (lv ? 1.05 : 1) + score(c.x, c.y, oc) * (lv ? .95 : .7) - (Math.abs(c.x - 7) + Math.abs(c.y - 7)) * .5;
-    if (!lv) c.s += rand(0, 400);
+    c.s = score(c.x, c.y, mc) * (lv ? 1.1 : 1) + score(c.x, c.y, oc) * (lv ? 1 : .85) - (Math.abs(c.x - 7) + Math.abs(c.y - 7)) * .5;
+    if (!lv) c.s += rand(0, 250);
   }
   cand.sort((a, b) => b.s - a.s);
-  if (!lv && chance(.25)) return pick(cand.slice(0, Math.min(5, cand.length)));
+  if (!lv && cand[0].s < 5000 && chance(.2)) return pick(cand.slice(0, Math.min(3, cand.length)));
   return cand[0];
 }
 
@@ -5801,16 +5803,18 @@ const AIF = {
     const blastMap = (extra) => {
       const dz = new Float32Array(C * R).fill(99);
       const add = b => { const tl = b.fuse - b.t, set = (c, r) => { const k = r * C + c; dz[k] = Math.min(dz[k], tl); }; set(b.c, b.r); for (const [dx, dy] of D4) for (let k = 1; k <= b.range; k++) { const c = b.c + dx * k, r = b.r + dy * k, v = g.g[r * C + c]; if (v === 1) break; set(c, r); if (v === 2) break; } };
-      for (const b of g.bombs) add(b); if (extra) add(extra);
+      const list = g.bombs.map(b => ({ c: b.c, r: b.r, range: b.range, fuse: b.fuse, t: b.t })); if (extra) list.push(Object.assign({}, extra));
+      for (let it = 0; it < 4; it++) { dz.fill(99); for (const b of list) add(b); for (const b of list) { const tl = dz[b.r * C + b.c]; if (tl < b.fuse - b.t) b.t = b.fuse - tl; } }
       for (let k = 0; k < C * R; k++) if (g.flame[k] > 0) dz[k] = 0;
       return dz;
     };
     const walk = (c, r) => c >= 0 && r >= 0 && c < C && r < R && !g.g[r * C + c] && !(g.bombAt(c, r) && !(c === mc && r === mr));
-    const bfs = () => { const dist = new Int16Array(C * R).fill(-1), par = new Int32Array(C * R).fill(-1), q = [mr * C + mc]; dist[q[0]] = 0; while (q.length) { const k = q.shift(), c = k % C, r = (k / C) | 0; for (const [dx, dy] of D4) { const nc = c + dx, nr = r + dy, nk = nr * C + nc; if (!walk(nc, nr) || dist[nk] >= 0) continue; dist[nk] = dist[k] + 1; par[nk] = k; q.push(nk); } } return { dist, par }; };
+    const step = 54 / (150 + 32 * me.spd);
+    const bfs = (dz) => { const dist = new Int16Array(C * R).fill(-1), par = new Int32Array(C * R).fill(-1), q = [mr * C + mc]; dist[q[0]] = 0; while (q.length) { const k = q.shift(), c = k % C, r = (k / C) | 0; for (const [dx, dy] of D4) { const nc = c + dx, nr = r + dy, nk = nr * C + nc; if (!walk(nc, nr) || dist[nk] >= 0) continue; const arrive = (dist[k] + 1) * step; if (dz && dz[nk] < 99 && Math.abs(dz[nk] - arrive) < .7) continue; if (dz && dz[nk] <= .15) continue; dist[nk] = dist[k] + 1; par[nk] = k; q.push(nk); } } return { dist, par }; };
     m.t = (m.t || 0) - dt;
     if (m.t <= 0 || !m.goal) {
       m.t = lv ? .12 : .45;
-      const dz = blastMap(), { dist, par } = bfs(), here = mr * C + mc;
+      const dz = blastMap(), { dist, par } = bfs(dz), here = mr * C + mc;
       let goal = null;
       const nearest = pred => { let bk = -1, bd = 1e9; for (let k = 0; k < C * R; k++) if (dist[k] >= 0 && pred(k) && dist[k] < bd) { bd = dist[k]; bk = k; } return bk; };
       if (dz[here] < 99) goal = nearest(k => dz[k] >= 99);
@@ -5820,8 +5824,8 @@ const AIF = {
         let worth = false;
         for (const [dx, dy] of D4) for (let k = 1; k <= me.range; k++) { const c = mc + dx * k, r = mr + dy * k; if (!ok2(c, r)) break; const v = g.g[r * C + c]; if (v === 1) break; const [oc2, or2] = g.cellOf(o.x, o.y); if (o.alive && c === oc2 && r === or2) worth = true; if (v === 2) { if (k === 1) worth = true; break; } }
         if (worth && myB < me.bombs && !g.bombAt(mc, mr) && chance(lv ? .9 : .5)) {
-          const dz2 = blastMap({ c: mc, r: mr, range: me.range, fuse: 2.4, t: 0 });
-          const esc = nearest(k => dz2[k] >= 99 && dist[k] <= (lv ? 6 : 4));
+          const dz2 = blastMap({ c: mc, r: mr, range: me.range, fuse: 2.4, t: 0 }), b2 = bfs(dz2);
+          let esc = -1, ed = 1e9; for (let k = 0; k < C * R; k++) if (b2.dist[k] >= 0 && dz2[k] >= 99 && b2.dist[k] <= (lv ? 4 : 5) && b2.dist[k] < ed) { ed = b2.dist[k]; esc = k; }
           if (esc >= 0) { AI.tap(s, 'act'); m.goal = esc; m.t = .25; return {}; }
         }
         const items = [...g.items.keys()].filter(k => dist[k] >= 0 && dz[k] >= 99);
