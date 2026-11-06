@@ -3835,7 +3835,7 @@ class Drop4 {
    ========================================================================= */
 class Hockey {
   constructor() {
-    this.score = [0, 0]; this.target = 7; this.finished = false; this.winner = -1;
+    this.score = [0, 0]; this.target = 3; this.finished = false; this.winner = -1; this.stall = 0;
     this.T = { x0: 130, y0: 128, x1: 1150, y1: 692 }; this.cx = 640; this.cy = 410; this.goalH = 200;
     this.ps = [this.mk(0), this.mk(1)];
     this.stats = { shots: [0, 0], hits: [0, 0], top: [0, 0] };
@@ -3870,9 +3870,25 @@ class Hockey {
         const fr = Math.exp(-.28 * h); pk.vx *= fr; pk.vy *= fr;
         if (pk.y < T0.y0 + pk.r) { pk.y = T0.y0 + pk.r; pk.vy = Math.abs(pk.vy) * .92; this.wall(); }
         if (pk.y > T0.y1 - pk.r) { pk.y = T0.y1 - pk.r; pk.vy = -Math.abs(pk.vy) * .92; this.wall(); }
-        const inGoal = Math.abs(pk.y - this.cy) < this.goalH / 2 - 6;
-        if (pk.x < T0.x0 + pk.r) { if (inGoal) { if (pk.x < T0.x0 - pk.r) { this.goal(1); return; } } else { pk.x = T0.x0 + pk.r; pk.vx = Math.abs(pk.vx) * .92; this.wall(); } }
-        if (pk.x > T0.x1 - pk.r) { if (inGoal) { if (pk.x > T0.x1 + pk.r) { this.goal(0); return; } } else { pk.x = T0.x1 - pk.r; pk.vx = -Math.abs(pk.vx) * .92; this.wall(); } }
+        // 골: 퍽 중심이 골라인을 넘으면 바로 득점 (골문 안에 걸쳐 멈추는 일 없음)
+        const inGoal = Math.abs(pk.y - this.cy) < this.goalH / 2;
+        if (inGoal && pk.x < T0.x0) { this.goal(1); return; }
+        if (inGoal && pk.x > T0.x1) { this.goal(0); return; }
+        if (pk.x < T0.x0 + pk.r && !inGoal) { pk.x = T0.x0 + pk.r; pk.vx = Math.abs(pk.vx) * .92; this.wall(); }
+        if (pk.x > T0.x1 - pk.r && !inGoal) { pk.x = T0.x1 - pk.r; pk.vx = -Math.abs(pk.vx) * .92; this.wall(); }
+        // 골대 기둥(골문 위아래 끝)에 부딪히면 튕겨 나옴
+        if (!inGoal) for (const gx of [T0.x0, T0.x1]) for (const gy of [this.cy - this.goalH / 2, this.cy + this.goalH / 2]) {
+          const dx = pk.x - gx, dy = pk.y - gy, d = Math.hypot(dx, dy);
+          if (d < pk.r && d > 0) { const nx = dx / d, ny = dy / d; pk.x = gx + nx * pk.r; pk.y = gy + ny * pk.r; const vn = pk.vx * nx + pk.vy * ny; if (vn < 0) { pk.vx -= 1.9 * vn * nx; pk.vy -= 1.9 * vn * ny; this.wall(); } }
+        }
+        // 둥근 모서리: 그림과 똑같이 둥글게 튕겨서 구석에 끼지 않음
+        const CR = 44;
+        for (const [ccx, ccy, sx, sy] of [[T0.x0 + CR, T0.y0 + CR, -1, -1], [T0.x1 - CR, T0.y0 + CR, 1, -1], [T0.x0 + CR, T0.y1 - CR, -1, 1], [T0.x1 - CR, T0.y1 - CR, 1, 1]]) {
+          const dx = pk.x - ccx, dy = pk.y - ccy;
+          if (dx * sx <= 0 || dy * sy <= 0) continue;
+          const d = Math.hypot(dx, dy), lim = CR - pk.r;
+          if (d > lim) { const nx = dx / d, ny = dy / d; pk.x = ccx + nx * lim; pk.y = ccy + ny * lim; const vn = pk.vx * nx + pk.vy * ny; if (vn > 0) { pk.vx -= 1.9 * vn * nx; pk.vy -= 1.9 * vn * ny; this.wall(); } }
+        }
         for (const p of this.ps) {
           const dx = pk.x - p.x, dy = pk.y - p.y, d = Math.hypot(dx, dy), min = p.r + pk.r;
           if (d < min && d > 0) {
@@ -3895,6 +3911,9 @@ class Hockey {
         }
       }
       pk.trail.push({ x: pk.x, y: pk.y }); if (pk.trail.length > 14) pk.trail.shift();
+      // 안전장치: 퍽이 3초 넘게 거의 멈춰 있으면 가운데 쪽으로 살짝 밀어줌
+      if (this.state === 'play' && Math.hypot(pk.vx, pk.vy) < 30) this.stall += dt; else this.stall = 0;
+      if (this.stall > 3) { const d = norm(this.cx - pk.x, this.cy - pk.y); pk.vx += d.x * 140 + (pk.x < this.cx ? 60 : -60); pk.vy += d.y * 140; this.stall = 0; FX.burst(pk.x, pk.y, 8, { colors: ['#9fe3ff', '#fff'], max: 120, size: 3 }); }
     }
     if (this.state === 'goal' && this.st > 1.6) {
       const w = this.score.findIndex(s => s >= this.target);
@@ -3949,7 +3968,7 @@ class Hockey {
     }
   }
   drawHUD() {
-    drawPipsHUD(this.score, this.target, '7골 먼저!', 'F / 로 순간 강타 · 내 쪽 절반에서만 움직여요');
+    drawPipsHUD(this.score, this.target, '3골 먼저!', 'F / 로 순간 강타 · 내 쪽 절반에서만 움직여요');
     this.cd.draw();
   }
   getStats() { return [['슛', this.stats.shots], ['퍽 터치', this.stats.hits], ['최고 속도', this.stats.top.map(v => v + 'km/h')], ['최종 점수', this.score]]; }
@@ -5203,9 +5222,9 @@ const GAMES = [
     ctrl: i => [{ label: '칸 고르기', keys: i ? [['←', 'ArrowLeft'], ['→', 'ArrowRight']] : [['A', 'KeyA'], ['D', 'KeyD']] }, ACT(i, '떨어뜨리기')], make: () => new Drop4()
   },
   {
-    id: 'hockey', name: '에어하키', color: '#00bcd4', tag: '스포츠 · 반사신경', time: '약 1.5분',
+    id: 'hockey', name: '에어하키', color: '#00bcd4', tag: '스포츠 · 반사신경', time: '약 1분',
     desc: '퍽을 쳐서 상대 골문에 넣어라!',
-    rules: ['내 쪽 절반 안에서 말렛을 움직여요', '움직이면서 치면 더 세게 날아가요', 'F / 순간 강타: 짧게 확 돌진', '7골 먼저 넣으면 승리'],
+    rules: ['내 쪽 절반 안에서 말렛을 움직여요', '움직이면서 치면 더 세게 날아가요', 'F / 순간 강타: 짧게 확 돌진', '3골 먼저 넣으면 승리'],
     ctrl: i => [MOVE(i), ACT(i, '강타')], make: () => new Hockey()
   },
   {
