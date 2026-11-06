@@ -5981,14 +5981,15 @@ const AIF = {
   racing(g, i, lv, m, dt) {
     if (g.state === 'count') return {};
     const me = g.ps[i], o = g.ps[1 - i], w = { up: true };
-    const s = g.seg(me.z + g.playerZ + (lv ? 1600 : 900));
+    const s = g.seg(me.z + g.playerZ + (lv ? 700 : 500)), s2 = g.seg(me.z + g.playerZ + 1800);
     if (m.lane == null) m.lane = i ? .3 : -.3;
     if (lv) { let pad = null; for (let k = 2; k < 14; k++) { const ss = g.seg(me.z + g.playerZ + k * g.segL); if (ss.pad != null) { pad = ss.pad; break; } } m.lane = pad != null ? pad : (i ? .3 : -.3); }
     else if (chance(.008)) m.lane = rand(-.6, .6);
     if (lv) { let dz = o.z - me.z; if (dz < 0) dz += g.trackLen; if (dz < 900 && Math.abs(o.x - m.lane) < .3) m.lane = o.x > 0 ? -.4 : .4; }
-    const tx = clamp(-s.curve * (lv ? .12 : .07) + m.lane, -.85, .85), tol = lv ? .05 : .14;
+    const tx = clamp((s.curve * .7 + s2.curve * .3) * (lv ? .09 : .05) + m.lane * (Math.abs(s.curve) > 2 ? .4 : 1), -.8, .8), tol = lv ? .04 : .12;
     w.left = me.x > tx + tol; w.right = me.x < tx - tol;
     if (!lv && Math.abs(s.curve) > 3.5 && me.speed > g.maxSpeed * .8) w.up = false;
+    if (Math.abs(me.x) > .95) { w.left = me.x > 0; w.right = me.x < 0; if (lv && Math.abs(me.x) > 1.05) w.up = me.speed < g.maxSpeed * .5; }
     if (me.nitro >= .34 && me.boostT <= 0 && Math.abs(s.curve) < 1 && chance(lv ? .05 : .008)) w.act = true;
     return w;
   },
