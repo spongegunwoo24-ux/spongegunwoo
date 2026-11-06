@@ -5867,8 +5867,8 @@ const AIF = {
     const d = g.dogs[i], pen = g.pens[i], gate = { x: i ? pen.x0 - 10 : pen.x1 + 10, y: (pen.y0 + pen.y1) / 2 };
     m.t = (m.t || 0) - dt;
     if (!m.sh || m.sh.pen >= 0 || m.t <= 0) {
-      m.t = 3; const free = g.sheep.filter(s => s.pen < 0); if (!free.length) return {};
-      if (lv) { const sc = s2 => Math.hypot(s2.x - gate.x, s2.y - gate.y) + Math.abs(s2.y - gate.y) * 1.2 + (Math.abs(s2.x - gate.x) < 60 ? 400 : 0); m.sh = free.reduce((a, b) => sc(a) < sc(b) ? a : b); } else m.sh = pick(free);
+      m.t = lv ? 1.2 : 3; const free = g.sheep.filter(s => s.pen < 0); if (!free.length) return {};
+      if (lv) { const sc = s2 => { const ds = Math.hypot(s2.x - gate.x, s2.y - gate.y), a = norm(s2.x - gate.x, s2.y - gate.y), bx = s2.x + a.x * 100, by = s2.y + a.y * 100; let cl = 0; for (const q of free) if (q !== s2 && Math.hypot(q.x - s2.x, q.y - s2.y) < 90) cl++; return ds + Math.abs(s2.y - gate.y) * .8 + Math.hypot(bx - d.x, by - d.y) * .5 - cl * 35 + (Math.abs(s2.x - gate.x) < 60 ? 400 : 0) + (s2 === m.sh ? -80 : 0); }; m.sh = free.reduce((a, b) => sc(a) < sc(b) ? a : b); } else m.sh = pick(free);
     }
     const s = m.sh, away = norm(s.x - gate.x, s.y - gate.y);
     let tx = s.x + away.x * 100, ty = s.y + away.y * 100;
@@ -5884,21 +5884,41 @@ const AIF = {
   ice(g, i, lv, m, dt) {
     if (g.state !== 'play') return {};
     const me = g.ps[i], o = g.ps[1 - i]; if (me.falling) return {};
+    const safe = (x, y) => { const k = g.tile(x, y); return k >= 0 && g.hp[k] > 0; };
     m.t = (m.t || 0) - dt;
-    if (m.t <= 0 || !m.tg) {
-      m.t = lv ? .35 : .9; let best = -1e9;
+    // 미끄러지는 중: 0.35초 뒤 위치가 위험하면 바로 다시 목표 잡기
+    const fx = me.x + me.vx * .35, fy = me.y + me.vy * .35, danger = lv && !safe(fx, fy);
+    if (m.t <= 0 || !m.tg || danger || (m.tk >= 0 && g.hp[m.tk] <= 0)) {
+      m.t = lv ? .35 : .9; let best = -1e9; m.tk = -1;
+      const od = Math.hypot(o.x - me.x, o.y - me.y);
       for (let k = 0; k < g.hp.length; k++) {
         if (g.hp[k] <= 0) continue;
         const c = k % g.C, r = (k / g.C) | 0, x = g.ox + (c + .5) * g.S, y = g.oy + (r + .5) * g.S;
         let sc = g.hp[k] * 30 - Math.hypot(x - me.x, y - me.y) * .12, nb = 0;
         for (const [dx, dy] of D4) { const cc = c + dx, rr = r + dy; if (cc >= 0 && cc < g.C && rr >= 0 && rr < g.R && g.hp[rr * g.C + cc] > 0) nb++; }
         sc += nb * 14 - (lv ? g.stress[k] * 25 : 0) + (lv ? 0 : rand(0, 45));
-        if (sc > best) { best = sc; m.tg = { x, y }; }
+        if (lv) {
+          // 가는 길에 구멍이 있으면 감점, 상대 쿵 사거리 안이면 감점
+          let bad = 0; for (let q = 1; q <= 4; q++) { const t = q / 5; if (!safe(lerp(me.x, x, t), lerp(me.y, y, t))) bad++; }
+          sc -= bad * 40;
+          const dO = Math.hypot(x - o.x, y - o.y); if (o.cd <= .3 && dO < 140) sc -= (140 - dO) * .5;
+          if (od > 200) sc -= Math.abs(dO - 110) * .05;   // 너무 멀면 상대 쪽으로 슬금슬금
+        }
+        if (sc > best) { best = sc; m.tg = { x, y }; m.tk = k; }
       }
     }
     if (!m.tg) return {};
-    const w = dirTo((m.tg.x - me.x) * 2.2 - me.vx, (m.tg.y - me.y) * 2.2 - me.vy, 30);
-    if (me.cd <= 0 && Math.hypot(o.x - me.x, o.y - me.y) < (lv ? 125 : 90) && chance(lv ? .35 : .05)) w.act = true;
+    const gain = lv ? 2.6 : 2.2, damp = lv ? 1.25 : 1;
+    const w = dirTo((m.tg.x - me.x) * gain - me.vx * damp, (m.tg.y - me.y) * gain - me.vy * damp, 30);
+    const dx = o.x - me.x, dy = o.y - me.y, d = Math.hypot(dx, dy);
+    if (me.cd <= 0 && d < (lv ? 125 : 90) && d > 0) {
+      if (lv) {
+        // 쿵으로 밀었을 때 상대가 구멍에 빠지는지 확인
+        const ux = dx / d, uy = dy / d; let hole = false;
+        for (let s2 = 50; s2 <= 300; s2 += 25) if (!safe(o.x + ux * s2 + o.vx * .1, o.y + uy * s2 + o.vy * .1)) { hole = true; break; }
+        if (hole ? chance(.6) : chance(.04)) w.act = true;
+      } else if (chance(.05)) w.act = true;
+    }
     return w;
   },
   snow(g, i, lv, m, dt) {
@@ -6083,12 +6103,19 @@ const AIF = {
     if (bl.holder && bl.holder.team === i) {
       const h = bl.holder, hx = (hoop.x1 + hoop.x2) / 2, toward = Math.sign(hx - h.x) === Math.sign(h.hvx || 1);
       m.holdT = (m.holdT || 0) + dt; w.up = true;
-      if (h.phi > 1.6 && h.phi < 2.75 && h.hvy < -180 && toward && chance(lv ? .9 : .4)) w.up = false;
-      else if (h.phi >= 2.8 && Math.abs(h.hvy) < 60 && h.ground) { w.up = false; m.re = lv ? .12 : .25; }
+      const sp = Math.hypot(h.hvx, h.hvy), k = sp > 1700 ? 1700 / sp : 1;
+      const err = hoopPredict(g, hoop, bl.x, bl.y, h.hvx * k, h.hvy * k - 120, bl.r);
+      const tol = lv ? 0 : 22;
+      if (m.prevHeld && err <= tol && h.phi > .8 && chance(lv ? 1 : .55)) w.up = false;
+      else if (m.prevHeld && h.phi >= 2.8 && Math.abs(h.hvy) < 60 && h.ground) {
+        // 스윙이 끝났는데 슛 각이 안 나왔으면 앞으로 툭 던지고 다시 잡기
+        w.up = false; m.re = lv ? .1 : .25;
+      }
       if (m.holdT > 2.6) { w.up = false; m.holdT = 0; }
       if (!w.up) m.holdT = 0;
+      m.prevHeld = w.up;
     } else {
-      m.holdT = 0;
+      m.holdT = 0; m.prevHeld = false;
       if (m.re > 0) { m.re -= dt; if (m.re <= 0) { w.up = true; m.t = .5; } return w; }
       const near = mine.some(b => Math.abs(b.x - bl.x) < (lv ? 150 : 110) && bl.y < b.y - 30 && bl.y > b.y - 320);
       if (near && m.t <= 0) { w.up = true; m.t = lv ? .45 : .8; }
@@ -6099,6 +6126,19 @@ const AIF = {
   }
 };
 
+function hoopPredict(g, hoop, x, y, vx, vy, r) {
+  // 지금 놓으면 공이 골대로 들어가는지: 0 = 들어감, 값이 클수록 빗나감
+  const G = g.grav, st = 1 / 120, bb = hoop.bb, cx = (hoop.x1 + hoop.x2) / 2, half = (hoop.x2 - hoop.x1) / 2 - 3;
+  const o = { x, y }; let best = 1e9;
+  for (let t = 0; t < 1.8; t += st) {
+    const py = o.y; vy += G * st; o.x += vx * st; o.y += vy * st;
+    const n = pushCircleRect(o, r, bb); if (n) { const vn = vx * n.x + vy * n.y; if (vn < 0) { vx -= 1.7 * vn * n.x; vy -= 1.7 * vn * n.y; } }
+    for (const rx of [hoop.x1, hoop.x2]) if (Math.hypot(o.x - rx, o.y - hoop.y) < r + 4) return 40;
+    if (py < hoop.y && o.y >= hoop.y) { const e = Math.max(0, Math.abs(o.x - cx) - half + 6); if (e === 0) return 0; best = Math.min(best, e); }
+    if (o.y > g.floor || o.x < 0 || o.x > W) break;
+  }
+  return best;
+}
 function gunAI(g, i, lv, m, dt, plat) {
   if (g.state !== 'play') return {};
   const me = g.ps[i], o = g.ps[1 - i]; if (me.dead) return {};
