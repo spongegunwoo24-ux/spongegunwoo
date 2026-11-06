@@ -5804,6 +5804,8 @@ const AIF = {
       const list = g.bombs.map(b => ({ c: b.c, r: b.r, range: b.range, fuse: b.fuse, t: b.t })); if (extra) list.push(Object.assign({}, extra));
       for (let it = 0; it < 4; it++) { dz.fill(99); for (const b of list) add(b); for (const b of list) { const tl = dz[b.r * C + b.c]; if (tl < b.fuse - b.t) b.t = b.fuse - tl; } }
       for (let k = 0; k < C * R; k++) if (g.flame[k] > 0) dz[k] = 0;
+      if (g.spiral) for (let k = 0; k < Math.min(g.spiral.length, 60); k++) { const [sc2, sr2] = g.spiral[k], kk = sr2 * C + sc2; dz[kk] = Math.min(dz[kk], Math.max(0, g.spiralT) + k * .2); }
+      if (!g.spiral && g.t > 44) { for (let r = 0; r < R; r++) for (let c = 0; c < C; c++) if (r <= 1 || c <= 1 || r >= R - 2 || c >= C - 2) dz[r * C + c] = Math.min(dz[r * C + c], 50 - g.t + 1); }
       return dz;
     };
     const walk = (c, r) => c >= 0 && r >= 0 && c < C && r < R && !g.g[r * C + c] && !(g.bombAt(c, r) && !(c === mc && r === mr));
@@ -6079,11 +6081,15 @@ const AIF = {
     const bl = g.ball, mine = g.bodies.filter(b => b.team === i), hoop = g.hoops.find(h => h.team === i), w = {};
     m.t = (m.t || 0) - dt;
     if (bl.holder && bl.holder.team === i) {
-      const h = bl.holder, hx = (hoop.x1 + hoop.x2) / 2, dist = Math.abs(hx - h.x);
+      const h = bl.holder, hx = (hoop.x1 + hoop.x2) / 2, toward = Math.sign(hx - h.x) === Math.sign(h.hvx || 1);
       m.holdT = (m.holdT || 0) + dt; w.up = true;
-      if ((h.phi > 2.1 && dist < (lv ? 560 : 760) && h.hvy < -150 && chance(lv ? .5 : .15)) || m.holdT > 2.4) { w.up = false; m.holdT = 0; }
+      if (h.phi > 1.6 && h.phi < 2.75 && h.hvy < -180 && toward && chance(lv ? .9 : .4)) w.up = false;
+      else if (h.phi >= 2.8 && Math.abs(h.hvy) < 60 && h.ground) { w.up = false; m.re = lv ? .12 : .25; }
+      if (m.holdT > 2.6) { w.up = false; m.holdT = 0; }
+      if (!w.up) m.holdT = 0;
     } else {
       m.holdT = 0;
+      if (m.re > 0) { m.re -= dt; if (m.re <= 0) { w.up = true; m.t = .5; } return w; }
       const near = mine.some(b => Math.abs(b.x - bl.x) < (lv ? 150 : 110) && bl.y < b.y - 30 && bl.y > b.y - 320);
       if (near && m.t <= 0) { w.up = true; m.t = lv ? .45 : .8; }
       else if (m.t > (lv ? .12 : .3)) w.up = true;
