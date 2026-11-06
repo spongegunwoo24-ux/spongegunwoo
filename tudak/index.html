@@ -5707,7 +5707,7 @@ const AIF = {
     return m.tg ? dirTo(m.tg.x - me.x, m.tg.y - me.y, 6) : {};
   },
   duel(g, i, lv, m, dt, s) {
-    if (g.state === 'signal') {
+    if (g.state === 'signal' || (g.state === 'shot' && m.at != null)) {
       if (m.at == null) m.at = Clock.now() + (lv ? rand(165, 250) : rand(290, 470));
       if (!m.fired && Clock.now() >= m.at) { m.fired = true; AI.tap(s, 'act', m.at); }
     } else { m.at = null; m.fired = false; }
@@ -5753,12 +5753,14 @@ const AIF = {
     let px = b.x, py = b.y, vx = b.vx, vy = b.vy;
     if (g.state !== 'serve') for (let k = 0; k < 200 && py < g.G - 90; k++) { vy += 950 / 60; px += vx / 60; py += vy / 60; if (px < b.r) { px = b.r; vx = -vx; } if (px > W - b.r) { px = W - b.r; vx = -vx; } }
     const mine = i ? px > g.NX : px < g.NX;
-    let tx = mine ? px + (i ? 22 : -22) * (lv ? 1 : .3) : (i ? 960 : 320);
+    let tx = mine ? px + (i ? 10 : -10) : (i ? 960 : 320);
     if (!lv) tx += Math.sin(Clock.now() / 380) * 28;
     w.left = tx - me.x < -8; w.right = tx - me.x > 8;
-    if (me.ground && (i ? b.x > g.NX : b.x < g.NX) && Math.abs(b.x - me.x) < 80 && b.y < me.y - 50 && b.y > me.y - 280 && b.vy > -150 && chance(lv ? .55 : .2)) w.up = true;
+    const myHalf = i ? b.x > g.NX : b.x < g.NX;
+    if (!lv && me.ground && myHalf && Math.abs(b.x - me.x) < 80 && b.y < me.y - 50 && b.y > me.y - 280 && b.vy > -150 && chance(.2)) w.up = true;
+    if (lv && me.ground && myHalf && Math.abs(b.x - me.x) < 55 && Math.abs(b.x - g.NX) > 90 && b.y < g.NT - 40 && b.y > me.y - 330 && b.vy > 0) w.up = true;
     if (g.state === 'serve' && g.server === i && me.ground && Math.abs(b.x - me.x) < 34) w.up = true;
-    if (!me.ground && lv && Math.hypot(b.x - me.x, b.y - me.y) < me.r + b.r + 55 && b.y < me.y && chance(.45)) w.act = true;
+    if (!me.ground && lv && Math.hypot(b.x - me.x, b.y - me.y) < me.r + b.r + 55 && b.y < me.y && b.y < g.NT - 50 && Math.abs(b.x - g.NX) > 70 && chance(.45)) w.act = true;
     return w;
   },
   tank(g, i, lv, m, dt) {
@@ -5861,16 +5863,17 @@ const AIF = {
     const d = g.dogs[i], pen = g.pens[i], gate = { x: i ? pen.x0 - 10 : pen.x1 + 10, y: (pen.y0 + pen.y1) / 2 };
     m.t = (m.t || 0) - dt;
     if (!m.sh || m.sh.pen >= 0 || m.t <= 0) {
-      m.t = lv ? 1.6 : 3; const free = g.sheep.filter(s => s.pen < 0); if (!free.length) return {};
-      m.sh = lv ? free.reduce((a, b) => Math.hypot(a.x - gate.x, a.y - gate.y) < Math.hypot(b.x - gate.x, b.y - gate.y) ? a : b) : pick(free);
+      m.t = 3; const free = g.sheep.filter(s => s.pen < 0); if (!free.length) return {};
+      if (lv) { const sc = s2 => Math.hypot(s2.x - gate.x, s2.y - gate.y) + Math.abs(s2.y - gate.y) * 1.2 + (Math.abs(s2.x - gate.x) < 60 ? 400 : 0); m.sh = free.reduce((a, b) => sc(a) < sc(b) ? a : b); } else m.sh = pick(free);
     }
     const s = m.sh, away = norm(s.x - gate.x, s.y - gate.y);
-    let tx = s.x + away.x * (lv ? 75 : 95), ty = s.y + away.y * (lv ? 75 : 95);
+    let tx = s.x + away.x * 100, ty = s.y + away.y * 100;
     const toG = norm(gate.x - s.x, gate.y - s.y), toD = norm(d.x - s.x, d.y - s.y);
     if (toG.x * toD.x + toG.y * toD.y > .2) { const px = -toG.y, py = toG.x, sg = (toD.x * px + toD.y * py) >= 0 ? 1 : -1; tx = s.x + px * sg * 130 + away.x * 40; ty = s.y + py * sg * 130 + away.y * 40; }
     const w = dirTo(tx - d.x, ty - d.y, 10);
     const o = g.dogs[1 - i];
-    if (d.cd <= 0 && lv && Math.hypot(o.x - d.x, o.y - d.y) < 110) w.act = true;
+    const behindS = toG.x * toD.x + toG.y * toD.y < -.6, ds = Math.hypot(s.x - d.x, s.y - d.y);
+    if (d.cd <= 0 && lv && (Math.hypot(o.x - d.x, o.y - d.y) < 110 || (behindS && ds < 170 && chance(.08)))) w.act = true;
     else if (d.cd <= 0 && !lv && chance(.004)) w.act = true;
     return w;
   },
@@ -6008,11 +6011,11 @@ const AIF = {
       m.t = lv ? 0 : .12;
       const mine = i ? pk.x > g.cx - 10 : pk.x < g.cx + 10;
       if (mine) {
-        const goal = { x: i ? T0.x0 : T0.x1, y: g.cy + (lv ? rand(-60, 60) : 0) };
+        if (m.aimY == null || chance(.02)) m.aimY = pick([-75, 75, -40, 40]); const goal = { x: i ? T0.x0 : T0.x1, y: g.cy + m.aimY * (lv ? 1 : .6) };
         const dir = norm(goal.x - pk.x, goal.y - pk.y), off = me.r + pk.r + 8;
         const behind = { x: pk.x - dir.x * off, y: pk.y - dir.y * off };
         const onRight = (pk.x - me.x) * dir.x + (pk.y - me.y) * dir.y > 0;
-        if (Math.hypot(behind.x - me.x, behind.y - me.y) < (lv ? 46 : 30) || (onRight && Math.hypot(pk.x - me.x, pk.y - me.y) < off + 20)) { m.tg = { x: pk.x + dir.x * 50, y: pk.y + dir.y * 50 }; if (lv && me.cd <= 0) m.dash = true; }
+        if (Math.hypot(behind.x - me.x, behind.y - me.y) < (lv ? 46 : 30) || (onRight && Math.hypot(pk.x - me.x, pk.y - me.y) < off + 20)) { m.tg = { x: pk.x + dir.x * 80, y: pk.y + dir.y * 80 }; if (me.cd <= 0 && (lv || chance(.3))) m.dash = true; }
         else m.tg = behind;
       } else m.tg = { x: (i ? T0.x1 : T0.x0) + (i ? -95 : 95), y: lv ? clamp(pk.y, g.cy - 110, g.cy + 110) : lerp(g.cy, clamp(pk.y, g.cy - 110, g.cy + 110), .6) };
     }
