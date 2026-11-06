@@ -4417,7 +4417,7 @@ class Archers {
       }
       if (ctrl && actPressed(p.i) && p.arrows > 0 && p.dodgeT <= 0) {
         p.arrows--; this.stats.shots[p.i]++;
-        this.arrows.push({ x: p.x + p.aim.x * 14, y: p.y - 15 + p.aim.y * 14, vx: p.aim.x * 940, vy: p.aim.y * 940 - 30, o: p.i, age: 0, stuck: false });
+        this.arrows.push({ x: p.x + p.aim.x * 14, y: p.y - 15 + p.aim.y * 14, vx: p.aim.x * 980, vy: p.aim.y * 980, o: p.i, age: 0, stuck: false });
         Sound.tone(700, .08, { type: 'triangle', f2: 300, v: .1 }); Sound.noise(.05, { type: 'highpass', f: 3000, v: .08 });
       }
       p.x += p.vx * dt; if (this.boxHit(p.x, p.y)) { p.x -= p.vx * dt; p.vx = 0; }
@@ -4431,7 +4431,7 @@ class Archers {
     }
     for (const a of this.arrows) {
       if (a.dead || a.stuck) continue;
-      a.age += dt; a.vy += 700 * dt;
+      a.age += dt; if (a.age > .25) a.vy += 650 * dt;
       const n = 3;
       for (let k = 0; k < n && !a.stuck && !a.dead; k++) {
         a.x += a.vx * dt / n; a.y += a.vy * dt / n; this.wrap(a);
