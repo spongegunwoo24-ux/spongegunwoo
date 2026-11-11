@@ -1,0 +1,743 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<!--PAGE_START-->
+<title>빛결</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Gowun+Batang:wght@400;700&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+KR:wght@400;500;600&display=swap">
+<style>
+/* 배치: 왼쪽에 밤의 판(캔버스), 오른쪽에 Claude의 생각이 적히는 좁은 쪽지. 좁은 화면에서는 위아래로 쌓인다. */
+:root{
+  color-scheme: dark;
+  --night:#0c1024;      /* 바탕: 먹빛이 도는 남색 밤 */
+  --board:#131937;      /* 판 */
+  --tile:#1a2146;       /* 칸 */
+  --line:#2b3566;       /* 경계선 */
+  --ink:#ece6d3;        /* 한지색 글자 */
+  --muted:#9199bd;      /* 흐린 글자 */
+  --amber:#ffb454;      /* 당신의 호롱불 */
+  --jade:#5fe0c0;       /* Claude의 반딧불 */
+  --rose:#ff8593;       /* 놓을 수 없음 */
+  --display:"Gowun Batang","Nanum Myeongjo",Georgia,serif;
+  --body:"IBM Plex Sans KR","Apple SD Gothic Neo","Malgun Gothic",system-ui,sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace;
+}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html,body{margin:0}
+body{
+  background:var(--night);color:var(--ink);font-family:var(--body);font-size:15px;line-height:1.6;
+  padding-block:20px 48px;
+  padding-left:max(16px, env(safe-area-inset-left, 0px));
+  padding-right:max(16px, env(safe-area-inset-right, 0px));
+}
+.wrap{max-width:1040px;margin:0 auto;display:flex;flex-direction:column;gap:20px}
+header{display:flex;align-items:baseline;gap:14px;flex-wrap:wrap}
+h1{font-family:var(--display);font-weight:700;font-size:34px;line-height:1;margin:0;letter-spacing:.04em}
+h1 span{color:var(--amber)}
+h1 i{font-style:normal;color:var(--jade)}
+.tag{margin:0;color:var(--muted);font-size:14px}
+
+.stage{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:24px;align-items:start}
+.boardcol{display:flex;flex-direction:column;gap:10px;min-width:0;max-width:min(620px,82vh);width:100%;justify-self:center}
+
+.scorebar{display:grid;grid-template-columns:1fr auto 1fr;align-items:end;gap:12px}
+.side-score{display:flex;flex-direction:column;gap:2px;min-width:0}
+.side-score.r{align-items:flex-end;text-align:right}
+.who{font-size:12px;letter-spacing:.08em;color:var(--muted)}
+.num{font-family:var(--mono);font-weight:500;font-size:30px;line-height:1;font-variant-numeric:tabular-nums}
+.me .num{color:var(--amber)} .ai .num{color:var(--jade)}
+.lamps{display:flex;gap:4px;height:8px}
+.lamps b{width:8px;height:8px;border-radius:50%;background:var(--amber)}
+.ai .lamps b{background:var(--jade);border-radius:1px;transform:rotate(45deg) scale(.85)}
+.lamps b.off{background:var(--line)}
+.komi{font-size:12px;color:var(--muted);padding-bottom:4px;white-space:nowrap}
+
+.boardbox{position:relative;width:100%;aspect-ratio:1;max-width:100%}
+canvas#board{position:absolute;inset:0;width:100%;height:100%;display:block;border-radius:14px;touch-action:manipulation;cursor:pointer}
+canvas#board:focus-visible{outline:2px solid var(--ink);outline-offset:3px}
+.hoverline{margin:0;min-height:1.6em;color:var(--muted);font-size:13px;font-variant-numeric:tabular-nums}
+.hoverline.bad{color:var(--rose)}
+
+.side{display:flex;flex-direction:column;gap:16px;min-width:0}
+.status{font-family:var(--display);font-size:19px;line-height:1.4;margin:0;text-wrap:balance}
+.note{
+  border-top:1px solid var(--line);border-bottom:1px solid var(--line);
+  padding-block:14px;display:flex;flex-direction:column;gap:10px;min-height:190px
+}
+.note h2{margin:0;font-size:12px;font-weight:600;letter-spacing:.1em;color:var(--jade)}
+.progress{margin:0;font-family:var(--mono);font-size:12px;color:var(--muted);min-height:1.5em;font-variant-numeric:tabular-nums}
+.say{margin:0;font-size:15px;line-height:1.7;overflow-wrap:anywhere}
+.cands{list-style:none;margin:0;padding:0;display:flex;gap:6px;flex-wrap:wrap}
+.cands li{font-family:var(--mono);font-size:12px;border:1px dashed var(--line);border-radius:6px;padding:2px 8px;color:var(--muted);font-variant-numeric:tabular-nums}
+.cands li:first-child{border-color:var(--jade);color:var(--ink)}
+.gauge{display:flex;flex-direction:column;gap:6px}
+.gauge .bar{position:relative;height:6px;border-radius:3px;background:var(--jade);overflow:hidden}
+.gauge .bar i{position:absolute;inset:0 auto 0 0;width:50%;background:var(--amber);transition:width .5s ease}
+.gauge .bar::after{content:"";position:absolute;left:50%;top:0;bottom:0;width:2px;margin-left:-1px;background:var(--night)}
+.gauge p{margin:0;font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums}
+
+.controls{display:flex;flex-wrap:wrap;gap:8px}
+button,select{
+  font:inherit;font-size:14px;color:var(--ink);background:transparent;border:1px solid var(--line);
+  border-radius:8px;padding:7px 12px;cursor:pointer
+}
+select{background:var(--night)}
+button:hover,select:hover{border-color:var(--muted)}
+button:focus-visible,select:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
+button:disabled{opacity:.4;cursor:default}
+button.primary{background:var(--amber);border-color:var(--amber);color:#2a1a02;font-weight:600}
+button[aria-pressed="true"]{border-color:var(--jade);color:var(--jade)}
+label.pick{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--muted)}
+
+.review{display:flex;flex-direction:column;gap:10px}
+.review h2{margin:0;font-family:var(--display);font-size:18px}
+.review canvas{width:100%;height:96px;display:block}
+.review ul{margin:0;padding-left:1.1em;display:flex;flex-direction:column;gap:6px;font-size:14px}
+.review small{color:var(--muted);font-size:12px}
+
+.rules{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,1fr);gap:28px;border-top:1px solid var(--line);padding-top:20px}
+.rules h2{font-family:var(--display);font-size:18px;margin:0 0 8px}
+.rules ol,.rules ul{margin:0;padding-left:1.2em;display:flex;flex-direction:column;gap:6px;color:var(--ink);font-size:14px;max-width:62ch}
+.rules em{font-style:normal;color:var(--amber)}
+.rules .ai em{color:var(--jade)}
+
+@media (max-width:860px){
+  .stage{grid-template-columns:minmax(0,1fr)}
+  .rules{grid-template-columns:minmax(0,1fr)}
+  .note{min-height:0}
+  h1{font-size:28px}
+}
+@media (prefers-reduced-motion:reduce){.gauge .bar i{transition:none}}
+</style>
+
+<div class="wrap">
+  <header>
+    <h1><span>빛</span><i>결</i></h1>
+    <p class="tag">생각을 숨기지 않는 AI와 두는 등불 놀이</p>
+  </header>
+
+  <main class="stage">
+    <section class="boardcol" aria-label="놀이판">
+      <div class="scorebar">
+        <div class="side-score me">
+          <span class="who">당신 · 호롱불</span>
+          <span class="num" id="score0">0</span>
+          <span class="lamps" id="lamps0" aria-hidden="true"></span>
+        </div>
+        <span class="komi" id="komi"></span>
+        <div class="side-score r ai">
+          <span class="who">Claude · 반딧불</span>
+          <span class="num" id="score1">0</span>
+          <span class="lamps" id="lamps1" aria-hidden="true"></span>
+        </div>
+      </div>
+      <div class="boardbox">
+        <canvas id="board" tabindex="0" role="application" aria-label="7×7 놀이판. 화살표 키로 칸을 고르고 Enter로 등불을 놓습니다."></canvas>
+      </div>
+      <p class="hoverline" id="hoverline" aria-live="polite"></p>
+    </section>
+
+    <aside class="side">
+      <p class="status" id="status" aria-live="polite"></p>
+
+      <section class="note" aria-label="Claude의 생각">
+        <h2 id="noteTitle">CLAUDE의 생각</h2>
+        <p class="progress" id="progress"></p>
+        <p class="say" id="say" aria-live="polite"></p>
+        <ol class="cands" id="cands"></ol>
+        <div class="gauge" id="gauge">
+          <div class="bar"><i id="gaugeBar"></i></div>
+          <p id="gaugeText"></p>
+        </div>
+      </section>
+
+      <div class="controls">
+        <button id="btnHint" class="primary" type="button">수 물어보기</button>
+        <button id="btnUndo" type="button">무르기</button>
+        <button id="btnNew" type="button">새 판</button>
+      </div>
+      <div class="controls">
+        <label class="pick" for="level">난이도
+          <select id="level">
+            <option value="easy">쉬움</option>
+            <option value="mid">보통</option>
+            <option value="hard" selected>어려움</option>
+          </select>
+        </label>
+        <button id="btnThink" type="button" aria-pressed="true">생각 보기</button>
+        <button id="btnSound" type="button" aria-pressed="true">소리</button>
+      </div>
+
+      <section class="review" id="review" hidden>
+        <h2>복기</h2>
+        <canvas id="graph" aria-label="수마다의 형세 그래프"></canvas>
+        <ul id="reviewList"></ul>
+        <small id="reviewNote"></small>
+      </section>
+    </aside>
+  </main>
+
+  <section class="rules">
+    <div>
+      <h2>규칙</h2>
+      <ol>
+        <li>번갈아 빈칸에 등불을 하나씩 놓습니다. 등불은 각자 <em>8개</em>입니다.</li>
+        <li>등불은 가로와 세로 네 방향으로 빛을 보냅니다. 빛은 누구 것이든 다른 등불을 만나면 멈춥니다.</li>
+        <li>빈칸은 빛줄기가 더 많이 닿는 쪽의 것입니다. 같은 수가 닿으면 누구의 것도 아닙니다.</li>
+        <li>상대 빛이 더 센 칸에는 놓을 수 없습니다. 빛이 맞서는 칸에는 놓을 수 있고, 그러면 <em>상대 빛줄기가 거기서 끊깁니다.</em></li>
+        <li>등불을 다 쓰면 끝납니다. 밝힌 칸(등불 포함)이 많은 쪽이 이깁니다. 나중에 두는 Claude는 덤 <span id="komiRule"></span>점을 받습니다.</li>
+      </ol>
+    </div>
+    <div class="ai">
+      <h2>이 상대가 다른 점</h2>
+      <ul>
+        <li>규칙은 이 놀이를 위해 Claude가 새로 지었습니다.</li>
+        <li>Claude는 <em>후보 수, 예상하는 당신의 응수, 자기 승산</em>을 그대로 보여줍니다. 불리하면 불리하다고 말합니다.</li>
+        <li>막히면 수를 물어보세요. 이유와 함께, 추정인지 끝까지 읽은 확정인지 구분해 답합니다.</li>
+        <li>끝나면 당신의 아쉬운 수와 <em>Claude 자신의 실수</em>를 함께 복기합니다.</li>
+      </ul>
+    </div>
+  </section>
+</div>
+
+<script>
+/*ENGINE_START*/
+function makeEngine(KOMI){
+  const N=7, NN=N*N, LAMPS=8, INF=1e9, BEAM=10, ABORT={abort:true};
+  const RAYS=[];
+  for(let i=0;i<NN;i++){
+    const r=(i/N)|0, c=i%N, rs=[];
+    for(const [dr,dc] of [[-1,0],[1,0],[0,-1],[0,1]]){
+      const ray=[]; let rr=r+dr, cc=c+dc;
+      while(rr>=0&&rr<N&&cc>=0&&cc<N){ ray.push(rr*N+cc); rr+=dr; cc+=dc; }
+      rs.push(ray);
+    }
+    RAYS.push(rs);
+  }
+  function light(b,c0,c1){
+    c0.fill(0); c1.fill(0);
+    for(let i=0;i<NN;i++){
+      const v=b[i]; if(!v) continue;
+      const a=v===1?c0:c1, rs=RAYS[i];
+      for(let d=0;d<4;d++){
+        const ray=rs[d];
+        for(let k=0;k<ray.length;k++){ const j=ray[k]; if(b[j]) break; a[j]++; }
+      }
+    }
+  }
+  function tally(b){
+    const c0=new Uint8Array(NN), c1=new Uint8Array(NN); light(b,c0,c1);
+    let s0=0,s1=0;
+    for(let i=0;i<NN;i++){
+      const v=b[i];
+      if(v===1) s0++; else if(v===2) s1++;
+      else if(c0[i]>c1[i]) s0++; else if(c1[i]>c0[i]) s1++;
+    }
+    return {s:[s0,s1], c:[c0,c1]};
+  }
+  function legal(b,p,t){
+    t=t||tally(b); const me=t.c[p], op=t.c[1-p], out=[];
+    for(let i=0;i<NN;i++) if(!b[i]&&me[i]>=op[i]) out.push(i);
+    return out;
+  }
+  // 반복 심화 알파-베타. 값은 둘 차례인 쪽에서 본 점수 차(덤 포함).
+  function search(st,opt){
+    opt=opt||{};
+    const b=Int8Array.from(st.b), left=[st.left[0],st.left[1]], root=st.turn;
+    const timeMs=opt.timeMs||800, t0=Date.now();
+    let nodes=0;
+    const total=left[0]+left[1], full=total<=6;
+    const C0=[],C1=[],PV=[];
+    for(let i=0;i<total+4;i++){ C0.push(new Uint8Array(NN)); C1.push(new Uint8Array(NN)); PV.push([]); }
+    function ev(p,ply){
+      const c0=C0[ply], c1=C1[ply]; let d=-KOMI;
+      for(let i=0;i<NN;i++){
+        const v=b[i];
+        if(v===1) d++; else if(v===2) d--;
+        else if(c0[i]>c1[i]) d++; else if(c1[i]>c0[i]) d--;
+      }
+      return p===0?d:-d;
+    }
+    function nega(p,depth,alpha,beta,ply,passed){
+      if((++nodes&1023)===0 && Date.now()-t0>timeMs) throw ABORT;
+      const c0=C0[ply], c1=C1[ply]; light(b,c0,c1); PV[ply]=[];
+      if(left[0]+left[1]===0) return ev(p,ply);
+      const me=p===0?c0:c1, op=p===0?c1:c0, ms=[];
+      if(left[p]>0) for(let i=0;i<NN;i++) if(!b[i]&&me[i]>=op[i]) ms.push(i);
+      if(!ms.length){
+        if(passed) return ev(p,ply);
+        const v=-nega(1-p,depth,-beta,-alpha,ply+1,true); PV[ply]=PV[ply+1]; return v;
+      }
+      if(depth<=0) return ev(p,ply);
+      const n=ms.length, sc=new Array(n), n0=C0[ply+1], n1=C1[ply+1];
+      let bi=0;
+      for(let k=0;k<n;k++){
+        const m=ms[k]; b[m]=p+1; light(b,n0,n1); sc[k]=ev(p,ply+1); b[m]=0;
+        if(sc[k]>sc[bi]) bi=k;
+      }
+      if(depth===1){ PV[ply]=[ms[bi]]; return sc[bi]; }
+      let order=ms.map((_,k)=>k).sort((x,y)=>sc[y]-sc[x]);
+      if(!full&&order.length>BEAM) order.length=BEAM;
+      let best=-INF;
+      for(let q=0;q<order.length;q++){
+        const m=ms[order[q]];
+        b[m]=p+1; left[p]--;
+        const v=-nega(1-p,depth-1,-beta,-alpha,ply+1,false);
+        b[m]=0; left[p]++;
+        if(v>best){ best=v; if(v>alpha){ alpha=v; PV[ply]=[m].concat(PV[ply+1]); } }
+        if(alpha>=beta) break;
+      }
+      return best;
+    }
+    function rootSearch(depth,prev){
+      light(b,C0[0],C1[0]);
+      const me=root===0?C0[0]:C1[0], op=root===0?C1[0]:C0[0];
+      let ms=[];
+      for(let i=0;i<NN;i++) if(!b[i]&&me[i]>=op[i]) ms.push(i);
+      if(prev){ const rank=new Map(prev.map((r,k)=>[r.m,k])); ms.sort((x,y)=>rank.get(x)-rank.get(y)); }
+      const res=[];
+      for(const m of ms){
+        const aK=res.length>=3?res[2].v:-INF;   // 상위 3수의 값은 정확히 구한다
+        b[m]=root+1; left[root]--;
+        const v=-nega(1-root,depth-1,-INF,-aK,1,false);
+        b[m]=0; left[root]++;
+        res.push({m,v,exact:v>aK,pv:[m].concat(PV[1])});
+        res.sort((x,y)=>y.v-x.v);
+      }
+      return res;
+    }
+    let out=null, prev=null;
+    try{
+      for(let d=1;d<=Math.max(1,total);d++){
+        const r=rootSearch(d,prev); if(!r.length) break; prev=r;
+        out={depth:d, best:r[0].m, value:r[0].v, pv:r[0].pv, nodes, exact:full&&d>=total,
+             top:r.slice(0,3).map(x=>({m:x.m,v:x.v}))};
+        if(opt.onDepth) opt.onDepth(out);
+        if(Date.now()-t0>timeMs*0.55) break;
+      }
+    }catch(e){ if(e!==ABORT) throw e; }
+    return out;
+  }
+  return {N,NN,LAMPS,KOMI,RAYS,tally,legal,search};
+}
+/*ENGINE_END*/
+
+(function(){
+'use strict';
+const KOMI=0.5;
+const E=makeEngine(KOMI), N=E.N, NN=E.NN;
+const $=id=>document.getElementById(id);
+const coord=i=>'ABCDEFG'[i%N]+(((i/N)|0)+1);
+const fmt=v=>{ const a=Math.abs(v); return Number.isInteger(a)?String(a):a.toFixed(1); };
+const reduced=matchMedia('(prefers-reduced-motion: reduce)').matches;
+const AMB=[255,180,84], JADE=[95,224,192], ROSE=[255,133,147];
+const rgba=(c,a)=>`rgba(${c[0]},${c[1]},${c[2]},${a})`;
+
+const G={ b:new Int8Array(NN), left:[8,8], turn:0, over:false, moves:[], evalAt:[], snaps:[],
+  level:'hard', think:true, sound:true, hints:0,
+  analysis:null, d2:null, cands:[], predict:-1, hint:-1, hover:-1, cursor:-1, kb:false,
+  born:new Float64Array(NN), t:null, wantHint:false };
+
+/* ---------- 탐색 일꾼 ---------- */
+let worker=null, workerUrl=null, searchId=0, fallbackTimer=0;
+try{
+  workerUrl=URL.createObjectURL(new Blob([makeEngine.toString()+
+    `;const E=makeEngine(${KOMI});onmessage=e=>{const d=e.data;const o=E.search(d.st,{timeMs:d.timeMs,onDepth:o=>postMessage({id:d.id,type:'depth',o})});postMessage({id:d.id,type:'done',o})};`],
+    {type:'text/javascript'}));
+}catch(e){ workerUrl=null; }
+function stopSearch(){
+  searchId++; clearTimeout(fallbackTimer);
+  if(worker){ worker.terminate(); worker=null; }
+}
+function runSearch(timeMs,onDepth,onDone){
+  stopSearch();
+  const id=searchId, st={b:G.b.slice(), left:G.left.slice(), turn:G.turn};
+  const local=()=>{ fallbackTimer=setTimeout(()=>{
+    if(id!==searchId) return;
+    const o=E.search(st,{timeMs:Math.min(timeMs,350),onDepth:x=>{ if(x.depth<=2) onDepth(x); }});
+    if(o) onDepth(o); onDone(o);
+  },30); };
+  if(!workerUrl) return local();
+  try{
+    worker=new Worker(workerUrl);
+    worker.onmessage=e=>{ if(e.data.id!==id) return; if(e.data.type==='depth') onDepth(e.data.o); else onDone(e.data.o); };
+    worker.onerror=()=>{ if(id!==searchId) return; worker=null; workerUrl=null; local(); };
+    worker.postMessage({id,st,timeMs});
+  }catch(e){ worker=null; workerUrl=null; local(); }
+}
+
+/* ---------- 소리 ---------- */
+let AC=null;
+const SCALE=[220,247.5,293.3,330,371.25,440,495];
+function tone(f,dur,type,vol,when){
+  if(!G.sound) return;
+  try{
+    AC=AC||new (window.AudioContext||window.webkitAudioContext)();
+    if(AC.state==='suspended') AC.resume();
+    const t=AC.currentTime+(when||0), o=AC.createOscillator(), g=AC.createGain();
+    o.type=type; o.frequency.setValueAtTime(f,t);
+    g.gain.setValueAtTime(0,t); g.gain.linearRampToValueAtTime(vol,t+0.012); g.gain.exponentialRampToValueAtTime(0.0005,t+dur);
+    o.connect(g); g.connect(AC.destination); o.start(t); o.stop(t+dur+0.05);
+  }catch(e){}
+}
+function placeSound(p,m){
+  const f=SCALE[m%N]*(1+((N-1-((m/N)|0))/N)*0.5);
+  if(p===0){ tone(f,0.55,'triangle',0.16); tone(f*2,0.3,'sine',0.05); }
+  else { tone(f*1.5,0.7,'sine',0.13); tone(f*2.25,0.5,'sine',0.05,0.07); }
+}
+function endSound(win){ (win?[330,440,495,660]:[440,371.25,330,247.5]).forEach((f,i)=>tone(f,0.6,'triangle',0.12,i*0.14)); }
+
+/* ---------- 말하기 ---------- */
+let typeTimer=0;
+function say(text,title){
+  clearInterval(typeTimer);
+  $('noteTitle').textContent=title||'CLAUDE의 생각';
+  const el=$('say');
+  if(reduced||!text){ el.textContent=text||''; return; }
+  let i=0; el.textContent='';
+  typeTimer=setInterval(()=>{ i+=2; el.textContent=text.slice(0,i); if(i>=text.length) clearInterval(typeTimer); },16);
+}
+function describe(b,p,m){
+  const t0=E.tally(b), nb=b.slice(); nb[m]=p+1; const t1=E.tally(nb);
+  return {gain:t1.s[p]-t0.s[p], hurt:t0.s[1-p]-t1.s[1-p], cut:t0.c[1-p][m]>0};
+}
+function reason(d,mine,theirs){
+  const out=[];
+  if(d.hurt>0) out.push(d.cut?`${theirs}줄기를 끊어 ${d.hurt}칸을 빼앗습니다.`:`${theirs} ${d.hurt}칸이 맞불에 묻힙니다.`);
+  else if(d.cut) out.push(`${theirs}줄기를 여기서 끊습니다.`);
+  if(d.gain>0) out.push(`${mine}이 ${d.gain}칸 늘어납니다.`);
+  if(!out.length) out.push('당장 칸 수는 그대로지만 다음 수의 발판이 됩니다.');
+  return out.join(' ');
+}
+const winPct=v=>Math.round(100/(1+Math.exp(-v/3)));
+function assess(o){ // o.value: Claude 쪽에서 본 값
+  const v=o.value;
+  if(o.exact) return v>0
+    ? `남은 수를 끝까지 읽었습니다. 서로 최선이면 제가 ${fmt(v)}점 차로 이깁니다.`
+    : `남은 수를 끝까지 읽었습니다. 당신이 실수하지 않으면 제가 ${fmt(v)}점 차로 집니다.`;
+  if(Math.abs(v)<1) return `${o.depth}수 앞까지 읽었고, 아직 팽팽하다고 봅니다.`;
+  return v>0
+    ? `${o.depth}수 앞까지 읽은 추정으로는 제가 약 ${fmt(v)}점 앞섭니다. 제 승산은 ${winPct(v)}%쯤입니다.`
+    : `솔직히 지금은 제가 약 ${fmt(v)}점 뒤진다고 봅니다. 제 승산은 ${winPct(v)}%쯤입니다.`;
+}
+
+/* ---------- 화면 갱신 ---------- */
+function refreshScore(){
+  const t=G.t=E.tally(G.b);
+  $('score0').textContent=t.s[0];
+  $('score1').textContent=fmt(t.s[1]+KOMI);
+  for(const p of [0,1]){
+    let h=''; for(let i=0;i<E.LAMPS;i++) h+=`<b${i<G.left[p]?'':' class="off"'}></b>`;
+    $('lamps'+p).innerHTML=h;
+  }
+}
+function setGauge(ev){
+  const g=$('gauge'); g.hidden=!G.think||!ev; if(g.hidden) return;
+  const pct=Math.max(4,Math.min(96,50+ev.v*4));
+  $('gaugeBar').style.width=pct+'%';
+  const lead=Math.abs(ev.v)<0.01?'동률':(ev.v>0?`당신 +${fmt(ev.v)}`:`Claude +${fmt(ev.v)}`);
+  $('gaugeText').textContent=`형세 판단: ${lead} · ${ev.final?'최종':ev.exact?'끝까지 읽은 확정':ev.depth+'수 앞까지 읽은 추정'}`;
+}
+function showCands(o,forAI){
+  const el=$('cands'); el.innerHTML='';
+  if(!G.think||!o){ G.cands=[]; return; }
+  G.cands=forAI?o.top.map(x=>x.m):[];
+  if(!forAI) return;
+  o.top.forEach(x=>{ const li=document.createElement('li'); li.textContent=`${coord(x.m)} ${x.v>=0?'+':'−'}${fmt(x.v)}`; el.appendChild(li); });
+}
+function setButtons(){
+  const mine=!G.over&&G.turn===0;
+  $('btnHint').disabled=!mine;
+  $('btnUndo').disabled=!G.snaps.length||(!mine&&!G.over);
+}
+
+/* ---------- 진행 ---------- */
+function newGame(){
+  stopSearch();
+  G.b.fill(0); G.left=[E.LAMPS,E.LAMPS]; G.turn=0; G.over=false; G.moves=[]; G.evalAt=[]; G.snaps=[]; G.hints=0;
+  G.born.fill(0); $('review').hidden=true;
+  say('먼저 두세요. 가운데 줄일수록 빛이 멀리 갑니다. 제가 무엇을 읽는지는 이 쪽지에 그대로 적겠습니다.');
+  startTurn();
+}
+function startTurn(passNote){
+  stopSearch();
+  G.analysis=null; G.d2=null; G.cands=[]; G.hint=-1; G.wantHint=false; $('cands').innerHTML=''; $('progress').textContent='';
+  refreshScore();
+  const t=G.t, can=p=>G.left[p]>0&&E.legal(G.b,p,t).length>0;
+  if(!can(0)&&!can(1)) return endGame();
+  if(!can(G.turn)){
+    const note=G.turn===0?'당신이 놓을 수 있는 칸이 없어 차례가 넘어갑니다.':'제가 놓을 수 있는 칸이 없어 차례를 넘깁니다.';
+    G.turn=1-G.turn; return startTurn(note);
+  }
+  setButtons();
+  const ply=G.moves.length;
+  if(G.turn===0){
+    G.predict=G.think?G.predict:-1;
+    $('status').textContent=(passNote?passNote+' ':'')+'당신 차례입니다. 빈칸에 등불을 놓으세요.';
+    runSearch(1500,o=>{
+      G.analysis=o; G.evalAt[ply]={v:o.value,best:o.best,depth:o.depth,exact:o.exact}; setGauge(G.evalAt[ply]);
+      if(G.wantHint) giveHint();
+    },()=>{});
+  }else{
+    G.predict=-1;
+    $('status').textContent=(passNote?passNote+' ':'')+'Claude가 읽고 있습니다.';
+    const began=performance.now();
+    runSearch(1100,o=>{
+      if(o.depth===2||!G.d2) G.d2=o;
+      G.analysis=o; G.evalAt[ply]={v:-o.value,best:o.best,depth:o.depth,exact:o.exact}; setGauge(G.evalAt[ply]);
+      $('progress').textContent=`${o.depth}수 앞 · ${o.nodes.toLocaleString('ko-KR')} 국면`;
+      showCands(o,true);
+    },o=>{
+      const wait=Math.max(0,(reduced?300:850)-(performance.now()-began)), id=searchId;
+      setTimeout(()=>{ if(id===searchId) aiMove(o); },wait);
+    });
+  }
+}
+function aiMove(o){
+  const legalMs=E.legal(G.b,1,G.t);
+  let m, tail='';
+  if(!o){ m=legalMs[(Math.random()*legalMs.length)|0]; }
+  else if(G.level==='hard'){
+    m=o.best;
+    if(G.think){
+      if(o.pv.length>1&&G.left[0]>0){ G.predict=o.pv[1]; tail+=`당신의 가장 좋은 응수는 ${coord(o.pv[1])}로 봅니다. `; }
+      tail+=assess(o);
+    }
+  }else if(G.level==='mid'){
+    m=(G.d2||o).best; tail='보통 단계라 두 수 앞까지만 보고 골랐습니다.';
+  }else{
+    let bestS=-1e9;
+    for(const c of legalMs){ const d=describe(G.b,1,c), s=d.gain+d.hurt+Math.random()*3; if(s>bestS){ bestS=s; m=c; } }
+    tail='쉬움 단계라 눈앞의 칸 수만 보고 골랐습니다.';
+  }
+  const d=describe(G.b,1,m);
+  say(`${coord(m)}에 놓습니다. ${reason(d,'제 빛','당신 빛')} ${tail}`);
+  play(m);
+}
+function play(m){
+  const p=G.turn;
+  if(p===0) G.snaps.push({b:G.b.slice(),left:G.left.slice(),n:G.moves.length});
+  G.b[m]=p+1; G.left[p]--; G.moves.push({p,m}); G.born[m]=performance.now();
+  placeSound(p,m);
+  G.turn=1-p; G.hover=-1; hoverInfo(-1);
+  startTurn();
+}
+function tryPlace(c){
+  if(G.over||G.turn!==0||c<0) return;
+  if(G.b[c]) return;
+  if(G.t.c[0][c]<G.t.c[1][c]){ hoverInfo(c); tone(140,0.15,'sine',0.08); return; }
+  G.predict=-1; play(c);
+}
+function giveHint(){
+  if(G.over||G.turn!==0) return;
+  const o=G.analysis;
+  if(!o){ G.wantHint=true; say('잠시만요, 읽고 있습니다.','CLAUDE의 조언'); return; }
+  if(!G.wantHint) G.hints++;
+  G.wantHint=false; G.hint=o.best;
+  const d=describe(G.b,0,o.best);
+  const sure=o.exact?'남은 수를 끝까지 읽은 확정 수입니다.':`${o.depth}수 앞까지 읽은 추정이라 틀릴 수 있습니다.`;
+  const alt=o.top.length>1?` 다음 후보는 ${o.top.slice(1).map(x=>coord(x.m)).join(', ')}입니다.`:'';
+  say(`저라면 ${coord(o.best)}에 놓겠습니다. ${reason(d,'당신 빛','제 빛')} ${sure}${alt}`,'CLAUDE의 조언');
+}
+function undo(){
+  const s=G.snaps.pop(); if(!s) return;
+  stopSearch();
+  for(const mv of G.moves.slice(s.n)) G.born[mv.m]=0;
+  G.b.set(s.b); G.left=s.left.slice(); G.moves.length=s.n; G.evalAt.length=s.n; G.turn=0; G.over=false; G.predict=-1;
+  $('review').hidden=true;
+  say('한 수 물렸습니다. 다시 두세요.');
+  startTurn();
+}
+function endGame(){
+  stopSearch(); G.over=true; G.cands=[]; G.predict=-1; G.hint=-1;
+  const t=G.t, diff=t.s[0]-t.s[1]-KOMI;
+  G.evalAt[G.moves.length]={v:diff,final:true};
+  setGauge(G.evalAt[G.moves.length]);
+  $('status').textContent=`당신 ${t.s[0]} : ${fmt(t.s[1]+KOMI)} Claude. ${diff>0?`${fmt(diff)}점 차로 당신이 이겼습니다.`:`${fmt(diff)}점 차로 Claude가 이겼습니다.`}`;
+  $('progress').textContent='';
+  say(diff>0?'졌습니다. 제 읽기가 닿지 않은 곳을 당신이 봤습니다. 아래에 복기를 적었습니다.':'이번에는 제가 이겼습니다. 어디서 갈렸는지 아래에 적었습니다. 제 실수도 함께입니다.');
+  endSound(diff>0); setButtons(); review();
+}
+function review(){
+  const ev=G.evalAt, ul=$('reviewList'); ul.innerHTML='';
+  let worst=[null,null];
+  G.moves.forEach((mv,i)=>{
+    const a=ev[i], b=ev[i+1]; if(!a||!b) return;
+    const loss=mv.p===0?a.v-b.v:b.v-a.v;
+    if(loss>=1&&a.best!==mv.m&&(!worst[mv.p]||loss>worst[mv.p].loss)) worst[mv.p]={i,loss,mv,best:a.best};
+  });
+  const add=s=>{ const li=document.createElement('li'); li.textContent=s; ul.appendChild(li); };
+  const w0=worst[0], w1=worst[1];
+  add(w0?`당신의 가장 아쉬운 수는 ${w0.i+1}번째 수 ${coord(w0.mv.m)}입니다. 저는 ${coord(w0.best)}를 약 ${fmt(w0.loss)}점 더 좋게 봤습니다.`
+        :'당신 쪽에서는 1점 넘게 잃은 수를 찾지 못했습니다.');
+  add(w1?`제 가장 아쉬운 수는 ${w1.i+1}번째 수 ${coord(w1.mv.m)}입니다. ${coord(w1.best)}가 약 ${fmt(w1.loss)}점 더 좋았습니다.${G.level==='hard'?' 둘 때는 거기까지 읽지 못했습니다.':''}`
+        :'제 쪽에서도 1점 넘게 잃은 수는 없었습니다.');
+  if(G.hints) add(`수를 ${G.hints}번 물어보셨습니다.`);
+  $('reviewNote').textContent='그래프는 수마다 제가 본 형세입니다. 위쪽이 당신 우세입니다. 마지막 몇 수 전까지는 정해진 깊이까지만 읽은 추정이라 틀릴 수 있습니다.';
+  $('review').hidden=false; drawGraph();
+}
+function drawGraph(){
+  const cv=$('graph'), dpr=Math.min(2,window.devicePixelRatio||1), w=cv.clientWidth, h=cv.clientHeight;
+  if(!w) return;
+  cv.width=w*dpr; cv.height=h*dpr; const x=cv.getContext('2d'); x.scale(dpr,dpr);
+  const pts=[]; G.evalAt.forEach((e,i)=>{ if(e) pts.push([i,e.v]); });
+  if(pts.length<2) return;
+  const mx=Math.max(4,...pts.map(p=>Math.abs(p[1]))), n=G.moves.length||1;
+  const X=i=>6+i/n*(w-12), Y=v=>h/2-v/mx*(h/2-8);
+  for(const [col,sign] of [[AMB,1],[JADE,-1]]){
+    x.save(); x.beginPath(); x.rect(0,sign>0?0:h/2,w,h/2); x.clip();
+    x.beginPath(); x.moveTo(X(pts[0][0]),h/2); pts.forEach(p=>x.lineTo(X(p[0]),Y(p[1]))); x.lineTo(X(pts[pts.length-1][0]),h/2); x.closePath();
+    x.fillStyle=rgba(col,0.28); x.fill();
+    x.beginPath(); pts.forEach((p,k)=>k?x.lineTo(X(p[0]),Y(p[1])):x.moveTo(X(p[0]),Y(p[1])));
+    x.strokeStyle=rgba(col,1); x.lineWidth=2; x.lineJoin='round'; x.stroke(); x.restore();
+  }
+  x.strokeStyle='#2b3566'; x.lineWidth=1; x.beginPath(); x.moveTo(0,h/2); x.lineTo(w,h/2); x.stroke();
+  const last=pts[pts.length-1]; x.fillStyle=rgba(last[1]>0?AMB:JADE,1); x.beginPath(); x.arc(X(last[0]),Y(last[1]),4,0,7); x.fill();
+}
+
+/* ---------- 판 그리기 ---------- */
+const cv=$('board'), ctx=cv.getContext('2d');
+let geo={W:0,pad:0,cs:0};
+function resize(){
+  const dpr=Math.min(2.5,window.devicePixelRatio||1), w=cv.clientWidth;
+  if(!w) return;
+  cv.width=cv.height=Math.round(w*dpr);
+  const W=cv.width, pad=W*0.07; geo={W,pad,cs:(W-pad*2)/N};
+  if($('review').hidden===false) drawGraph();
+}
+function rr(x,y,w,h,r){ ctx.beginPath(); ctx.moveTo(x+r,y); ctx.arcTo(x+w,y,x+w,y+h,r); ctx.arcTo(x+w,y+h,x,y+h,r); ctx.arcTo(x,y+h,x,y,r); ctx.arcTo(x,y,x+w,y,r); ctx.closePath(); }
+const cx=i=>geo.pad+(i%N+0.5)*geo.cs, cy=i=>geo.pad+(((i/N)|0)+0.5)*geo.cs;
+function ring(i,col,alpha,dash,rad){
+  const {cs}=geo; ctx.save(); ctx.strokeStyle=rgba(col,alpha); ctx.lineWidth=Math.max(1.5,cs*0.035);
+  if(dash) ctx.setLineDash([cs*0.09,cs*0.07]);
+  ctx.beginPath(); ctx.arc(cx(i),cy(i),cs*(rad||0.33),0,Math.PI*2); ctx.stroke(); ctx.restore();
+}
+function label(i,text,col){
+  const {cs}=geo; ctx.fillStyle=rgba(col,1); ctx.font=`500 ${cs*0.26}px "IBM Plex Mono",monospace`;
+  ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText(text,cx(i),cy(i)+cs*0.01);
+}
+function lantern(i,p,scale,flick,ghost){
+  const {cs}=geo, x=cx(i), y=cy(i), col=p===0?AMB:JADE, r=cs*0.25*scale;
+  if(!ghost){
+    ctx.save(); ctx.globalCompositeOperation='lighter';
+    const g=ctx.createRadialGradient(x,y,0,x,y,cs*0.95);
+    g.addColorStop(0,rgba(col,0.42*flick)); g.addColorStop(1,rgba(col,0));
+    ctx.fillStyle=g; ctx.fillRect(x-cs,y-cs,cs*2,cs*2); ctx.restore();
+  }
+  ctx.save(); ctx.globalAlpha=ghost?0.45:1; ctx.translate(x,y);
+  const g2=ctx.createRadialGradient(0,-r*0.2,r*0.1,0,0,r);
+  g2.addColorStop(0,'#fffbe9'); g2.addColorStop(0.55,rgba(col,1)); g2.addColorStop(1,rgba(col.map(v=>v*0.62|0),1));
+  ctx.fillStyle=g2;
+  if(p===0){ ctx.beginPath(); ctx.arc(0,0,r,0,Math.PI*2); ctx.fill();
+    ctx.fillStyle='#3a2606'; ctx.fillRect(-r*0.5,-r*1.16,r,r*0.2); ctx.fillRect(-r*0.5,r*0.96,r,r*0.2);
+  }else{ ctx.rotate(Math.PI/4); rr(-r*0.86,-r*0.86,r*1.72,r*1.72,r*0.28); ctx.fill(); }
+  ctx.restore();
+}
+function draw(now){
+  const {W,pad,cs}=geo; if(!W){ requestAnimationFrame(draw); return; }
+  const t=G.t; ctx.clearRect(0,0,W,W);
+  rr(0,0,W,W,W*0.025); ctx.fillStyle='#131937'; ctx.fill();
+  const gap=Math.max(1.5,cs*0.03);
+  for(let i=0;i<NN;i++){
+    const x=pad+(i%N)*cs, y=pad+((i/N)|0)*cs;
+    rr(x+gap,y+gap,cs-gap*2,cs-gap*2,cs*0.1); ctx.fillStyle='#1a2146'; ctx.fill();
+    if(G.b[i]||!t) continue;
+    const a=t.c[0][i], d=t.c[1][i];
+    if(a!==d){ ctx.fillStyle=rgba(a>d?AMB:JADE,0.10+0.07*Math.min(3,Math.abs(a-d))); ctx.fill(); }
+    else if(a>0){ // 빛이 맞서는 칸: 두 빛을 반씩
+      ctx.save(); ctx.clip();
+      ctx.fillStyle=rgba(AMB,0.16); ctx.beginPath(); ctx.moveTo(x,y); ctx.lineTo(x+cs,y); ctx.lineTo(x,y+cs); ctx.fill();
+      ctx.fillStyle=rgba(JADE,0.16); ctx.beginPath(); ctx.moveTo(x+cs,y+cs); ctx.lineTo(x+cs,y); ctx.lineTo(x,y+cs); ctx.fill();
+      ctx.restore();
+    }
+  }
+  // 빛줄기
+  ctx.save(); ctx.globalCompositeOperation='lighter'; ctx.lineCap='round';
+  for(let i=0;i<NN;i++){
+    const v=G.b[i]; if(!v) continue;
+    const col=v===1?AMB:JADE, flick=reduced?1:0.86+0.14*Math.sin(now/420+i*1.7);
+    const grow=reduced?1:Math.min(1,(now-G.born[i])/480);
+    for(const ray of E.RAYS[i]){
+      let k=0; while(k<ray.length&&!G.b[ray[k]]) k++;
+      if(!k) continue;
+      const e=ray[k-1], dx=Math.sign(cx(e)-cx(i)), dy=Math.sign(cy(e)-cy(i));
+      const len=(k*cs-cs*0.12)*grow, x2=cx(i)+dx*len, y2=cy(i)+dy*len;
+      ctx.beginPath(); ctx.moveTo(cx(i),cy(i)); ctx.lineTo(x2,y2);
+      ctx.strokeStyle=rgba(col,0.13*flick); ctx.lineWidth=cs*0.3; ctx.stroke();
+      ctx.strokeStyle=rgba(col,0.5*flick); ctx.lineWidth=Math.max(1,cs*0.035); ctx.stroke();
+    }
+  }
+  ctx.restore();
+  for(let i=0;i<NN;i++){
+    const v=G.b[i]; if(!v) continue;
+    const q=reduced?1:Math.min(1,(now-G.born[i])/340), s=1+0.5*Math.pow(1-q,2)*Math.sin(q*Math.PI)*1.6-(1-q)*0.4;
+    lantern(i,v-1,Math.max(0.2,s),reduced?1:0.86+0.14*Math.sin(now/420+i*1.7));
+  }
+  const lastMv=G.moves[G.moves.length-1];
+  if(lastMv) ring(lastMv.m,[236,230,211],0.8,false,0.4);
+  if(G.think){
+    G.cands.forEach((m,k)=>{ if(!G.b[m]){ ring(m,JADE,k?0.5:1,true); label(m,String(k+1),JADE); } });
+    if(G.predict>=0&&!G.b[G.predict]&&G.turn===0&&!G.over){ ring(G.predict,JADE,0.8,true); label(G.predict,'?',JADE); }
+  }
+  if(G.hint>=0&&!G.b[G.hint]){
+    const pulse=reduced?0:0.03*Math.sin(now/260);
+    ring(G.hint,AMB,1,false,0.34+pulse); label(G.hint,'여기',AMB);
+  }
+  const focus=G.kb?G.cursor:G.hover;
+  if(focus>=0&&!G.b[focus]&&!G.over&&G.turn===0&&t){
+    if(t.c[0][focus]>=t.c[1][focus]) lantern(focus,0,1,1,true);
+    else{ const x=cx(focus), y=cy(focus), r=cs*0.14; ctx.strokeStyle=rgba(ROSE,0.9); ctx.lineWidth=Math.max(2,cs*0.04); ctx.lineCap='round';
+      ctx.beginPath(); ctx.moveTo(x-r,y-r); ctx.lineTo(x+r,y+r); ctx.moveTo(x+r,y-r); ctx.lineTo(x-r,y+r); ctx.stroke(); }
+  }
+  if(G.kb&&G.cursor>=0){
+    const x=pad+(G.cursor%N)*cs, y=pad+((G.cursor/N)|0)*cs;
+    ctx.save(); ctx.setLineDash([cs*0.1,cs*0.08]); ctx.strokeStyle='#ece6d3'; ctx.lineWidth=2; rr(x+gap,y+gap,cs-gap*2,cs-gap*2,cs*0.1); ctx.stroke(); ctx.restore();
+  }
+  ctx.fillStyle='#9199bd'; ctx.font=`${pad*0.36}px "IBM Plex Mono",monospace`; ctx.textAlign='center'; ctx.textBaseline='middle';
+  for(let k=0;k<N;k++){ ctx.fillText('ABCDEFG'[k],pad+(k+0.5)*cs,pad*0.5); ctx.fillText(String(k+1),pad*0.5,pad+(k+0.5)*cs); }
+  requestAnimationFrame(draw);
+}
+function hoverInfo(c){
+  const el=$('hoverline'); el.className='hoverline';
+  if(c<0||G.over||G.turn!==0||G.b[c]||!G.t){ el.textContent=''; return; }
+  if(G.t.c[0][c]<G.t.c[1][c]){ el.className='hoverline bad'; el.textContent=`${coord(c)} · Claude의 빛이 더 센 칸이라 놓을 수 없습니다.`; return; }
+  const d=describe(G.b,0,c);
+  el.textContent=`${coord(c)} · 내 빛 ${d.gain>=0?'+':'−'}${Math.abs(d.gain)} · Claude 빛 ${d.hurt>0?'−':d.hurt<0?'+':'±'}${Math.abs(d.hurt)}${d.cut?' · 빛줄기 끊기':''}`;
+}
+function cellAt(e){
+  const r=cv.getBoundingClientRect(), x=(e.clientX-r.left)/r.width*geo.W, y=(e.clientY-r.top)/r.height*geo.W;
+  const c=Math.floor((x-geo.pad)/geo.cs), w=Math.floor((y-geo.pad)/geo.cs);
+  return (c<0||c>=N||w<0||w>=N)?-1:w*N+c;
+}
+cv.addEventListener('pointermove',e=>{ G.kb=false; const c=e.pointerType==='touch'?-1:cellAt(e); if(c!==G.hover){ G.hover=c; hoverInfo(c); } });
+cv.addEventListener('pointerleave',()=>{ G.hover=-1; hoverInfo(-1); });
+cv.addEventListener('click',e=>{ G.kb=false; tryPlace(cellAt(e)); });
+cv.addEventListener('keydown',e=>{
+  const mv={ArrowUp:-N,ArrowDown:N,ArrowLeft:-1,ArrowRight:1}[e.key];
+  if(mv!==undefined){
+    e.preventDefault(); G.kb=true; let c=G.cursor<0?24:G.cursor;
+    if(mv===-1&&c%N===0||mv===1&&c%N===N-1||c+mv<0||c+mv>=NN) {} else c+=mv;
+    G.cursor=c; hoverInfo(c);
+  }else if(e.key==='Enter'||e.key===' '){ e.preventDefault(); if(G.cursor>=0) tryPlace(G.cursor); }
+});
+$('btnHint').addEventListener('click',giveHint);
+$('btnUndo').addEventListener('click',undo);
+$('btnNew').addEventListener('click',newGame);
+$('level').addEventListener('change',e=>{ G.level=e.target.value; });
+$('btnThink').addEventListener('click',e=>{
+  G.think=!G.think; e.currentTarget.setAttribute('aria-pressed',G.think);
+  if(!G.think){ $('cands').innerHTML=''; G.predict=-1; $('gauge').hidden=true; }
+  else setGauge(G.evalAt[G.moves.length]);
+});
+$('btnSound').addEventListener('click',e=>{ G.sound=!G.sound; e.currentTarget.setAttribute('aria-pressed',G.sound); });
+$('komi').textContent=`덤 ${KOMI}점 포함`; $('komiRule').textContent=KOMI;
+new ResizeObserver(resize).observe(cv);
+resize(); newGame(); requestAnimationFrame(draw);
+})();
+</script>
+<!--PAGE_END-->
+</body>
+</html>
