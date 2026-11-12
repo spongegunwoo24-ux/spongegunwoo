@@ -23,7 +23,7 @@ canvas{position:absolute;inset:0;width:100%;height:100%;display:block;touch-acti
   padding-block:12px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));
   pointer-events:none;font-family:var(--display)}
 #dust{font-size:30px;font-weight:700;color:var(--gold);font-variant-numeric:tabular-nums;min-width:90px}
-#night{text-align:center;font-size:30px;font-weight:700;line-height:1}
+#night{text-align:center;font-size:clamp(20px,6vw,30px);font-weight:700;line-height:1;white-space:nowrap}
 #night small{display:block;font-size:16px;font-weight:400;color:var(--dim);margin-top:4px}
 #btns{display:flex;gap:6px;pointer-events:auto;min-width:90px;justify-content:flex-end}
 #btns button{width:38px;height:38px;border-radius:50%;border:1.5px solid var(--edge);background:var(--panel);
@@ -73,6 +73,8 @@ button:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
       <li><b>쭉</b>별에서 별로 끌면 빛줄이 이어져요</li>
       <li><b>팅</b>빛줄을 누르거나 쓸면 튕겨서 충격파가 나가요</li>
       <li><b>△</b>세 별을 삼각형으로 이으면 안쪽이 결계가 돼요</li>
+      <li><b>섞기</b>불붙은 악몽을 얼리면 열충격, 느려진 악몽은 번개에 1.8배</li>
+      <li><b>아침</b>스무 밤을 버티면 해가 떠요</li>
     </ul>
     <button class="go" id="bStart">재우러 가기</button>
   </div></div>
@@ -83,9 +85,10 @@ button:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
   </div></div>
 
   <div class="ov" id="ovOver" hidden><div class="box">
-    <h2>아이가 깼어요</h2>
+    <h2 id="overTitle">아이가 깼어요</h2>
     <p id="overTxt"></p>
     <button class="go" id="bAgain">다시 재우기</button>
+    <button id="bMore" class="card" hidden><b>끝없는 밤</b><span>이 별자리 그대로 계속 지켜요</span></button>
   </div></div>
 </div>
 
@@ -125,11 +128,19 @@ function pluckSnd(len,str){
 
 /* ---------- 데이터 ---------- */
 const T={
-  fire:{n:'타닥',c:'#ff8a4c',cost:30,pow:10,d:'불이 붙어요'},
-  frost:{n:'꽁꽁',c:'#7fd8ff',cost:30,pow:6,d:'느려져요'},
-  bolt:{n:'찌릿',c:'#ffe45c',cost:40,pow:8,d:'번개가 튀어요'},
-  moon:{n:'토닥',c:'#c9a7ff',cost:45,pow:13,d:'밀어내요'}
+  fire:{n:'타닥',c:'#ff6a3c',cost:30,pow:10,d:'화상',f:'닿은 악몽에 3초 불을 붙여요'},
+  frost:{n:'꽁꽁',c:'#7fd8ff',cost:30,pow:6,d:'둔화',f:'악몽을 느리게 해요. 불붙은 악몽을 얼리면 열충격!'},
+  bolt:{n:'찌릿',c:'#fff06a',cost:40,pow:8,d:'연쇄',f:'번개가 옆 악몽으로 튀어요. 느려진 악몽에겐 1.8배'},
+  moon:{n:'토닥',c:'#c9a7ff',cost:45,pow:13,d:'밀기',f:'힘이 세고, 닿은 악몽을 바깥으로 밀어내요'},
+  thorn:{n:'따끔',c:'#ff6fa8',cost:50,pow:5,d:'체력%',f:'악몽의 최대 체력에 비례해 깎아요. 큰 놈 잡이'},
+  gold:{n:'반짝',c:'#ffb52e',cost:40,pow:4,d:'별가루',f:'이 빛에 닿았던 악몽은 별가루를 1.5배 넘게 흘려요'},
+  bell:{n:'딩동',c:'#e58bff',cost:45,pow:5,d:'튕김',f:'이 별의 빛줄은 튕기기가 훨씬 세고 빨리 차올라요'},
+  eye:{n:'또렷',c:'#8effc1',cost:40,pow:7,d:'유령',f:'유령 스르륵을 붙잡아요. 닿은 유령은 모든 빛줄에 맞아요'},
+  guard:{n:'포근',c:'#ffe3cf',cost:45,pow:6,d:'보호',f:'잠들지 않고 빛줄도 안 끊겨요. 이웃 별도 금방 깨요'},
+  whirl:{n:'빙글',c:'#6f8dff',cost:45,pow:6,d:'끌기',f:'닿은 악몽을 이 별 쪽으로 끌어당겨요. 결계에 가두기 좋아요'}
 };
+const C={hpA:.13,hpB:.025,budA:7,budB:3.2,dust0:300,rest:15,sticky:.6,zone:.45,pluck:1.8,waveA:25,waveB:5,dustK:.85};
+const NIGHTS=20;
 const TK=Object.keys(T),LV=[1,1.7,2.8],UPC=[60,130];
 const F={
   blob:{n:'꼬물이',hp:26,sp:40,r:12,dust:5,c:'#8f7bff'},
@@ -140,7 +151,7 @@ const F={
   tank:{n:'쿵쿵이',hp:150,sp:22,r:20,dust:14,c:'#ff7a5c',dmg:2,mass:2.5},
   ghost:{n:'스르륵',hp:40,sp:34,r:13,dust:10,c:'#bfe9ff'},
   thief:{n:'슬쩍이',hp:30,sp:62,r:10,dust:9,c:'#ffc24d'},
-  boss:{n:'악몽왕',hp:900,sp:14,r:38,dust:120,c:'#ff4d7a',dmg:10,mass:8}
+  boss:{n:'악몽왕',hp:600,sp:14,r:38,dust:150,c:'#ff4d7a',dmg:8,mass:8}
 };
 const POOL=[['blob',1,1],['bat',1,2],['split',2.5,4],['snip',2.5,5],['tank',5,6],['ghost',3,8],['thief',2.5,9]];
 const INTRO={2:['bat','파닥이: 빠르지만 약해요'],4:['split','몽글이: 터지면 둘로 갈라져요'],5:['snip','싹둑이: 빛줄을 끊어요. 끊기 전에 튕겨요!'],
@@ -159,7 +170,9 @@ const CARDS=[
   {n:'타닥의 불씨',d:'타닥 별의 힘 +40%',f:M=>M.el.fire*=1.4},
   {n:'꽁꽁의 입김',d:'꽁꽁 별의 힘 +40%',f:M=>M.el.frost*=1.4},
   {n:'찌릿의 정전기',d:'찌릿 별의 힘 +40%',f:M=>M.el.bolt*=1.4},
-  {n:'토닥의 손길',d:'토닥 별의 힘 +40%',f:M=>M.el.moon*=1.4}
+  {n:'토닥의 손길',d:'토닥 별의 힘 +40%',f:M=>M.el.moon*=1.4},
+  {n:'별빛 축제',d:'모든 별의 힘 +15%',f:M=>{for(const k of TK)M.el[k]*=1.15}},
+  {n:'따끔의 가시',d:'따끔 별의 힘 +40%',f:M=>M.el.thorn*=1.4}
 ];
 
 /* ---------- 상태 ---------- */
@@ -167,11 +180,11 @@ let G,ptr=null,started=false,best=0;
 try{best=+localStorage.getItem('lullaby-best')||0}catch(e){}
 function reset(){
   G={stars:[],links:[],zones:[],foes:[],parts:[],texts:[],bolts:[],timers:[],rings:[],
-    dust:180,dream:20,maxDream:20,wave:0,phase:'prep',restT:0,q:[],spawnT:0,gap:1,dirs:[],
+    dust:C.dust0,dream:20,maxDream:20,wave:0,phase:'prep',restT:0,q:[],spawnT:0,gap:1,dirs:[],
     combo:0,comboT:0,speed:1,paused:false,over:false,cards:false,t:0,shake:0,plucks:0,
-    sel:null,wheel:null,drag:null,toast:'',toastT:0,hurtT:0,taken:{},
-    M:{line:1,pluck:1,cd:1,echo:.6,zone:1,range:1,el:{fire:1,frost:1,bolt:1,moon:1},meteor:false,dust:1}};
-  planDirs();
+    sel:null,wheel:null,drag:null,toast:'',toastT:0,hurtT:0,taken:{},endless:false,nq:[],preview:'',
+    M:{line:1,pluck:1,cd:1,echo:.6,zone:1,range:1,el:Object.fromEntries(TK.map(k=>[k,1])),meteor:false,dust:1}};
+  planWave();
 }
 const maxRange=()=>230*G.M.range;
 const starPow=s=>T[s.t].pow*LV[s.lv]*G.M.el[s.t];
@@ -179,7 +192,7 @@ const linkDps=l=>(starPow(l.a)+starPow(l.b))*(l.a.t===l.b.t?1.5:1)*G.M.line;
 const linkOn=l=>l.cut<=0&&l.a.sleep<=0&&l.b.sleep<=0;
 const linkCost=len=>Math.round(8+len*.07);
 const linksOf=s=>G.links.filter(l=>l.a===s||l.b===s).length;
-const hpMul=()=>{const w=G.wave-1;return 1+.15*w+.018*w*w};
+const hpMul=()=>{const w=G.wave-1;return 1+C.hpA*w+C.hpB*w*w};
 function toast(t,d){G.toast=t;G.toastT=d||3}
 
 /* ---------- 기하 ---------- */
@@ -195,27 +208,36 @@ function txt(x,y,s,c,sz){if(G.texts.length>70)G.texts.shift();G.texts.push({x:x+
 function shake(v){if(!calm)G.shake=Math.max(G.shake,v)}
 
 /* ---------- 웨이브 ---------- */
-function planDirs(){const w=G.wave+1,n=1+(w>=3)+(w>=7)+(w>=12);G.dirs=[];let a=Math.random()*TAU;for(let i=0;i<n;i++){G.dirs.push(a);a+=TAU/n+(Math.random()-.5)*.9}}
-function startWave(){
-  G.wave++;const w=G.wave;let b=7+w*3.2;const q=[],pool=POOL.filter(p=>w>=p[2]);
+function planWave(){
+  const w=G.wave+1,n=1+(w>=3)+(w>=7)+(w>=12);G.dirs=[];let a=Math.random()*TAU;
+  for(let i=0;i<n;i++){G.dirs.push(a);a+=TAU/n+(Math.random()-.5)*.9}
+  let b=C.budA+w*C.budB;const q=[],pool=POOL.filter(p=>w>=p[2]);
   while(b>0){const p=Math.random()<.35?pool[0]:pool[Math.random()*pool.length|0];q.push(p[0]);b-=p[1]}
-  if(INTRO[w]){q.unshift(INTRO[w][0],INTRO[w][0]);toast('새 악몽 · '+INTRO[w][1],6)}
-  if(w%5===0){q.splice(Math.min(3,q.length),0,'boss');toast('악몽왕이 와요! 잠든 별은 톡 쳐서 깨워요',6);tone(70,1.2,'sawtooth',.14,40)}
-  G.q=q;G.spawnT=.6;G.gap=Math.max(.3,1.05-w*.035);G.phase='wave';
+  if(INTRO[w])q.unshift(INTRO[w][0],INTRO[w][0]);
+  if(w%5===0)q.splice(Math.min(3,q.length),0,'boss');
+  G.nq=q;const cnt={};for(const k of q)cnt[k]=(cnt[k]||0)+1;
+  G.preview=Object.keys(cnt).sort((x,y)=>cnt[y]-cnt[x]).map(k=>F[k].n+' '+cnt[k]).join(' · ');
+}
+function startWave(){
+  G.wave++;const w=G.wave;
+  if(INTRO[w])toast('새 악몽 · '+INTRO[w][1],6);
+  if(w%5===0){toast('악몽왕이 와요! 잠든 별은 톡 쳐서 깨워요',6);tone(70,1.2,'sawtooth',.14,40)}
+  G.q=G.nq;G.spawnT=.6;G.gap=Math.max(.3,1.05-w*.035);G.phase='wave';
   tone(196,.5,'sine',.1);tone(147,.7,'sine',.1,0,.15);
 }
 function endWave(){
-  const w=G.wave,gain=20+w*4;G.dust+=gain;txt(0,-90,'밤 '+w+' 무사히 · +'+gain+'✦','#ffd97a',26);
+  const w=G.wave,gain=C.waveA+w*C.waveB;G.dust+=gain;txt(0,-90,'밤 '+w+' 무사히 · +'+gain+'✦','#ffd97a',26);
   [0,2,4,7].forEach((i,k)=>tone(SCALE[i+2],.5,'sine',.09,0,k*.09));
   if(w>best){best=w;try{localStorage.setItem('lullaby-best',best)}catch(e){}}
-  G.phase='rest';G.restT=12;planDirs();
+  G.phase='rest';G.restT=C.rest;planWave();
+  if(w===NIGHTS&&!G.endless){win();return}
   if(w%3===0)showCards();
 }
 function spawn(k,x,y){
-  const d=F[k],m=hpMul();
+  const d=F[k];let m=hpMul();if(k==='boss'&&G.wave>=NIGHTS)m*=1.5;
   if(x===undefined){const a=G.dirs[Math.random()*G.dirs.length|0]+(Math.random()-.5)*.5;[x,y]=edge(a,40)}
   G.foes.push({k,x,y,hp:d.hp*m,mhp:d.hp*m,r:d.r,sp:d.sp*(.9+Math.random()*.2),burn:0,bdps:0,slowT:0,slowF:1,
-    kx:0,ky:0,kb:0,snip:0,ph:Math.random()*TAU,fl:0,dacc:0,ab:4,age:0,dead:false});
+    kx:0,ky:0,kb:0,snip:0,seenT:0,goldT:0,goldM:1,pullT:0,pullS:null,shock:0,ph:Math.random()*TAU,fl:0,dacc:0,ab:4,age:0,dead:false});
 }
 function showCards(){
   G.cards=true;const pick=[],pool=CARDS.filter(c=>!(c.once&&G.taken[c.n]));
@@ -225,8 +247,13 @@ function showCards(){
     b.onclick=()=>{audio();c.f(G.M);G.taken[c.n]=1;G.cards=false;$('ovCards').hidden=true;tone(660,.4,'sine',.1);tone(990,.5,'sine',.08,0,.1)};box.appendChild(b)});
   $('ovCards').hidden=false;
 }
+function win(){
+  G.over=true;$('overTitle').textContent='아침이 왔어요!';$('bAgain').textContent='처음부터 다시';$('bMore').hidden=false;
+  $('overTxt').textContent='스무 밤을 모두 지켜 냈어요. 아이는 꿈방울 '+G.dream+'개를 안고 푹 잤어요.';
+  $('ovOver').hidden=false;[0,2,4,5,7,9].forEach((i,k)=>tone(SCALE[i],.7,'sine',.1,0,k*.12));
+}
 function gameOver(){
-  G.over=true;if(G.wave-1>best){best=G.wave-1;try{localStorage.setItem('lullaby-best',best)}catch(e){}}
+  G.over=true;$('overTitle').textContent='아이가 깼어요';$('bAgain').textContent='다시 재우기';$('bMore').hidden=true;if(G.wave-1>best){best=G.wave-1;try{localStorage.setItem('lullaby-best',best)}catch(e){}}
   $('overTxt').textContent='밤 '+G.wave+'에 깨고 말았어요. 무사히 넘긴 밤은 '+Math.max(0,G.wave-1)+'번, 최고 기록은 '+best+'번이에요.';
   $('ovOver').hidden=false;tone(400,.8,'sawtooth',.12,90);
 }
@@ -240,7 +267,7 @@ function hurt(f,d,c){
 }
 function kill(f){
   f.dead=true;const d=F[f.k];G.combo++;G.comboT=2.5;
-  const gain=Math.max(1,Math.round(d.dust*G.M.dust*(1+Math.min(G.combo,30)*.03)));
+  const gain=Math.max(1,Math.round(d.dust*C.dustK*G.M.dust*(f.goldT>0?f.goldM:1)*(1+Math.min(G.combo,30)*.03)));
   G.dust+=gain;txt(f.x,f.y-f.r,'+'+gain+'✦','#ffd97a',17);
   burst(f.x,f.y,d.c,f.k==='boss'?70:14,f.k==='boss'?260:130,.6);burst(f.x,f.y,'#ffffff',5,70,.35);
   tone(SCALE[Math.min(10,G.combo%11)]*2,.18,'sine',.07);
@@ -249,23 +276,36 @@ function kill(f){
   if(f.k==='boss'){shake(18);tone(90,1,'sawtooth',.16,30);G.rings.push({x:f.x,y:f.y,r:10,v:500,c:d.c,t:.7})}
 }
 function zap(f,dmg,n){
-  const hit=[f];let cur=f;hurt(f,dmg,'#ffe45c');
+  const hit=[f];let cur=f;hurt(f,dmg*(f.slowT>0?1.8:1),'#ffe45c');
   for(let i=0;i<n;i++){let b=null,bd=120;for(const o of G.foes){if(o.dead||hit.includes(o))continue;const d=Math.hypot(o.x-cur.x,o.y-cur.y);if(d<bd){bd=d;b=o}}
-    if(!b)break;G.bolts.push({x1:cur.x,y1:cur.y,x2:b.x,y2:b.y,t:.16});dmg*=.7;hurt(b,dmg,'#ffe45c');hit.push(b);cur=b}
+    if(!b)break;G.bolts.push({x1:cur.x,y1:cur.y,x2:b.x,y2:b.y,t:.16});dmg*=.7;hurt(b,dmg*(b.slowT>0?1.8:1),'#ffe45c');hit.push(b);cur=b}
   burst(f.x,f.y,'#ffe45c',4,90,.25);tone(1400+Math.random()*500,.07,'square',.025,500);
 }
+function shockChk(f){
+  if(f.shock>0||f.dead)return;f.shock=3;txt(f.x,f.y-f.r-14,'쩍!','#ffffff',22);burst(f.x,f.y,'#bfe9ff',10,150,.4);
+  tone(1200,.12,'square',.05,300);hurt(f,f.mhp*(f.k==='boss'?.04:.12),'#ffffff');
+}
+function putSleep(s,d){
+  if(s.t==='guard')return false;
+  if(G.links.some(l=>(l.a===s&&l.b.t==='guard')||(l.b===s&&l.a.t==='guard')))d*=.3;
+  s.sleep=d;return true;
+}
 function applyEl(f,s,dt,holder,inZone){
-  const p=starPow(s);
-  if(s.t==='fire'){f.burn=3;f.bdps=Math.max(f.bdps,p*.5)}
-  else if(s.t==='frost'){f.slowT=1.2;f.slowF=Math.min(f.slowF<1?f.slowF:1,.6-.1*s.lv)}
-  else if(s.t==='bolt'){if(holder.zap<=0){holder.zap=.7;zap(f,p*1.5,2)}}
-  else if(inZone)hurt(f,p*.5*dt,'#c9a7ff');
-  else if(f.kb<=0){f.kb=1.6;push(f,190);burst(f.x,f.y,'#c9a7ff',5,80,.3)}
+  const p=starPow(s),k=s.t;
+  if(k==='fire'){f.burn=3;f.bdps=Math.max(f.bdps,p*.5);if(f.slowT>0)shockChk(f)}
+  else if(k==='frost'){const was=f.burn>0;f.slowT=1.2;f.slowF=Math.min(f.slowF,.6-.1*s.lv);if(was)shockChk(f)}
+  else if(k==='bolt'){if(holder.zap<=0){holder.zap=.7;zap(f,p*1.5,2)}}
+  else if(k==='moon'){if(inZone)hurt(f,p*.5*dt,T.moon.c);else if(f.kb<=0){f.kb=1.6;push(f,190);burst(f.x,f.y,T.moon.c,5,80,.3)}}
+  else if(k==='thorn')hurt(f,f.mhp*(f.k==='boss'?.012:.04)*LV[s.lv]*G.M.el.thorn*(inZone?.6:1)*dt,T.thorn.c);
+  else if(k==='gold'){f.goldT=2.5;f.goldM=Math.max(f.goldM,1.5+.3*s.lv)}
+  else if(k==='eye')f.seenT=3;
+  else if(k==='whirl'){f.pullT=.9;f.pullS=s}
 }
 function pluck(l,str,chain,direct){
   if(!linkOn(l)||l.cd>0||chain.has(l))return false;
-  chain.add(l);l.cd=l.cdM=2.5*G.M.cd;l.vib=Math.max(l.vib,str);
-  const dmg=linkDps(l)*1.8*str*G.M.pluck,a=l.a,b=l.b;
+  chain.add(l);const a=l.a,b=l.b;let bm=1,bc=1;for(const s of[a,b])if(s.t==='bell'){bm*=1.6+.3*s.lv;bc=.6}
+  l.cd=l.cdM=2.5*G.M.cd*bc;l.vib=Math.max(l.vib,str);
+  const dmg=linkDps(l)*C.pluck*str*G.M.pluck*bm;
   for(const f of G.foes){if(f.dead)continue;if(segDist(f.x,f.y,a.x,a.y,b.x,b.y)<f.r+46){hurt(f,dmg,'#ffffff');push(f,100*str);f.snip=0}}
   for(let i=0;i<=8;i++){const u=i/8;burst(a.x+(b.x-a.x)*u,a.y+(b.y-a.y)*u,u<.5?T[a.t].c:T[b.t].c,1,90*str,.4)}
   pluckSnd(l.len,str);
@@ -303,7 +343,7 @@ function toggleLink(a,b){
   const len=Math.hypot(a.x-b.x,a.y-b.y),cost=linkCost(len);
   let why='';
   if(len>maxRange())why='너무 멀어요';
-  else if(linksOf(a)>=3+a.lv||linksOf(b)>=3+b.lv)why='빛줄이 꽉 찼어요 (별을 키우면 +1)';
+  else if(linksOf(a)>=4+a.lv||linksOf(b)>=4+b.lv)why='빛줄이 꽉 찼어요 (별을 키우면 +1)';
   else if(G.dust<cost)why='별가루가 모자라요';
   if(why){txt(mx,my,why,'#ff5d8f',18);tone(140,.15,'square',.05);return}
   G.dust-=cost;const z=G.zones.length;
@@ -315,7 +355,7 @@ function upgrade(s){
   G.dust-=c;s.spent+=c;s.lv++;s.pop=1;burst(s.x,s.y,T[s.t].c,22,170,.6);tone(660,.3,'sine',.1);tone(990,.4,'sine',.08,0,.08);
 }
 function removeStar(s){
-  const r=Math.round(s.spent*.6);G.dust+=r;txt(s.x,s.y,'+'+r+'✦','#ffd97a');
+  const r=Math.round(s.spent*.8);G.dust+=r;txt(s.x,s.y,'+'+r+'✦','#ffd97a');
   G.links=G.links.filter(l=>l.a!==s&&l.b!==s);G.stars.splice(G.stars.indexOf(s),1);G.sel=null;rezone();burst(s.x,s.y,'#aaa1d4',12,100,.5);
 }
 function wake(s){s.sleep=0;s.pop=1;burst(s.x,s.y,T[s.t].c,14,130,.4);tone(1046,.2,'sine',.1);tone(1568,.25,'sine',.07,0,.05)}
@@ -339,22 +379,23 @@ function update(dt){
 
   for(const f of G.foes){
     if(f.dead)continue;
-    f.age+=dt;f.fl=Math.max(0,f.fl-dt*6);f.kb-=dt;
+    f.age+=dt;f.fl=Math.max(0,f.fl-dt*6);f.kb-=dt;f.seenT-=dt;f.shock-=dt;if(f.goldT>0){f.goldT-=dt;if(f.goldT<=0)f.goldM=1}
     let sp=f.sp;if(f.slowT>0){f.slowT-=dt;sp*=f.slowF}else f.slowF=1;
     const ghost=f.k==='ghost';let touch=false;
-    if(!ghost)for(const l of G.links){
+    for(const l of G.links){
       if(!linkOn(l))continue;const a=l.a,b=l.b;
       if(segDist(f.x,f.y,a.x,a.y,b.x,b.y)>f.r+7)continue;
-      touch=true;hurt(f,linkDps(l)*dt,T[a.t].c);if(f.dead)break;
+      const eye=a.t==='eye'||b.t==='eye';if(ghost&&!eye&&f.seenT<=0)continue;
+      touch=true;hurt(f,linkDps(l)*(ghost&&eye?1.5:1)*dt,T[a.t].c);if(f.dead)break;
       applyEl(f,a,dt,l,false);if(b.t!==a.t&&!f.dead)applyEl(f,b,dt,l,false);
-      if(f.k==='snip'&&!f.dead){f.snip+=dt;if(f.snip>.7){f.snip=0;l.cut=5;burst(f.x,f.y,'#7dffb0',12,120,.4);txt(f.x,f.y-20,'싹둑!','#7dffb0',22);tone(900,.08,'square',.06);tone(600,.1,'square',.06,0,.07)}}
+      if(f.k==='snip'&&!f.dead&&a.t!=='guard'&&b.t!=='guard'){f.snip+=dt;if(f.snip>.7){f.snip=0;l.cut=5;burst(f.x,f.y,'#7dffb0',12,120,.4);txt(f.x,f.y-20,'싹둑!','#7dffb0',22);tone(900,.08,'square',.06);tone(600,.1,'square',.06,0,.07)}}
       if(f.dead)break;
     }
     if(f.dead)continue;
-    if(touch)sp*=.72;
+    if(touch)sp*=C.sticky;
     for(const z of G.zones){
       if(z.l.some(l=>!linkOn(l))||!inTri(f,z.s[0],z.s[1],z.s[2]))continue;
-      hurt(f,(starPow(z.s[0])+starPow(z.s[1])+starPow(z.s[2]))*.45*G.M.zone*dt,'#ffd97a');
+      hurt(f,(starPow(z.s[0])+starPow(z.s[1])+starPow(z.s[2]))*C.zone*G.M.zone*dt,'#ffd97a');
       const seen={};for(const s of z.s){if(f.dead||seen[s.t])continue;seen[s.t]=1;applyEl(f,s,dt,z,true)}
       if(f.dead)break;
     }
@@ -362,17 +403,18 @@ function update(dt){
     if(f.burn>0){f.burn-=dt;hurt(f,f.bdps*dt,'#ff8a4c');if(Math.random()<dt*8)burst(f.x,f.y-f.r*.5,'#ff8a4c',1,40,.3);if(f.dead)continue}else f.bdps=0;
 
     let tx=0,ty=0,tg=null;
-    if(f.k==='thief'){let bd=1e9;for(const s of G.stars){if(s.sleep>0)continue;const d=Math.hypot(s.x-f.x,s.y-f.y);if(d<bd){bd=d;tg=s}}if(tg){tx=tg.x;ty=tg.y}}
+    if(f.k==='thief'){let bd=1e9;for(const s of G.stars){if(s.sleep>0||s.t==='guard')continue;const d=Math.hypot(s.x-f.x,s.y-f.y);if(d<bd){bd=d;tg=s}}if(tg){tx=tg.x;ty=tg.y}}
     const dx=tx-f.x,dy=ty-f.y,d=Math.hypot(dx,dy)||1,wob=Math.sin(G.t*2.2+f.ph)*(f.k==='bat'?.5:.22);
     f.x+=(dx/d-dy/d*wob)*sp*dt+f.kx*dt;f.y+=(dy/d+dx/d*wob)*sp*dt+f.ky*dt;
     const e=Math.exp(-6*dt);f.kx*=e;f.ky*=e;
-    if(tg&&d<18){tg.sleep=8;f.dead=true;burst(f.x,f.y,'#ffc24d',14,110,.5);toast('별이 잠들었어요. 톡 쳐서 깨워요!',4);tone(500,.4,'sine',.1,200);continue}
+    if(f.pullT>0){f.pullT-=dt;const q=f.pullS,qx=q.x-f.x,qy=q.y-f.y,qd=Math.hypot(qx,qy);if(qd>14){const v=95/(F[f.k].mass||1);f.x+=qx/qd*v*dt;f.y+=qy/qd*v*dt}}
+    if(tg&&d<18){putSleep(tg,8);f.dead=true;burst(f.x,f.y,'#ffc24d',14,110,.5);toast('별이 잠들었어요. 톡 쳐서 깨워요!',4);tone(500,.4,'sine',.1,200);continue}
     if(Math.hypot(f.x,f.y)<48){
       f.dead=true;G.dream-=F[f.k].dmg||1;G.hurtT=.6;G.combo=0;shake(12);burst(0,0,'#ff5d8f',20,180,.5);tone(180,.35,'sawtooth',.14,70);
       if(G.dream<=0){G.dream=0;gameOver();return}continue;
     }
-    if(f.k==='boss'){f.ab-=dt;if(f.ab<=0){f.ab=7;const near=G.stars.filter(s=>s.sleep<=0).sort((a,b)=>Math.hypot(a.x-f.x,a.y-f.y)-Math.hypot(b.x-f.x,b.y-f.y)).slice(0,2);
-      for(const s of near)s.sleep=7;G.rings.push({x:f.x,y:f.y,r:f.r,v:420,c:'#ff4d7a',t:.6});shake(8);tone(80,.8,'sawtooth',.16,45);if(near.length)toast('악몽왕의 포효! 잠든 별을 톡 쳐서 깨워요',4)}}
+    if(f.k==='boss'){f.ab-=dt;if(f.ab<=0){f.ab=8;const near=G.stars.filter(s=>s.sleep<=0&&s.t!=='guard').sort((a,b)=>Math.hypot(a.x-f.x,a.y-f.y)-Math.hypot(b.x-f.x,b.y-f.y)).slice(0,2);
+      for(const s of near)putSleep(s,6);G.rings.push({x:f.x,y:f.y,r:f.r,v:420,c:'#ff4d7a',t:.6});shake(8);tone(80,.8,'sawtooth',.16,45);if(near.length)toast('악몽왕의 포효! 잠든 별을 톡 쳐서 깨워요',4)}}
   }
   G.foes=G.foes.filter(f=>!f.dead);
   for(const p of G.parts){p.l-=dt;p.x+=p.vx*dt;p.y+=p.vy*dt;p.vx*=.94;p.vy*=.94}
@@ -387,11 +429,11 @@ const sx=x=>W/2+x*S,sy=y=>H/2+y*S;
 function wpos(e){const r=cv.getBoundingClientRect(),px=e.clientX-r.left,py=e.clientY-r.top;return{x:(px-W/2)/S,y:(py-H/2)/S,px,py}}
 function starAt(p){const rad=Math.max(26,24/S);let b=null,bd=rad;for(const s of G.stars){const d=Math.hypot(s.x-p.x,s.y-p.y);if(d<bd){bd=d;b=s}}return b}
 function linkAt(p){const rad=Math.max(12,15/S);let b=null,bd=rad;for(const l of G.links){const d=segDist(p.x,p.y,l.a.x,l.a.y,l.b.x,l.b.y);if(d<bd){bd=d;b=l}}return b}
-function wheelBtns(w){return TK.map((k,i)=>{const a=-PI*3/4+i*PI/2;return{k,x:w.cx+Math.cos(a)*66,y:w.cy+Math.sin(a)*66,r:30}})}
+function wheelBtns(w){return TK.map((k,i)=>{const a=-PI/2+i*TAU/TK.length;return{k,x:w.cx+Math.cos(a)*104,y:w.cy+Math.sin(a)*104,r:30}})}
 function menuBtns(s){
   let x=sx(s.x),y=sy(s.y)-54;if(y<70)y=sy(s.y)+54;x=Math.max(104,Math.min(W-104,x));
   const b=[];if(s.lv<2)b.push({id:'up',x:x-50,y,w:92,h:34,s:'키우기 '+UPC[s.lv]+'✦',ok:G.dust>=UPC[s.lv]});
-  b.push({id:'rm',x:x+(s.lv<2?50:0),y,w:92,h:34,s:'보내기 +'+Math.round(s.spent*.6)+'✦',ok:true});return b;
+  b.push({id:'rm',x:x+(s.lv<2?50:0),y,w:92,h:34,s:'보내기 +'+Math.round(s.spent*.8)+'✦',ok:true});return b;
 }
 cv.addEventListener('pointerdown',e=>{
   audio();if(!started||G.over||G.paused||G.cards)return;
@@ -425,7 +467,7 @@ function up(e){
   }else if(m.mode==='empty'){
     const why=canPlace(p.x,p.y);
     if(why){txt(p.x,p.y,why,'#ff5d8f',18);return}
-    G.wheel={x:p.x,y:p.y,cx:Math.max(104,Math.min(W-104,p.px)),cy:Math.max(110,Math.min(H-110,p.py))};tone(700,.08,'sine',.05);
+    G.wheel={x:p.x,y:p.y,cx:Math.max(Math.min(138,W/2),Math.min(W-Math.min(138,W/2),p.px)),cy:Math.max(142,Math.min(H-142,p.py))};tone(700,.08,'sine',.05);
   }
 }
 cv.addEventListener('pointerup',up);cv.addEventListener('pointercancel',()=>{ptr=null;G.drag=null});
@@ -436,6 +478,7 @@ $('bSnd').onclick=()=>{mute=!mute;$('bSnd').style.opacity=mute?.4:1;audio()};
 $('call').onclick=()=>{audio();if(G.over||G.cards)return;if(G.phase==='prep')startWave();
   else if(G.phase==='rest'){const b=Math.ceil(G.restT)*3;G.dust+=b;txt(0,-90,'일찍 불렀어요 +'+b+'✦','#ffd97a',22);startWave()}};
 $('bStart').onclick=()=>{audio();started=true;$('ovStart').hidden=true;tone(523,.4,'sine',.1);tone(784,.5,'sine',.08,0,.12)};
+$('bMore').onclick=()=>{audio();$('ovOver').hidden=true;G.over=false;G.endless=true;if(G.wave%3===0)showCards()};
 $('bAgain').onclick=()=>{audio();$('ovOver').hidden=true;reset();$('bSpeed').textContent='×1';$('bPause').textContent='Ⅱ'};
 
 /* ---------- 그리기 ---------- */
@@ -550,9 +593,9 @@ function draw(){
     cx.fillStyle='#fff';cx.beginPath();cx.arc(px,py,4,0,TAU);cx.fill();
     for(const b of wheelBtns(w)){const t=T[b.k],ok=G.dust>=t.cost;cx.globalAlpha=ok?1:.45;
       cx.fillStyle='rgba(22,17,58,.94)';cx.strokeStyle=t.c;cx.lineWidth=2;cx.beginPath();cx.arc(b.x,b.y,b.r,0,TAU);cx.fill();cx.stroke();
-      cx.save();cx.translate(b.x,b.y-7);cx.fillStyle=cx.strokeStyle=t.c;cx.lineJoin='round';cx.lineWidth=3;starPath(8);cx.stroke();cx.fill();cx.restore();
-      cx.textAlign='center';cx.fillStyle='#f4eeff';cx.font='700 14px '+FONT;cx.fillText(t.n+' '+t.cost,b.x,b.y+17);
-      const out=b.y<w.cy?-1:1;cx.fillStyle=t.c;cx.font='400 14px '+FONT;cx.fillText(t.d,b.x,b.y+out*(b.r+15)+5);cx.textAlign='start'}
+      cx.save();cx.translate(b.x,b.y-15);cx.fillStyle=cx.strokeStyle=t.c;cx.lineJoin='round';cx.lineWidth=2.5;starPath(6);cx.stroke();cx.fill();cx.restore();
+      cx.textAlign='center';cx.fillStyle='#f4eeff';cx.font='700 14px '+FONT;cx.fillText(t.n+' '+t.cost,b.x,b.y+5);
+      cx.fillStyle=t.c;cx.font='700 12px '+FONT;cx.fillText(t.d,b.x,b.y+19);cx.textAlign='start'}
     cx.globalAlpha=1}
   if(G.sel)for(const b of menuBtns(G.sel))pill(b,'rgba(22,17,58,.94)',b.id==='rm'?'#aaa1d4':b.ok?'#ffd97a':'#7a6f5a');
 }
@@ -562,11 +605,14 @@ let lastHud='';
 function hud(){
   let hint='';
   if(G.toastT>0)hint=G.toast;
+  else if(G.sel)hint=T[G.sel.t].n+' Lv'+(G.sel.lv+1)+' · '+T[G.sel.t].f;
+  else if(G.wheel)hint='같은 별끼리 이으면 1.5배, 다른 별끼리 이으면 두 힘이 섞여요';
   else if(G.wave===0){const n=G.stars.length;
-    hint=n===0?'밤하늘을 톡 눌러 별을 심어요':n===1?'별을 하나 더 심어요':!G.links.length?'별에서 별로 끌어서 빛줄을 이어요':!G.zones.length?'빛줄을 톡 치면 튕겨요 · 세 별을 삼각형으로 이으면 결계!':'붉은 기운 쪽에서 악몽이 와요. 준비됐으면 시작!'}
+    hint=n===0?'밤하늘을 톡 눌러 별을 심어요':n===1?'별을 하나 더 심어요':!G.links.length?'별에서 별로 끌어서 빛줄을 이어요':!G.zones.length?'빛줄을 톡 치면 튕겨요 · 세 별을 삼각형으로 이으면 결계!':'붉은 기운 쪽에서 와요 · 첫 밤: '+G.preview}
+  else if(G.phase==='rest')hint='다음 밤: '+G.preview;
   let call='';if(G.phase==='prep')call='첫 번째 밤 시작 ▶';else if(G.phase==='rest')call='다음 악몽까지 '+Math.ceil(G.restT)+'초 · 지금 부르면 +'+Math.ceil(G.restT)*3+'✦';
   const key=[G.dust,G.wave,best,hint,call].join('|');if(key===lastHud)return;lastHud=key;
-  $('dustN').textContent=G.dust;$('nightN').textContent=G.wave?'밤 '+G.wave:'밤이 오기 전';
+  $('dustN').textContent=G.dust;$('nightN').textContent=G.wave?'밤 '+G.wave+(G.endless?'':' / '+NIGHTS):'밤이 오기 전';
   $('best').textContent=best?'최고 '+best+'밤':'';$('hint').textContent=hint;
   $('call').hidden=!call;$('call').textContent=call;
 }
@@ -578,7 +624,7 @@ function frame(now){
   draw();hud();requestAnimationFrame(frame);
 }
 resize();reset();
-window.__lullaby={get G(){return G},place,toggleLink,startWave,pluck};
+window.__lullaby={get G(){return G},C,T,F,place,toggleLink,startWave,pluck,update,upgrade,wake,reset,start(){started=true;$('ovStart').hidden=true}};
 requestAnimationFrame(frame);
 })();
 </script>
