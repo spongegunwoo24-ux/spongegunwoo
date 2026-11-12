@@ -1,0 +1,1 @@
+{ "name": "emoji-defense", "private": true, "type": "module", "scripts": { "sim": "node sim/sim.mjs" } }

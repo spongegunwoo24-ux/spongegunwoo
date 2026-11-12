@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="theme-color" content="#ffe9a8">
+<title>이모지 디펜스</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Jua&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<div id="app">
+
+  <!-- 홈: 내 캐릭터들이 돌아다니는 마당 -->
+  <section id="home" class="screen active">
+    <div id="field">
+      <div class="sun"></div>
+      <div class="cloud c1"></div><div class="cloud c2"></div><div class="cloud c3"></div>
+      <div class="hills"></div>
+      <div class="ground" id="ground"></div>
+    </div>
+    <header class="topbar">
+      <div class="logo"><span class="logo-face">😀</span><div><b>이모지 디펜스</b><small id="homeSub">스마일리 탭을 지켜라</small></div></div>
+      <div class="pill" id="homeStars">⭐ 0/30</div>
+      <div class="pill gem">💎 <b class="gems">0</b></div>
+    </header>
+    <div class="dock">
+      <button class="key side" data-go="deck"><i>🎒</i><span>덱</span></button>
+      <button class="key play" id="btnPlay"><i>▶</i><span>출격</span></button>
+      <button class="key side" data-go="gacha"><i>🎁</i><span>뽑기</span></button>
+    </div>
+  </section>
+
+  <!-- 스테이지 선택 -->
+  <section id="stages" class="screen">
+    <header class="bar"><button class="key back" data-go="home">◀</button><h2>1장 · 동물·자연 탭</h2><div class="pill gem">💎 <b class="gems">0</b></div></header>
+    <p class="hint">깨진 글자 □에 물든 동물들이 몰려옵니다. 스테이지를 골라 출격하세요.</p>
+    <div id="stageList" class="stage-list"></div>
+  </section>
+
+  <!-- 덱 편성 -->
+  <section id="deck" class="screen">
+    <header class="bar"><button class="key back" data-go="home">◀</button><h2>덱 편성</h2><div class="pill" id="ownCount"></div></header>
+    <div id="deckSlots" class="deck-slots"></div>
+    <div id="synChips" class="chips"></div>
+    <div id="ownGrid" class="own-grid"></div>
+    <div id="charInfo" class="char-info"></div>
+  </section>
+
+  <!-- 뽑기 -->
+  <section id="gacha" class="screen">
+    <header class="bar"><button class="key back" data-go="home">◀</button><h2>뽑기</h2><div class="pill gem">💎 <b class="gems">0</b></div></header>
+    <div class="banner">
+      <div class="banner-faces">😇🤯👻🤡</div>
+      <h3>상시 뽑기 · 스마일리 탭</h3>
+      <p>얼굴 이모지 22명이 기다리고 있어요</p>
+    </div>
+    <div id="pityBox" class="pity"></div>
+    <div class="pull-row">
+      <button class="key pull" id="pull1"><span>1회</span><small>💎 100</small></button>
+      <button class="key pull gold" id="pull10"><span>10회</span><small>💎 1,000</small></button>
+    </div>
+    <p class="rates" id="rates"></p>
+  </section>
+
+  <!-- 전투 -->
+  <section id="battle" class="screen">
+    <header class="hud">
+      <button class="key mini" id="btnQuit">✕</button>
+      <div class="pill">❤️ <b id="hudHearts">20</b></div>
+      <div class="pill energy">⚡ <b id="hudEnergy">0</b></div>
+      <div class="pill" id="hudWave">웨이브 0/10</div>
+      <div class="pill next" id="hudNext"></div>
+      <span class="grow"></span>
+      <button class="key mini" id="btnAuto" title="자동 배치">🤖</button>
+      <button class="key mini" id="btnSpeed">x1</button>
+    </header>
+    <div id="boardWrap"><canvas id="board"></canvas>
+      <div id="towerPanel" class="tower-panel"></div>
+      <div id="waveBanner" class="wave-banner"></div>
+    </div>
+    <div id="battleSyn" class="chips small"></div>
+    <div id="hand" class="hand"></div>
+  </section>
+</div>
+
+<div id="toast"></div>
+<div id="modal" class="modal"><div class="sheet" id="sheet"></div></div>
+<script type="module" src="js/main.js"></script>
+</body>
+</html>
