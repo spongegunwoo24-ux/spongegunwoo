@@ -1,5 +1,5 @@
 // 이모지 디펜스 — 화면과 입력
-import { CHARS, CHAR_BY_ID, STARTER, RARITY, ATTR, PITY, PULL_COST, RULES, MAP, ENEMIES, STAGES, synergyOf, gachaPull, makeWaves, mulberry32 } from './data.js';
+import { CHARS, CHAR_BY_ID, STARTER, RARITY, ATTR, PITY, PULL_COST, RULES, MAP, ENEMIES, STAGES, UP, TRACKS, SPECIAL, MODES, SKILL, tracksOf, spKey, synergyOf, gachaPull, makeWaves, mulberry32 } from './data.js';
 import { Game } from './engine.js';
 import { Bot } from './bot.js';
 import { Brawl, BR, bcost, unitOf, BR_ENEMY } from './brawl.js';
@@ -269,7 +269,7 @@ function renderDeck() {
   if (c) {
     const inDeck = save.deck.includes(c.id);
     const dps = c.itv > 0 && c.dmg ? ` · 초당 ${(c.dmg / c.itv * (1 + (c.crit || 0) * ((c.critMul || 2) - 1))).toFixed(1)}` : '';
-    info.innerHTML = `<div class="em">${c.e}</div><div class="tx"><b>${c.name}</b> <span style="color:${RARITY[c.rar].color}">${RARITY[c.rar].name}</span> · <span style="color:${ATTR[c.attr].color}">${ATTR[c.attr].icon}${ATTR[c.attr].name}</span><br>${c.desc}<br>⚡${c.cost}${c.range ? ` · 사거리 ${c.range}` : ''}${dps}</div>
+    info.innerHTML = `<div class="em">${c.e}</div><div class="tx"><b>${c.name}</b> <span style="color:${RARITY[c.rar].color}">${RARITY[c.rar].name}</span> · <span style="color:${ATTR[c.attr].color}">${ATTR[c.attr].icon}${ATTR[c.attr].name}</span><br>${c.desc}<br><span style="color:#a855f7">✨ 강화 특수 · ${SPECIAL[spKey(c)].name}: ${SPECIAL[spKey(c)].per}</span><br>⚡${c.cost}${c.range ? ` · 사거리 ${c.range}` : ''}${dps}</div>
       <button class="key ${inDeck ? '' : 'primary'}" id="btnToggle">${inDeck ? '빼기' : '넣기'}</button>`;
     $('#btnToggle').onclick = () => {
       if (inDeck) save.deck = save.deck.filter((id) => id !== c.id);
@@ -374,8 +374,8 @@ const Battle = {
     $('#btnAuto').classList.remove('on');
     go('battle');
     this.renderHand();
-    const syn = this.g.syn.active;
-    $('#battleSyn').innerHTML = syn.map((s) => `<span class="chip" style="color:${ATTR[s.attr].color}">${ATTR[s.attr].icon} ${s.text}</span>`).join('');
+    this.renderChips();
+    this.previewRange = 0; this.white = 0;
     this.resize(); // 카드와 시너지 칩이 자리를 잡은 뒤에 전투판 크기를 잼
     this.hidePanel();
     cancelAnimationFrame(this.raf);
@@ -421,35 +421,114 @@ const Battle = {
     });
     if (this.selTower) this.showPanel(this.selTower);
     $('#startBox').classList.toggle('on', !g.started);
+    // 기술 버튼과 다음 웨이브 부르기
+    const bl = $('#skBlast');
+    bl.style.setProperty('--p', Math.round(g.blast * 100) + '%');
+    bl.classList.toggle('ready', g.blast >= 1);
+    bl.querySelector('small').textContent = g.blast >= 1 ? '준비 완료!' : `처치로 충전 ${Math.floor(g.blast * 100)}%`;
+    const ch = $('#skCheer');
+    const cdMax = SKILL.cheerCd / (1 + g.pk.charge);
+    ch.style.setProperty('--p', Math.round((1 - Math.max(0, g.cheerCd) / cdMax) * 100) + '%');
+    ch.classList.toggle('ready', g.cheerCd <= 0);
+    ch.classList.toggle('active', g.cheerT > 0);
+    ch.querySelector('small').textContent = g.cheerT > 0 ? `공속 ×${SKILL.cheerMul} ${g.cheerT.toFixed(1)}초` : g.cheerCd > 0 ? `${Math.ceil(g.cheerCd)}초 뒤` : '준비 완료!';
+    const nx = $('#btnNext');
+    nx.disabled = !g.canCallNext();
+    const eb = g.earlyBonus();
+    nx.querySelector('small').textContent = g.waveIdx >= g.waves.length - 1 ? '마지막 웨이브' : !g.canCallNext() ? '적 등장 중' : eb ? `일찍 부르면 +${eb}⚡` : '바로 시작';
   },
+  // 캐릭터 정보 패널: 현재 능력치, 갈래별 강화(전 → 후), 조준 방식, 판매
   showPanel(t) {
     const g = this.g;
     if (!g.towers.includes(t)) { this.hidePanel(); return; }
     this.selTower = t;
     const p = $('#towerPanel');
-    const key = t.id + ':' + t.star + ':' + (g.energy >= t.def.cost);
+    const def = t.def;
+    const tracks = tracksOf(def);
+    const lv = g.levelOf(t);
+    const key = [t.id, lv, t.mode, g.perks.length, ...tracks.map((k) => (g.whyNoUp(t, k) ? 0 : 1))].join(':');
+    $('#pKills') && ($('#pKills').textContent = t.kills);
+    $('#pDealt') && ($('#pDealt').textContent = Math.round(t.dealt).toLocaleString());
     if (p.dataset.key === key && p.classList.contains('on')) return;
     p.dataset.key = key;
+    const opening = !p.classList.contains('on');
     p.classList.add('on');
-    p.innerHTML = `<span style="font:22px ${EMOJI_FONT}">${t.def.e}</span><span>${t.def.name} ${'★'.repeat(t.star)}</span>
-      ${t.star < RULES.maxStar ? `<button class="key up" id="pUp" ${g.energy < t.def.cost ? 'disabled' : ''}>강화 ⚡${t.def.cost}</button>` : '<span style="color:#c98a00">최대</span>'}
-      <button class="key" id="pSell">판매 +${Math.floor(t.spent * RULES.refund)}</button>`;
-    const up = $('#pUp');
-    if (up) up.onclick = () => { if (g.upgrade(t)) Sfx.play('up'); };
-    $('#pSell').onclick = () => { g.sell(t); this.hidePanel(); };
+    $('#hand').style.display = 'none';
+    if (opening) requestAnimationFrame(() => this.g && this.resize()); // 패널 높이만큼 전투판을 줄여 전체가 보이게
+    const s = t.s;
+    const f1 = (v) => (Math.round(v * 10) / 10).toString();
+    const pct = (v) => Math.round(v * 100) + '%';
+    // 특수 갈래가 지금 주는 값
+    const spVal = (o) => ({
+      slow: `감속 ${pct(o.slow)}`, poison: `독 ${f1(o.poison)}/초`, vuln: `받는 피해 +${pct(o.vuln)}`, knock: `밀어내기 ${f1(o.knock)}칸`, pull: `끌어당김 ${f1(o.pull)}칸`,
+      zone: `장판 반경 ${f1(o.zoneR)}칸`, aura: o.auraSpd ? `아군 공속 +${pct(o.auraSpd)}` : `아군 피해 +${pct(o.auraDmg)}`, income: `5초마다 +${o.income}⚡`,
+      sleep: `수면 ${f1(o.sleep)}초`, confuse: `혼란 ${o.confN}기`, seal: `봉인 ${o.seal}초`, crit: `치명타 ${pct(o.crit)}`, splash: `폭발 반경 ${f1(o.splash)}칸`,
+      hunter: `보스·정예 피해 +${pct(0.25 * o.sp)}`, opener: `체력 절반 이상 적에게 +${pct(0.2 * o.sp)}`, double: `연타 확률 ${pct(0.15 * o.sp)}`,
+    }[o.key]);
+    const val = (o, k) => k === 'dmg' ? (def.zone ? `${f1(o.zoneDps)}/초` : f1(o.dmg))
+      : k === 'spd' ? `${(def.itv > 0 ? o.itv : o.pulseEvery).toFixed(2)}초`
+        : k === 'rng' ? `${f1(o.range)}칸` : spVal(o);
+    const stats = [];
+    if (def.itv > 0) {
+      stats.push(`💥 ${def.zone ? f1(s.zoneDps * t.dmgMul) + '/초' : f1(s.dmg * t.dmgMul)}`, `⚡ ${(s.itv / t.spdMul).toFixed(2)}초`);
+    }
+    if (s.range > 0) stats.push(`🎯 ${f1(s.range)}칸`);
+    if (s.dps > 0) stats.push(`<b>초당 ${f1(s.dps * t.dmgMul * t.spdMul)}</b>`);
+    stats.push(`<span style="color:${TRACKS.sp.color}">✨ ${spVal(s)}</span>`);
+    const buff = t.dmgMul > 1 || t.spdMul > 1.001 ? `<small class="buff">버프 적용 중: ${t.dmgMul > 1 ? '피해 +' + pct(t.dmgMul - 1) + ' ' : ''}${t.spdMul > 1.001 ? '공속 +' + pct(t.spdMul - 1) : ''}</small>` : '';
+    const ups = tracks.map((k) => {
+      const n = t.up[k];
+      const pips = '■'.repeat(n) + '□'.repeat(UP.max - n);
+      const maxed = n >= UP.max;
+      const capped = !maxed && lv >= UP.total;
+      const next = g.calc(def, { ...t.up, [k]: n + 1 });
+      const why = g.whyNoUp(t, k);
+      return `<button class="key upb" data-track="${k}" ${why ? 'data-off="1"' : ''} style="--tc:${TRACKS[k].color}">
+        <span class="t">${TRACKS[k].icon} ${k === 'sp' ? SPECIAL[s.key].name : TRACKS[k].name} <i>${pips}</i></span>
+        <span class="v">${maxed ? val(s, k) + ' (최대)' : capped ? val(s, k) : `${val(s, k)} → <b>${val(next, k)}</b>`}</span>
+        <span class="c">${maxed ? '완료' : capped ? '합계 한도' : '⚡' + g.upCost(t, k)}</span></button>`;
+    }).join('');
+    const modeName = (MODES.find((m) => m.id === t.mode) || MODES[0]).name;
+    p.innerHTML = `<div class="tp-head"><span class="em">${def.e}</span>
+        <div class="nm"><b>${def.name}</b> <small style="color:${RARITY[def.rar].color}">${RARITY[def.rar].name}</small> <small>강화 ${lv}/${UP.total}</small><br>
+        <small>처치 <b id="pKills">${t.kills}</b> · 누적 피해 <b id="pDealt">${Math.round(t.dealt).toLocaleString()}</b></small></div>
+        <button class="key mini" id="pClose">✕</button></div>
+      <div class="tp-stats">${stats.join(' · ')} ${buff}</div>
+      <div class="tp-ups n${tracks.length}">${ups}</div>
+      <div class="tp-foot">${def.itv > 0 ? `<button class="key" id="pMode">조준: ${modeName} ⟳</button>` : '<span></span>'}<button class="key" id="pSell">판매 +${g.refundOf(t)}⚡</button></div>`;
+    p.querySelectorAll('.upb').forEach((b) => {
+      const k = b.dataset.track;
+      b.onclick = () => {
+        const why = g.whyNoUp(t, k);
+        if (why) { toast(why); return; }
+        g.upgrade(t, k);
+        Sfx.play('up');
+      };
+      if (k === 'rng') {
+        b.onpointerenter = () => { if (t.up.rng < UP.max) this.previewRange = g.calc(def, { ...t.up, rng: t.up.rng + 1 }).range; };
+        b.onpointerleave = () => { this.previewRange = 0; };
+      }
+    });
+    $('#pClose').onclick = () => this.hidePanel();
+    if (!opening) this.resize();
+    const pm = $('#pMode');
+    if (pm) pm.onclick = () => { t.mode = MODES[(MODES.findIndex((m) => m.id === t.mode) + 1) % MODES.length].id; Sfx.play('flip'); };
+    $('#pSell').onclick = () => { g.sell(t); Sfx.play('coin'); this.hidePanel(); };
   },
-  hidePanel() { this.selTower = null; $('#towerPanel').classList.remove('on'); },
+  hidePanel() {
+    const was = $('#towerPanel').classList.contains('on');
+    this.selTower = null; this.previewRange = 0;
+    $('#towerPanel').classList.remove('on');
+    $('#hand').style.display = '';
+    if (was && this.g) this.resize();
+  },
   tap(c, r) {
     const g = this.g;
     if (!g || g.result) return;
     const t = g.grid.get(c + ',' + r);
     if (t) {
-      if (this.sel === t.def.id && t.star < RULES.maxStar) {
-        if (g.upgrade(t)) Sfx.play('up'); else toast('에너지가 부족해요');
-        return;
-      }
       this.sel = null;
-      this.showPanel(t);
+      if (this.selTower === t) this.hidePanel(); else this.showPanel(t);
       return;
     }
     this.hidePanel();
@@ -460,9 +539,35 @@ const Battle = {
     Sfx.play('place');
     if (g.energy < CHAR_BY_ID[this.sel].cost) this.sel = null;
   },
+  // 특성 카드 3장 중 1장 고르기
+  showPerks() {
+    const g = this.g;
+    modal(`<h3>특성 카드 ${g.perksGiven + 1}/5</h3><p>하나를 골라 이번 전투 내내 적용하세요.</p>
+      <div class="perk-row">${g.perkOffer.map((p, i) => `<button class="key perk" data-i="${i}"><span class="em">${p.e}</span><b>${p.name}</b><small>${p.text}</small></button>`).join('')}</div>`);
+    $$('#sheet .perk').forEach((b) => (b.onclick = () => {
+      g.pickPerk(+b.dataset.i);
+      Sfx.play('rare');
+      closeModal();
+      this.renderChips();
+      if (this.selTower) $('#towerPanel').dataset.key = '';
+    }));
+  },
+  renderChips() {
+    const g = this.g;
+    $('#battleSyn').innerHTML = g.syn.active.map((s) => `<span class="chip" style="color:${ATTR[s.attr].color}">${ATTR[s.attr].icon} ${s.text}</span>`).join('')
+      + (g.perks.length ? `<button class="chip perks" id="perkChip">${g.perks.map((p) => p.e).join('')} 특성 ${g.perks.length}</button>` : '');
+    const pc = $('#perkChip');
+    if (pc) pc.onclick = () => {
+      modal(`<h3>적용 중인 특성</h3><div class="enemy-list">${g.perks.map((p) => `<div><span>${p.e}</span><b>${p.name}</b><small>${p.text}</small></div>`).join('')}</div><div class="btns"><button class="key primary" id="mOk">확인</button></div>`);
+      $('#mOk').onclick = closeModal;
+    };
+  },
   frame(dt) {
     const g = this.g;
     if (!g) return;
+    if (g.perkOffer && !g.result && !$('#modal').classList.contains('on')) {
+      if (this.bot) { this.bot.tick(0); this.renderChips(); } else this.showPerks();
+    }
     if (!g.result && !$('#modal').classList.contains('on')) {
       this.acc += dt * this.speed;
       let n = 0;
@@ -519,6 +624,20 @@ const Battle = {
       } else if (ev.k === 'splash') {
         push(ev, 0.3);
         if (ev.big) { this.shake = Math.max(this.shake, 6); Sfx.play('boom'); }
+      } else if (ev.k === 'up') {
+        push({ k: 'ring', x: ev.x, y: ev.y, color: TRACKS[ev.track].color }, 0.45);
+        push({ k: 'float', x: ev.x, y: ev.y, tx: TRACKS[ev.track].icon + '▲' }, 0.7);
+      } else if (ev.k === 'blast') {
+        this.shake = 16; this.white = 0.35;
+        Sfx.play('boom');
+      } else if (ev.k === 'cheer') {
+        Sfx.play('rare');
+      } else if (ev.k === 'combo') {
+        push({ k: 'float', x: MAP.cols / 2 - 0.5, y: 0.6, tx: `콤보 ${ev.n}!  +${SKILL.comboBonus}⚡`, big: true }, 1.1);
+        Sfx.play('coin');
+      } else if (ev.k === 'bonus') {
+        push({ k: 'float', x: MAP.cols / 2 - 0.5, y: 1.4, tx: `일찍 부르기 +${ev.n}⚡`, big: true }, 1.1);
+        Sfx.play('coin');
       } else if (ev.k === 'leak') {
         this.shake = 9; this.hurt = 0.4;
         Sfx.play('leak');
@@ -587,7 +706,14 @@ const Battle = {
       circle(P(x), P(y), range * ts, false);
       ctx.setLineDash([]);
     };
-    if (this.selTower) showRange(this.selTower.x, this.selTower.y, this.selTower.range, true);
+    if (this.selTower) {
+      showRange(this.selTower.x, this.selTower.y, this.selTower.range, true);
+      if (this.previewRange) { // 사거리 강화 버튼에 올리면 강화 후 범위를 미리 보여 줌
+        ctx.strokeStyle = TRACKS.rng.color;
+        ctx.lineWidth = 2.5;
+        circle(P(this.selTower.x), P(this.selTower.y), this.previewRange * ts, false);
+      }
+    }
     if (this.sel && this.hover && MAP.inBounds(this.hover.c, this.hover.r)) {
       showRange(this.hover.c, this.hover.r, g.rangeOf(CHAR_BY_ID[this.sel]), g.canBuild(this.hover.c, this.hover.r));
     }
@@ -597,18 +723,34 @@ const Battle = {
       const k = this.kick.get(t.id);
       let a = 0;
       if (k && k.t > 0) { k.t -= dt; a = Math.max(0, k.t / 0.14); }
-      const size = ts * (0.66 + 0.07 * t.star) * (1 + a * 0.16);
+      const lv = g.levelOf(t);
+      const size = ts * (0.68 + 0.025 * lv) * (1 + a * 0.16);
       const x = P(t.x) + (k ? k.dx * ts * 0.18 * a : 0);
-      const y = P(t.y) - ts * 0.04 + (k ? k.dy * ts * 0.18 * a : 0);
+      const y = P(t.y) - ts * 0.06 + (k ? k.dy * ts * 0.18 * a : 0);
       if (t.def.rar >= 3) {
         ctx.fillStyle = RARITY[t.def.rar].color + '33';
         circle(P(t.x), P(t.y), ts * 0.48, true);
       }
+      if (g.cheerT > 0) {
+        ctx.strokeStyle = `rgba(245,163,0,${0.5 + 0.4 * Math.sin(g.t * 14)})`;
+        ctx.lineWidth = 3;
+        circle(P(t.x), P(t.y), ts * 0.46, false);
+      }
       this.emoji(t.def.e, x, y, size, t.disT > 0 ? 0.35 : 1);
       if (t.disT > 0) this.emoji('🖤', x, y, ts * 0.4);
-      ctx.fillStyle = '#f5a300';
-      ctx.font = `${ts * 0.2}px sans-serif`;
-      ctx.fillText('★'.repeat(t.star), P(t.x), P(t.y) + ts * 0.38);
+      // 강화 단계: 갈래 색 점으로 표시
+      if (lv) {
+        const d = ts * 0.11;
+        let i = 0;
+        for (const k of ['dmg', 'spd', 'rng', 'sp']) {
+          for (let n = 0; n < t.up[k]; n++, i++) {
+            ctx.fillStyle = '#fff';
+            circle(P(t.x) + (i - (lv - 1) / 2) * d, P(t.y) + ts * 0.4, d * 0.5, true);
+            ctx.fillStyle = TRACKS[k].color;
+            circle(P(t.x) + (i - (lv - 1) / 2) * d, P(t.y) + ts * 0.4, d * 0.36, true);
+          }
+        }
+      }
     }
     // 적
     for (const e of g.enemies) {
@@ -642,6 +784,21 @@ const Battle = {
       ctx.fillStyle = `rgba(229,72,77,${0.4 * Math.max(0, this.hurt) / 0.4})`;
       ctx.fillRect(0, 0, ts * MAP.cols, ts * MAP.rows);
     }
+    if (this.white > 0) {
+      this.white -= dt;
+      ctx.fillStyle = `rgba(255,255,255,${Math.max(0, this.white) / 0.35 * 0.8})`;
+      ctx.fillRect(0, 0, ts * MAP.cols, ts * MAP.rows);
+    }
+    if (g.combo >= 3) {
+      const pop = 1 + 0.3 * Math.max(0, g.comboT - (SKILL.comboWindow - 0.15)) / 0.15;
+      ctx.textAlign = 'right';
+      ctx.font = `${ts * 0.36 * pop}px Jua, sans-serif`;
+      ctx.lineWidth = 4;
+      ctx.strokeStyle = '#fff';
+      ctx.fillStyle = g.combo >= 10 ? '#e5484d' : '#f5a300';
+      ctx.strokeText(`콤보 x${g.combo}`, ts * MAP.cols - 8, ts * 0.35);
+      ctx.fillText(`콤보 x${g.combo}`, ts * MAP.cols - 8, ts * 0.35);
+    }
   },
   finish() {
     const g = this.g;
@@ -660,7 +817,7 @@ const Battle = {
         <div class="btns"><button class="key" id="mHome">홈</button><button class="key" id="mRetry">다시</button>${n < STAGES.length ? '<button class="key primary" id="mNext">다음 ▶</button>' : ''}</div>`);
     } else {
       modal(`<div class="big">😵</div><h3>마음이 무너졌어요</h3><p>웨이브 ${g.waveIdx + 1}/${g.waves.length}에서 패배</p>
-        <p>덱을 바꾸거나, 같은 캐릭터를 눌러 ★강화해 보세요.</p>
+        <p>놓은 캐릭터를 눌러 강화하고, 💥 폭발과 📣 응원을 아껴 두었다가 몰릴 때 써 보세요.</p>
         <div class="btns"><button class="key" id="mHome">홈</button><button class="key" id="mDeck">덱 편성</button><button class="key primary" id="mRetry">다시</button></div>`);
     }
     const on = (id, fn) => { const el = $(id); if (el) el.onclick = () => { closeModal(); fn(); }; };
@@ -693,7 +850,22 @@ for (const p of view.parts) {
       ctx.beginPath(); ctx.moveTo(P(p.x1 + (p.x2 - p.x1) * k0), P(p.y1 + (p.y2 - p.y1) * k0)); ctx.lineTo(x, y); ctx.stroke();
       ctx.fillStyle = '#fff';
       circle(x, y, ts * (p.crit ? 0.09 : 0.06), true);
-    } else if (p.k === 'spark') {
+    } else if (p.k === 'ring') {
+    ctx.strokeStyle = p.color;
+    ctx.globalAlpha = 1 - k;
+    ctx.lineWidth = 4;
+    circle(P(p.x), P(p.y), ts * (0.3 + 0.7 * k), false);
+    ctx.globalAlpha = 1;
+  } else if (p.k === 'float') {
+    ctx.globalAlpha = 1 - k * k;
+    ctx.font = `${ts * (p.big ? 0.42 : 0.3)}px Jua, ${EMOJI_FONT}`;
+    ctx.lineWidth = 4;
+    ctx.strokeStyle = '#fff';
+    ctx.fillStyle = '#3b2a4a';
+    ctx.strokeText(p.tx, P(p.x), P(p.y) - ts * (0.3 + 0.5 * k));
+    ctx.fillText(p.tx, P(p.x), P(p.y) - ts * (0.3 + 0.5 * k));
+    ctx.globalAlpha = 1;
+  } else if (p.k === 'spark') {
       ctx.globalAlpha = 1 - k;
       ctx.fillStyle = p.color;
       circle(P(p.x + p.vx * p.t), P(p.y + p.vy * p.t + 2 * p.t * p.t), ts * 0.05 * (1 - k * 0.5), true);
@@ -780,6 +952,9 @@ $('#btnQuit').onclick = () => {
   $('#mNo').onclick = closeModal;
   $('#mYes').onclick = () => { closeModal(); go('stages'); };
 };
+$('#skBlast').onclick = () => { const g = Battle.g; if (g && !g.useBlast()) toast(g.blast < 1 ? '적을 처치하면 충전돼요' : '적이 없어요'); };
+$('#skCheer').onclick = () => { const g = Battle.g; if (g && !g.useCheer()) toast(`응원은 ${Math.ceil(g.cheerCd)}초 뒤에 쓸 수 있어요`); };
+$('#btnNext').onclick = () => { const g = Battle.g; if (g) g.callNext(); };
 $('#btnStart').onclick = () => { if (Battle.g) { Battle.g.started = true; Sfx.play('up'); } };
 const paintMute = () => $$('.mute-btn').forEach((el) => (el.textContent = save.mute ? '🔇' : '🔊'));
 $$('.mute-btn').forEach((el) => (el.onclick = () => { save.mute = !save.mute; persist(); paintMute(); }));

@@ -215,3 +215,47 @@ button.rcard { font: inherit; color: inherit; cursor: pointer; padding: 0; }
 .ebar { position: relative; height: 22px; border-radius: 11px; background: #fff; box-shadow: inset 0 0 0 2px rgba(59, 42, 74, .1); overflow: hidden; }
 .efill { height: 100%; background: linear-gradient(#ffe08a, #ffcc4d); border-radius: 11px; width: 0; }
 .ebar span { position: absolute; inset: 0; display: grid; place-content: center; font-size: 13px; }
+
+/* ---------- 전투 행동 줄: 기술, 다음 웨이브 ---------- */
+.actions { display: grid; grid-template-columns: 1fr 1fr 1.15fr; gap: 6px; }
+.key.act { display: grid; padding: 6px 4px 5px; border-radius: 14px; font-size: 15px; line-height: 1.15; overflow: hidden; }
+.key.act b { font-weight: 400; position: relative; }
+.key.act small { font-size: 11px; color: var(--ink-soft); position: relative; }
+.key.skill::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: var(--p, 0%); background: #ffe9a8; border-radius: 14px 0 0 14px; transition: width .2s; }
+.key.skill.ready::before { background: linear-gradient(#ffdb6e, var(--yellow)); border-radius: 14px; }
+.key.skill.ready { animation: ready .8s ease-in-out infinite; }
+.key.skill.active::before { background: #ffb3c8; width: 100%; border-radius: 14px; }
+@keyframes ready { 50% { box-shadow: 0 5px 0 var(--yellow-d), 0 0 16px 4px rgba(255, 190, 40, .8); } }
+.chip.perks { font: inherit; font-size: 13px; cursor: pointer; border: 0; color: #a855f7; }
+
+/* ---------- 캐릭터 정보 패널 ---------- */
+.tpanel { display: none; flex-direction: column; gap: 6px; background: #fff; border-radius: 18px; padding: 8px 10px 10px; box-shadow: 0 -2px 0 var(--key-edge), 0 6px 16px rgba(80, 50, 10, .16); }
+.tpanel.on { display: flex; animation: pop .16s ease-out; }
+.tp-head { display: flex; align-items: center; gap: 8px; }
+.tp-head .em { font: 34px/1 var(--emoji); }
+.tp-head .nm { flex: 1; font-size: 16px; line-height: 1.25; }
+.tp-head .nm b { font-weight: 400; }
+.tp-head small { font-size: 12px; color: var(--ink-soft); }
+.tp-stats { font-size: 13px; color: var(--ink-soft); line-height: 1.5; }
+.tp-stats b { color: var(--ink); font-weight: 400; }
+.tp-stats .buff { color: #f5a300; margin-left: 4px; }
+.tp-ups { display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px; }
+.tp-ups.n1 { grid-template-columns: 1fr; }
+.key.upb { display: grid; gap: 1px; text-align: left; padding: 6px 8px; border-radius: 12px; font-size: 12px; box-shadow: 0 3px 0 var(--key-edge); border-left: 5px solid var(--tc); }
+.key.upb .t { font-size: 13px; }
+.key.upb .t i { font-style: normal; color: var(--tc); letter-spacing: 1px; font-size: 10px; }
+.key.upb .v { color: var(--ink-soft); }
+.key.upb .v b { color: var(--tc); font-weight: 400; }
+.key.upb .c { color: #c98a00; }
+.key.upb[data-off] { filter: grayscale(.7) opacity(.6); }
+.tp-foot { display: flex; justify-content: space-between; gap: 8px; }
+.tp-foot .key { padding: 6px 12px; font-size: 13px; border-radius: 10px; box-shadow: 0 3px 0 var(--key-edge); }
+
+/* ---------- 특성 카드 ---------- */
+.perk-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 12px; }
+.key.perk { display: grid; justify-items: center; gap: 4px; padding: 14px 6px; font-size: 15px; animation: flip .4s both cubic-bezier(.3, 1.5, .5, 1); }
+.key.perk:nth-child(2) { animation-delay: .08s; }
+.key.perk:nth-child(3) { animation-delay: .16s; }
+.key.perk .em { font: 40px/1 var(--emoji); }
+.key.perk b { font-weight: 400; }
+.key.perk small { font-size: 12px; color: var(--ink-soft); line-height: 1.3; }

@@ -268,3 +268,78 @@ export function gachaPull(pity, rng) {
   const pool = CHARS.filter((c) => c.rar === rar);
   return pool[Math.floor(rng() * pool.length)];
 }
+
+// ---------- 전투 중 강화 ----------
+// 캐릭터마다 강화 갈래가 있고, 갈래당 3단계 · 캐릭터당 합계 6단계까지 → 어디에 투자할지 골라야 함
+export const UP = { max: 3, total: 6, costK: [0.5, 0.75, 1.0], dmg: 0.35, spd: 0.25, rng: 0.5 };
+export const TRACKS = {
+  dmg: { icon: '💥', name: '공격력', color: '#e5484d' },
+  spd: { icon: '⚡', name: '공속', color: '#f5a300' },
+  rng: { icon: '🎯', name: '사거리', color: '#3b82f6' },
+  sp: { icon: '✨', name: '특수', color: '#a855f7' },
+};
+export function tracksOf(def) {
+  if (def.income) return ['sp'];
+  if (def.aura) return ['rng', 'sp'];
+  if (def.pulse && !def.dmg) return ['spd', 'rng', 'sp'];
+  return ['dmg', 'spd', 'rng', 'sp'];
+}
+// 캐릭터의 고유 능력이 무엇이냐에 따라 '특수' 갈래가 올려 주는 것이 달라짐
+export function spKey(def) {
+  if (def.slow) return 'slow';
+  if (def.poison) return 'poison';
+  if (def.vuln) return 'vuln';
+  if (def.knock) return 'knock';
+  if (def.pull) return 'pull';
+  if (def.zone) return 'zone';
+  if (def.aura) return 'aura';
+  if (def.income) return 'income';
+  if (def.pulse) return def.pulse.sleep ? 'sleep' : 'confuse';
+  if (def.seal) return 'seal';
+  if (def.crit) return 'crit';
+  if (def.splash) return 'splash';
+  if (def.target === 'strong') return 'hunter';
+  return def.range >= 3 ? 'opener' : 'double';
+}
+export const SPECIAL = {
+  slow: { name: '감속 강화', per: '감속 +7%p' },
+  poison: { name: '맹독', per: '독 피해 +40%' },
+  vuln: { name: '약점 노출', per: '받는 피해 증가 +5%p' },
+  knock: { name: '강한 재채기', per: '밀어내기 +0.25칸' },
+  pull: { name: '긴 올가미', per: '끌어당김 +0.4칸' },
+  zone: { name: '넓은 장판', per: '장판 반경 +0.2칸' },
+  aura: { name: '응원 강화', per: '버프 효과 +40%' },
+  income: { name: '이자', per: '생산량 +4' },
+  sleep: { name: '깊은 잠', per: '수면 +0.4초' },
+  confuse: { name: '대혼란', per: '혼란 대상 +1기' },
+  seal: { name: '긴 봉인', per: '봉인 +1초' },
+  crit: { name: '급소', per: '치명타 확률 +8%p' },
+  splash: { name: '큰 폭발', per: '폭발 반경 +0.2칸' },
+  hunter: { name: '거물 사냥', per: '보스·정예 피해 +25%' },
+  opener: { name: '선제 공격', per: '체력 절반 이상인 적에게 피해 +20%' },
+  double: { name: '연타', per: '15% 확률로 한 번 더 공격' },
+};
+export const MODES = [
+  { id: 'first', name: '맨 앞' }, { id: 'last', name: '맨 뒤' }, { id: 'strong', name: '튼튼한 적' }, { id: 'weak', name: '약한 적' }, { id: 'near', name: '가까운 적' },
+];
+
+// ---------- 특성 카드: 전투 시작과 2웨이브마다 3장 중 1장 ----------
+export const PERKS = [
+  { id: 'dmg', e: '💪', name: '근육', text: '모든 캐릭터 피해 +12%', add: { dmg: 0.12 } },
+  { id: 'spd', e: '🥁', name: '박자', text: '모든 캐릭터 공속 +10%', add: { spd: 0.1 } },
+  { id: 'range', e: '🔭', name: '망원경', text: '모든 캐릭터 사거리 +0.4칸', add: { range: 0.4 } },
+  { id: 'crit', e: '🎲', name: '행운', text: '모든 캐릭터 치명타 확률 +8%p', add: { crit: 0.08 } },
+  { id: 'bounty', e: '💰', name: '현상금', text: '처치 보상 +20%', add: { bounty: 0.2 } },
+  { id: 'cash', e: '🎁', name: '용돈', text: '즉시 에너지 +150', now: { energy: 150 } },
+  { id: 'heart', e: '💗', name: '응급처치', text: '마음 +6', now: { hearts: 6 } },
+  { id: 'aoe', e: '🎆', name: '불꽃놀이', text: '폭발·장판 반경 +20%', add: { aoeR: 0.2 } },
+  { id: 'cc', e: '⏳', name: '끈끈이', text: '상태이상 지속 +30%', add: { cc: 0.3 } },
+  { id: 'sale', e: '🏷️', name: '할인', text: '강화 비용 -15%', add: { upCost: 0.15 } },
+  { id: 'mud', e: '🕸️', name: '거미줄', text: '모든 적 이동속도 -8%', add: { enemySlow: 0.08 } },
+  { id: 'boss', e: '🗡️', name: '거인 사냥', text: '보스·정예에게 피해 +30%', add: { boss: 0.3 } },
+  { id: 'dot', e: '☠️', name: '맹독', text: '독·장판 피해 +40%', add: { dot: 0.4 } },
+  { id: 'charge', e: '🔋', name: '충전기', text: '기술 충전 속도 +40%', add: { charge: 0.4 } },
+  { id: 'refund', e: '♻️', name: '재활용', text: '판매 시 100% 환불', once: true, add: { refund: 1 } },
+  ...Object.keys(ATTR).map((a) => ({ id: 'a_' + a, e: ATTR[a].icon, name: ATTR[a].name + '의 힘', text: `${ATTR[a].name} 속성 캐릭터 피해 +25%`, attr: a })),
+];
+export const SKILL = { blastKills: 22, blastPct: 0.14, blastBoss: 0.05, blastStun: 1.2, cheerCd: 40, cheerDur: 5, cheerMul: 1.8, earlyBonus: 0.25, comboWindow: 1.5, comboEvery: 10, comboBonus: 10 };
