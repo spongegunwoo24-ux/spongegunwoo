@@ -9,9 +9,9 @@ const RUNS = +process.argv[3] || 3;
 const DT = 0.1;
 const STAGES = 10;
 
-export function runOnce(deck, stage, seed) {
+export function runOnce(deck, stage, seed, novice = false) {
   const g = new Game({ deck, stage, seed });
-  const bot = new Bot(g, mulberry32(seed * 7919 + 13));
+  const bot = new Bot(g, mulberry32(seed * 7919 + 13), { novice });
   let guard = 0;
   while (!g.result && guard++ < 60000) {
     bot.tick(DT);
@@ -20,12 +20,12 @@ export function runOnce(deck, stage, seed) {
   return g;
 }
 
-function rate(deck, stage, runs, seed0) {
+function rate(deck, stage, runs, seed0, novice = false) {
   let win = 0;
   let prog = 0;
   const dmg = {};
   for (let i = 0; i < runs; i++) {
-    const g = runOnce(deck, stage, seed0 + i * 101);
+    const g = runOnce(deck, stage, seed0 + i * 101, novice);
     if (g.result === 'win') win++;
     prog += (g.result === 'win' ? 10 : g.waveIdx) / 10;
     for (const k in g.stats) dmg[k] = (dmg[k] || 0) + g.stats[k];
@@ -58,6 +58,13 @@ for (const [name, deck] of Object.entries(fixed)) {
   const r = [];
   for (let s = 1; s <= STAGES; s++) r.push(rate(deck, s, 20, 1000 + s).win);
   row(name, r);
+}
+
+{
+  // 사람 초보를 흉내 낸 봇: 3초에 한 번 행동, 자리 선택 엉성, 강화는 칸이 찬 뒤에만
+  const r = [];
+  for (let s = 1; s <= STAGES; s++) r.push(rate(STARTER.slice(0, 5), s, 40, 3000 + s, true).win);
+  row('시작 덱 + 초보 봇', r);
 }
 
 // 2) 무작위 덱 — 전체 풀 / 일반+희귀 풀

@@ -33,7 +33,9 @@ const roleOf = (def) =>
 const isAtk = (def) => def.itv > 0;
 
 export class Bot {
-  constructor(game, rng) {
+  // novice: 사람 초보를 흉내 — 느리게 반응하고 자리 선택이 엉성함
+  constructor(game, rng, { novice = false } = {}) {
+    this.novice = novice;
     this.g = game;
     this.rng = rng;
     this.want = null;
@@ -41,11 +43,13 @@ export class Bot {
     this.acc = 0;
   }
   tick(dt) {
+    this.g.started = true;
     this.acc += dt;
-    if (this.acc < 0.5) return;
+    const every = this.novice ? 3 : 0.5;
+    if (this.acc < every) return;
     this.acc = 0;
-    this.waited += 0.5;
-    for (let i = 0; i < 4; i++) if (!this.act()) break;
+    this.waited += every;
+    for (let i = 0; i < (this.novice ? 1 : 4); i++) if (!this.act()) break;
   }
   counts() {
     const c = { econ: 0, support: 0, dmg: 0, ctrl: 0, by: {} };
@@ -129,7 +133,7 @@ export class Bot {
     }
     if (!cand.length) return null;
     cand.sort((a, b) => b.s - a.s);
-    return cand[Math.floor(this.rng() * Math.min(3, cand.length))];
+    return cand[Math.floor(this.rng() * Math.min(this.novice ? Math.ceil(cand.length * 0.6) : 3, cand.length))];
   }
   act() {
     const g = this.g;
@@ -158,7 +162,8 @@ export class Bot {
     // 새로 놓을지, 좋은 자리의 기존 캐릭터를 강화할지
     let doMerge = !!merge && !tile;
     if (merge && tile) {
-      if (roleOf(def) === 'dmg') doMerge = merge.s >= tile.s && !(g.towers.length < 5 && this.rng() < 0.5);
+      if (this.novice) doMerge = false; // 초보는 칸이 찰 때까지 강화를 모름
+      else if (roleOf(def) === 'dmg') doMerge = merge.s >= tile.s && !(g.towers.length < 5 && this.rng() < 0.5);
       else doMerge = g.countOf(def.id) >= 1;
     }
     if (doMerge) return g.upgrade(merge.t);

@@ -22,7 +22,8 @@
     </div>
     <header class="topbar">
       <div class="logo"><span class="logo-face">😀</span><div><b>이모지 디펜스</b><small id="homeSub">스마일리 탭을 지켜라</small></div></div>
-      <div class="pill" id="homeStars">⭐ 0/30</div>
+      <button class="key mini" id="btnSet" title="설정">⚙️</button>
+      <div class="pill" id="homeStars">⭐ 0/60</div>
       <div class="pill gem">💎 <b class="gems">0</b></div>
     </header>
     <div class="dock">
@@ -35,7 +36,8 @@
   <!-- 스테이지 선택 -->
   <section id="stages" class="screen">
     <header class="bar"><button class="key back" data-go="home">◀</button><h2>1장 · 동물·자연 탭</h2><div class="pill gem">💎 <b class="gems">0</b></div></header>
-    <p class="hint">깨진 글자 □에 물든 동물들이 몰려옵니다. 스테이지를 골라 출격하세요.</p>
+    <div class="tabs" id="modeTabs"><button class="key" data-mode="td">🏰 디펜스</button><button class="key" data-mode="br">⚔️ 난투</button></div>
+    <p class="hint" id="stageHint"></p>
     <div id="stageList" class="stage-list"></div>
   </section>
 
@@ -73,15 +75,33 @@
       <div class="pill" id="hudWave">웨이브 0/10</div>
       <div class="pill next" id="hudNext"></div>
       <span class="grow"></span>
+      <button class="key mini mute-btn" title="소리">🔊</button>
       <button class="key mini" id="btnAuto" title="자동 배치">🤖</button>
       <button class="key mini" id="btnSpeed">x1</button>
     </header>
     <div id="boardWrap"><canvas id="board"></canvas>
       <div id="towerPanel" class="tower-panel"></div>
       <div id="waveBanner" class="wave-banner"></div>
+      <div id="startBox" class="start-box"><p>캐릭터를 골라 초록 칸에 놓으세요.<br>길이 꺾이는 곳 옆이 가장 오래 때릴 수 있는 명당!</p><button class="key primary" id="btnStart">▶ 웨이브 시작</button></div>
     </div>
     <div id="battleSyn" class="chips small"></div>
     <div id="hand" class="hand"></div>
+  </section>
+
+  <!-- 난투: 필드에 내보내면 스스로 싸우는 모드 -->
+  <section id="brawl" class="screen">
+    <header class="hud">
+      <button class="key mini" id="bQuit">✕</button>
+      <div class="pill">💛 <b id="bMy">0</b></div>
+      <div class="pill">🕳️ <b id="bEn">0</b></div>
+      <div class="pill" id="bTime"></div>
+      <span class="grow"></span>
+      <button class="key mini mute-btn" title="소리">🔊</button>
+      <button class="key mini" id="bSpeed">x1</button>
+    </header>
+    <div id="arenaWrap"><canvas id="arena"></canvas></div>
+    <div class="ebar"><div class="efill" id="eFill"></div><span id="eNum"></span></div>
+    <div id="bHand" class="hand"></div>
   </section>
 </div>
 

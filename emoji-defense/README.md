@@ -6,11 +6,14 @@
   ```bash
   python3 -m http.server 8000
   ```
-- 밸런스 시뮬레이터: `node sim/sim.mjs [무작위 덱 수] [덱당 반복]` → 최근 결과는 `sim/results.txt`
+- 한 파일 버전: `python3 build.py` → `emoji-defense.html` (더블클릭으로 실행)
+- 밸런스 시뮬레이터: `node sim/sim.mjs` (디펜스, 결과 `sim/results.txt`), `node sim/brawl-sim.mjs` (난투, 결과 `sim/brawl-results.txt`)
 
 ## 들어 있는 것
 - 홈(보유 캐릭터가 돌아다니는 마당), 스테이지 선택(1장 10스테이지), 덱 편성, 뽑기(3단 천장), 전투
 - 캐릭터 22명, 적 9종, 속성 시너지, 전투 중 ★강화, 자동 배치 봇
+- 두 가지 모드: 디펜스(길 옆에 배치)와 난투(필드에 내보내면 스스로 싸움)
+- 타격 효과와 소리, 상자를 두드려 여는 뽑기 연출, 설정의 전체 초기화
 
 ## 아직 없는 것
 - 한정 배너 14명, 진화, 특성, 레벨, 레이드, 랭킹, 2장 이후 스토리
@@ -19,4 +22,5 @@
 - `js/data.js` 캐릭터·적·스테이지·뽑기 수치 (밸런스는 여기서 조정)
 - `js/engine.js` 전투 엔진 (화면과 무관, 시뮬레이터와 공유)
 - `js/bot.js` 자동 배치 봇
+- `js/brawl.js` 난투 모드 엔진
 - `js/main.js`, `css/style.css`, `index.html` 화면

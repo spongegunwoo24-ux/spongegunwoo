@@ -4,7 +4,9 @@ import { CHAR_BY_ID, ENEMIES, MAP, RULES, makeWaves, synergyOf, posAt, mulberry3
 let nextId = 1;
 
 export class Game {
-  constructor({ deck, stage, seed = 1, fx = false }) {
+  constructor({ deck, stage, seed = 1, fx = false, waitStart = false }) {
+    this.started = !waitStart; // 화면에서는 플레이어가 시작을 누를 때까지 첫 웨이브를 기다림
+    this.critNow = false;
     this.rng = mulberry32(seed);
     this.deckIds = deck.slice();
     this.deck = deck.map((id) => CHAR_BY_ID[id]);
@@ -134,10 +136,11 @@ export class Game {
     const real = Math.min(e.hp, amt);
     e.hp -= amt;
     if (src) this.stats[src] = (this.stats[src] || 0) + real;
+    if (!dot) this.emit({ k: 'hit', id: e.id, x: e.x, y: e.y, n: real, crit: this.critNow });
     if (e.hp <= 0) {
       e.dead = true;
       this.energy += e.bounty;
-      this.emit({ k: 'die', x: e.x, y: e.y, e: e.def.e, boss: e.boss });
+      this.emit({ k: 'die', id: e.id, x: e.x, y: e.y, e: e.def.e, boss: e.boss, elite: e.elite, b: e.bounty });
     }
   }
   // 강한 군중 제어는 연속으로 걸릴수록 절반씩 약해짐. 보스는 이동 방해 면역.
@@ -212,7 +215,8 @@ export class Game {
       dmg *= def.critMul || 2;
       crit = true;
     }
-    this.emit({ k: 'shot', x1: t.x, y1: t.y, x2: target.x, y2: target.y, e: def.e, crit, tid: t.id });
+    this.emit({ k: 'shot', x1: t.x, y1: t.y, x2: target.x, y2: target.y, attr: def.attr, crit, tid: t.id });
+    this.critNow = crit;
     if (def.zone) {
       this.zones.push({ x: target.x, y: target.y, r: def.zone.r, dps: def.zone.dps * t.star * t.dmgMul * (1 + this.syn.aoe), t: def.zone.dur * (1 + this.syn.cc), src: def.id });
       return;
@@ -222,7 +226,7 @@ export class Game {
       const tx = target.x;
       const ty = target.y;
       dmg *= 1 + this.syn.aoe;
-      this.emit({ k: 'splash', x: tx, y: ty, r: def.splash, attr: def.attr });
+      this.emit({ k: 'splash', x: tx, y: ty, r: def.splash, attr: def.attr, big: def.splash >= 1.4 });
       for (const e of this.enemies) {
         if (e.dead) continue;
         const dx = e.x - tx;
@@ -247,6 +251,7 @@ export class Game {
     } else {
       this.hit(target, dmg, t);
     }
+    this.critNow = false;
   }
   pulse(t) {
     const p = t.def.pulse;
@@ -278,7 +283,9 @@ export class Game {
     this.t += dt;
 
     // 웨이브 진행
-    if (this.spawnQ.length) {
+    if (!this.started) {
+      // 준비 시간: 배치만 가능
+    } else if (this.spawnQ.length) {
       this.spawnClock += dt;
       while (this.spawnQ.length && this.spawnQ[0].t <= this.spawnClock) this.spawn(this.spawnQ.shift());
     } else if (!this.enemies.length) {

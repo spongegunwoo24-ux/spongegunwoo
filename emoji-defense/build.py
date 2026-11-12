@@ -3,7 +3,7 @@
 import re, pathlib
 root = pathlib.Path(__file__).parent
 js = ''
-for name in ['data', 'engine', 'bot', 'main']:
+for name in ['data', 'engine', 'bot', 'brawl', 'main']:
     src = (root / 'js' / f'{name}.js').read_text(encoding='utf-8')
     src = re.sub(r'^import .*?;\n', '', src, flags=re.M)
     src = re.sub(r'^export ', '', src, flags=re.M)

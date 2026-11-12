@@ -75,7 +75,7 @@ export const RULES = {
   ccResetTime: 5,
   bossCcFactor: 0.3,
   firstWaveDelay: 5,
-  waveDelay: 3,
+  waveDelay: 4,
   wavesPerStage: 10,
 };
 
@@ -185,7 +185,7 @@ export const STAGES = [
 ];
 
 // 스테이지별 체력 배율 (시뮬레이터로 조정하는 값)
-export const STAGE_MULT = [0.75, 0.85, 0.95, 1.05, 1.1, 1.25, 1.35, 1.45, 1.55, 1.7];
+export const STAGE_MULT = [0.5, 0.62, 0.75, 0.9, 1.0, 1.15, 1.3, 1.45, 1.55, 1.7];
 
 export function waveReward(w) {
   return 80 + 35 * w;
