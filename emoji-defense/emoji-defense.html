@@ -283,7 +283,7 @@ button.rcard { font: inherit; color: inherit; cursor: pointer; padding: 0; }
       <div class="ground" id="ground"></div>
     </div>
     <header class="topbar">
-      <div class="logo"><span class="logo-face">😀</span><div><b>이모지 디펜스</b><small id="homeSub">스마일리 탭을 지켜라 · v0.4</small></div></div>
+      <div class="logo"><span class="logo-face">😀</span><div><b>이모지 디펜스</b><small id="homeSub">스마일리 탭을 지켜라 · v0.5</small></div></div>
       <button class="key mini" id="btnSet" title="설정">⚙️</button>
       <div class="pill" id="homeStars">⭐ 0/60</div>
       <div class="pill gem">💎 <b class="gems">0</b></div>
@@ -2998,11 +2998,21 @@ $('#bQuit').onclick = () => $('#btnQuit').onclick();
 // ---------- 설정: 소리, 전체 초기화 ----------
 $('#btnSet').onclick = () => {
   modal(`<h3>설정</h3>
-    <div class="btns"><button class="key" id="sMute">${save.mute ? '🔇 소리 꺼짐' : '🔊 소리 켜짐'}</button></div>
+    <div class="btns"><button class="key" id="sMute">${save.mute ? '🔇 소리 꺼짐' : '🔊 소리 켜짐'}</button>
+      <button class="key" id="sUnlock">🔓 모든 캐릭터 해금</button></div>
     <p style="margin-top:16px">전체 초기화는 캐릭터, 젬, 별, 뽑기 천장 기록을 모두 지우고 처음 상태로 되돌립니다.</p>
     <div class="btns"><button class="key danger" id="sReset">🗑️ 게임 전체 초기화</button><button class="key" id="sClose">닫기</button></div>`);
   $('#sMute').onclick = () => { save.mute = !save.mute; persist(); paintMute(); $('#btnSet').onclick(); };
   $('#sClose').onclick = closeModal;
+  // 테스트용: 22명을 모두 보유 상태로 만듦 (이미 가진 캐릭터의 조각 수는 그대로)
+  $('#sUnlock').onclick = () => {
+    let n = 0;
+    CHARS.forEach((c) => { if (!save.owned[c.id]) { save.owned[c.id] = 1; n++; } });
+    persist();
+    closeModal();
+    go('home');
+    toast(n ? `${n}명을 새로 해금했어요 (${CHARS.length}/${CHARS.length})` : '이미 모든 캐릭터를 가지고 있어요');
+  };
   $('#sReset').onclick = () => {
     modal(`<div class="big">🫥</div><h3>정말 모두 지울까요?</h3><p>되돌릴 수 없어요. 모은 캐릭터 ${Object.keys(save.owned).length}명과 별 ${totalStars()}개가 사라집니다.</p>
       <div class="btns"><button class="key primary" id="rNo">취소</button><button class="key danger" id="rYes">초기화</button></div>`);
