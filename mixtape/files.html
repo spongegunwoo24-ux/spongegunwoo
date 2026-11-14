@@ -157,52 +157,90 @@ footer{max-width:1180px;margin:0 auto;padding:0 16px 40px;font-size:12px;color:v
   border:3px dashed var(--amber);font-size:19px;font-weight:600;color:var(--amber)}
 .drop.on{display:flex}
 .pickrow{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+
+/* ================= app shell: 사이드 내비 + 하단 플레이어 바 ================= */
+:root{
+  --side:196px; --top:52px; --bar:92px;
+  --bg:#EEF1F3; --panel:#FFFFFF; --panel-2:#E2E7EB; --ink:#12181D; --muted:#55636E;
+  --faint:#84919B; --line:#CFD7DD; --line-soft:#E1E7EB;
+  --amber:#0A6E7C; --amber-ink:#FFFFFF; --amber-wash:#D5ECEF;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#0D1216; --panel:#151B21; --panel-2:#1C242B; --ink:#E6ECF0; --muted:#93A1AC;
+    --faint:#66737D; --line:#27313A; --line-soft:#1E272E;
+    --amber:#4CC9D4; --amber-ink:#062226; --amber-wash:#10343A;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0D1216; --panel:#151B21; --panel-2:#1C242B; --ink:#E6ECF0; --muted:#93A1AC;
+  --faint:#66737D; --line:#27313A; --line-soft:#1E272E;
+  --amber:#4CC9D4; --amber-ink:#062226; --amber-wash:#10343A;
+}
+.topbar-in{max-width:none}
+.deck,.io{grid-template-columns:minmax(0,1.7fr) minmax(360px,1fr)}
+.deck > .screen-shell,.deck > .stage{order:2}
+.queue{max-height:min(70vh,760px)}
+@media (max-width:920px){
+  .deck,.io{grid-template-columns:1fr}
+  .deck > .screen-shell,.deck > .stage{order:0}
+}
+@media (min-width:921px){
+  .topbar-in{height:var(--top);flex-wrap:nowrap;padding-block:0;padding-left:20px;padding-right:24px}
+  .nav{position:fixed;left:0;top:var(--top);bottom:0;width:var(--side);z-index:15;
+       border-bottom:0;border-right:1px solid var(--line);overflow-y:auto}
+  .nav-in{flex-direction:column;gap:2px;max-width:none;padding:14px 10px 14px 0;overflow:visible}
+  .nav a{border-bottom:0;border-left:3px solid transparent;border-radius:0 5px 5px 0;padding:9px 14px;font-size:13.5px}
+  .nav a[aria-current="page"]{border-left-color:var(--amber);border-bottom-color:transparent;background:var(--amber-wash)}
+  .wrap{margin-left:var(--side);margin-right:0;max-width:none;padding-left:24px;padding-right:24px}
+  footer{margin-left:var(--side);max-width:none;padding-left:24px}
+}
+
+.playerbar{
+  position:fixed;left:0;right:0;bottom:0;z-index:30;background:var(--panel);
+  border-top:1px solid var(--line);box-shadow:0 -10px 28px -20px rgba(0,0,0,.55);
+  padding-bottom:env(safe-area-inset-bottom,0px);
+}
+.playerbar-in{
+  display:grid;grid-template-columns:minmax(0,1fr) auto;
+  grid-template-areas:"tuner tuner" "now transport";
+  column-gap:18px;padding:2px 18px 10px;
+}
+.playerbar .tuner{grid-area:tuner;padding:0;display:flex;align-items:center;gap:12px}
+.playerbar .tuner-bar{flex:1 1 auto;min-width:0}
+.playerbar .times{flex:none;padding:0;gap:5px;justify-content:flex-end}
+.playerbar #t-cur::after{content:" /";color:var(--faint)}
+.playerbar .nowbar{grid-area:now;padding:0;align-items:center;min-width:0}
+.playerbar .np-idx{font-size:30px;padding-top:0}
+.playerbar .np-title{font-size:14.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-wrap:nowrap}
+.playerbar .np-sub{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.playerbar .transport{grid-area:transport;border-top:0;margin:0;padding:0;flex-wrap:nowrap}
+.playerbar .btn-play{width:44px;height:44px}
+.playerbar .vol{margin-left:6px;width:auto}
+body:has(.playerbar){padding-bottom:calc(var(--bar) + 20px + env(safe-area-inset-bottom,0px))}
+body:has(.playerbar) .toast{bottom:calc(var(--bar) + 18px + env(safe-area-inset-bottom,0px))}
+@media (max-width:760px){
+  :root{--bar:128px}
+  .playerbar-in{grid-template-columns:minmax(0,1fr);grid-template-areas:"tuner" "now" "transport";row-gap:2px;padding:2px 12px 8px}
+  .playerbar .np-idx{display:none}
+  .playerbar .np-sub{display:none}
+  .playerbar .transport{justify-content:center;gap:6px}
+  .playerbar .vol{display:none}
+}
+.screen-idle h2,.art-idle h2{font-size:clamp(20px,2.1vw,28px)}
 </style>
 </head>
 <body>
 
 <div class="drop" id="drop">여기에 음악 파일이나 폴더를 놓으세요</div>
 <header class="topbar"><div class="topbar-in"><div class="wordmark"><span class="lamp" id="lamp" aria-hidden="true"></span>MIXTAPE DECK<span class="ko">내 음악 파일</span></div><div class="spacer"></div><div class="counts mono"><span><b id="cnt-total">0</b>곡</span></div></div></header>
-<nav class="nav"><div class="nav-in"><a href="index.html">유튜브</a><a href="search.html">곡 찾기</a><a href="files.html" aria-current="page">내 음악 파일</a><a href="links.html">링크 · 라디오</a><a href="check.html">진단</a></div></nav>
+<nav class="nav"><div class="nav-in"><a href="index.html">플레이어</a><a href="search.html">곡 찾기</a><a href="files.html" aria-current="page">내 음악 파일</a><a href="links.html">링크 · 라디오</a><a href="check.html">진단</a></div></nav>
 <main class="wrap">
   <p class="lead">내 컴퓨터에 있는 음악 파일을 순서대로 틀어줍니다. <b>인터넷을 전혀 쓰지 않아서</b> 학교 네트워크가 무엇을 막든 상관없이 동작해요. 파일은 브라우저 밖으로 나가지 않습니다.</p>
 
   <div class="deck">
     <section class="stage" aria-label="플레이어">
       <div class="art" id="art"></div>
-      <div class="nowbar">
-        <div class="np-idx mono" id="np-idx">--</div>
-        <div class="np-text">
-          <p class="np-title" id="np-title">대기 중</p>
-          <p class="np-sub" id="np-sub">음악 파일을 불러오면 여기에 표시됩니다</p>
-        </div>
-      </div>
-
-      <div class="tuner">
-        <div class="tuner-bar" id="bar" role="slider" tabindex="0" aria-label="재생 위치" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
-          <div class="tuner-track"></div>
-          <div class="tuner-buf" id="buf"></div>
-          <div class="tuner-fill" id="fill"></div>
-          <div class="tuner-ticks" aria-hidden="true"><i style="left:0%"></i><i style="left:25%"></i><i style="left:50%"></i><i style="left:75%"></i><i style="left:calc(100% - 1px)"></i></div>
-          <div class="tuner-head" id="head"></div>
-        </div>
-        <div class="times mono"><span id="t-cur">0:00</span><span id="t-dur">0:00</span></div>
-      </div>
-      <div class="transport">
-        <button class="btn btn-round" id="prev" title="이전 곡 (P)" aria-label="이전 곡"><svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M4 2h2v12H4zM14 2.6v10.8L6.2 8z"/></svg></button>
-        <button class="btn btn-play" id="play" title="재생 / 일시정지 (Space)" aria-label="재생">
-          <svg id="icon-play" width="20" height="20" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M4 2.2 13.5 8 4 13.8z"/></svg>
-          <svg id="icon-pause" width="20" height="20" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true" hidden><path d="M3.5 2h3.2v12H3.5zM9.3 2h3.2v12H9.3z"/></svg>
-        </button>
-        <button class="btn btn-round" id="next" title="다음 곡 (N)" aria-label="다음 곡"><svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M10 2h2v12h-2zM2 2.6v10.8L9.8 8z"/></svg></button>
-        <button class="btn" id="shuffle" aria-pressed="false" title="섞기">섞기</button>
-        <button class="btn" id="repeat" title="반복">반복 · 전체</button>
-        <div class="vol">
-          <button class="btn ghost" id="mute" aria-label="음소거" title="음소거 (M)">🔊</button>
-          <input type="range" id="volume" min="0" max="100" value="80" aria-label="볼륨">
-        </div>
-      </div>
-
     </section>
 
     <section class="panel" aria-label="재생 목록">
@@ -243,6 +281,42 @@ footer{max-width:1180px;margin:0 auto;padding:0 16px 40px;font-size:12px;color:v
 </main>
 
 <footer><span>파일은 이 브라우저 안에서만 열리고 어디에도 업로드되지 않습니다.</span></footer>
+<div class="playerbar"><div class="playerbar-in">
+      <div class="nowbar">
+        <div class="np-idx mono" id="np-idx">--</div>
+        <div class="np-text">
+          <p class="np-title" id="np-title">대기 중</p>
+          <p class="np-sub" id="np-sub">음악 파일을 불러오면 여기에 표시됩니다</p>
+        </div>
+      </div>
+
+      <div class="tuner">
+        <div class="tuner-bar" id="bar" role="slider" tabindex="0" aria-label="재생 위치" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+          <div class="tuner-track"></div>
+          <div class="tuner-buf" id="buf"></div>
+          <div class="tuner-fill" id="fill"></div>
+          <div class="tuner-ticks" aria-hidden="true"><i style="left:0%"></i><i style="left:25%"></i><i style="left:50%"></i><i style="left:75%"></i><i style="left:calc(100% - 1px)"></i></div>
+          <div class="tuner-head" id="head"></div>
+        </div>
+        <div class="times mono"><span id="t-cur">0:00</span><span id="t-dur">0:00</span></div>
+      </div>
+      <div class="transport">
+        <button class="btn btn-round" id="prev" title="이전 곡 (P)" aria-label="이전 곡"><svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M4 2h2v12H4zM14 2.6v10.8L6.2 8z"/></svg></button>
+        <button class="btn btn-play" id="play" title="재생 / 일시정지 (Space)" aria-label="재생">
+          <svg id="icon-play" width="20" height="20" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M4 2.2 13.5 8 4 13.8z"/></svg>
+          <svg id="icon-pause" width="20" height="20" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true" hidden><path d="M3.5 2h3.2v12H3.5zM9.3 2h3.2v12H9.3z"/></svg>
+        </button>
+        <button class="btn btn-round" id="next" title="다음 곡 (N)" aria-label="다음 곡"><svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M10 2h2v12h-2zM2 2.6v10.8L9.8 8z"/></svg></button>
+        <button class="btn" id="shuffle" aria-pressed="false" title="섞기">섞기</button>
+        <button class="btn" id="repeat" title="반복">반복 · 전체</button>
+        <div class="vol">
+          <button class="btn ghost" id="mute" aria-label="음소거" title="음소거 (M)">🔊</button>
+          <input type="range" id="volume" min="0" max="100" value="80" aria-label="볼륨">
+        </div>
+      </div>
+
+</div></div>
+
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jsmediatags/3.9.5/jsmediatags.min.js"></script>
