@@ -73,6 +73,8 @@ button:focus-visible{outline:2px solid var(--candle);outline-offset:2px}
 #boss span{font-family:var(--f-story);font-weight:700;font-size:15px}
 #boss .bar{height:8px;background:#221815;border:1px solid var(--line);border-radius:2px;margin-top:4px;overflow:hidden}
 #boss .bar i{display:block;height:100%;background:var(--blood);width:100%;transition:width .3s}
+#boss .stg{height:4px;margin-top:3px}
+#boss .stg i{background:var(--candle);width:0;transition:width .1s}
 #keys{position:absolute;right:var(--gr);bottom:calc(14px + env(safe-area-inset-bottom,0px));font-size:12.5px;color:var(--muted);
   background:rgba(8,14,10,.7);padding:5px 10px;border-radius:4px;text-align:right;max-width:60vw}
 #keys b{color:var(--paper);font-weight:400}
@@ -161,7 +163,7 @@ h1 small{display:block;font-size:.42em;color:var(--moss);font-weight:400;margin-
   <div id="prompt" hidden></div>
   <div id="toast" hidden></div>
   <div id="hearts" hidden></div>
-  <div id="boss" hidden><span></span><div class="bar"><i></i></div></div>
+  <div id="boss" hidden><span></span><div class="bar"><i></i></div><div class="bar stg" hidden><i></i></div></div>
   <div id="keys"></div>
 </div>
 
@@ -193,12 +195,13 @@ h1 small{display:block;font-size:.42em;color:var(--moss);font-weight:400;margin-
     <p class="lead">너는 해리다. 계단 밑 벽장에서 시작해, 지하 교실을 지나, 돌이 숨겨진 마지막 방까지 간다.</p>
     <dl class="controls">
       <dt>W A S D</dt><dd>걷기</dd>
-      <dt>마우스 끌기</dt><dd>둘러보기 (← → 키로도 돌 수 있어)</dd>
+      <dt>Shift</dt><dd>빠르게 피하기</dd>
+      <dt>마우스</dt><dd>화면을 한 번 클릭하면 마우스만 움직여도 둘러봐 (Esc로 풀기). 끌어서 봐도 돼.</dd>
       <dt>E</dt><dd>살펴보기 · 집기 · 붙잡기 (꾹 누를 때도 있어)</dd>
-      <dt>Space</dt><dd>글 넘기기 · 싸울 때는 불꽃 쏘기</dd>
+      <dt>클릭 · Space</dt><dd>글 넘기기 · 싸울 때는 불꽃 (누르고 있으면 계속 나가)</dd>
     </dl>
     <ul class="plan">
-      <li>이야기 → 교실 → 마법약 수업 → 트롤 → 이야기 → 마지막 대결 → 끝</li>
+      <li>이야기(편지 · 승강장) → 교실 → 마법약 수업 → 트롤 → 이야기(열쇠) → 마지막 대결 → 끝</li>
       <li>약 10분</li>
     </ul>
     <button class="btn main" id="startBtn">이야기 시작 ▸</button>
@@ -335,19 +338,20 @@ const Fade = { el:$('#fade'),
   async in(){ this.el.classList.remove('on'); await wait(480); } };
 const Keys = { el:$('#keys'),
   walk(){ this.el.innerHTML='<b>WASD</b> 걷기 · <b>끌기</b> 둘러보기 · <b>E</b> 상호작용'; },
-  fight(extra){ this.el.innerHTML='<b>WASD</b> 피하기 · <b>끌기</b> 조준 · <b>Space</b> 불꽃 · <b>E</b> '+extra; } };
+  fight(extra){ this.el.innerHTML='<b>WASD</b> 걷기 · <b>Shift</b> 피하기 · <b>클릭/Space</b> 불꽃'+(extra?' · <b>E</b> '+extra:''); },
+  set(h){ this.el.innerHTML=h; } };
 
 /* =====================================================================
    3. 이야기 화면 (Story) — 글을 3~4문장씩 넘긴다
    ===================================================================== */
 const Story = { el:$('#story'),
-  play(kicker, pages){
+  play(kicker, pages, from=0, total=pages.length){
     return new Promise(res => {
       const el=this.el, text=el.querySelector('.text'), pg=el.querySelector('.pg'), btn=$('#storyNext');
       el.querySelector('.kicker').textContent = kicker;
       let i=0, lockUntil=0;
       const render = () => { text.textContent = pages[i]; text.style.animation='none'; void text.offsetWidth; text.style.animation='';
-        pg.textContent = (i+1)+' / '+pages.length; btn.textContent = i===pages.length-1 ? '계속 ▸' : '다음 ▸'; lockUntil = performance.now()+350; };
+        pg.textContent = (from+i+1)+' / '+total; btn.textContent = i===pages.length-1 ? '계속 ▸' : '다음 ▸'; lockUntil = performance.now()+350; };
       const next = () => { if (performance.now()<lockUntil) return; i++;
         if (i>=pages.length) { off(); btn.onclick=null; el.hidden=true; res(); } else render(); };
       const off = Input.on(c => { if (c==='Space'||c==='Enter'||c==='ArrowRight') next(); });
@@ -375,7 +379,7 @@ const World = (() => {
   scene.add(ambient);
   const lamps = [0,1,2].map(() => { const l = new THREE.PointLight(0xa8e08a, 1, 11, 1.4); scene.add(l); return l; });
 
-  const P = {x:0, z:4, yaw:0, pitch:0, eye:1.5, speed:3.4, r:0.35};
+  const P = {x:0, z:4, yaw:0, pitch:0, eye:1.5, speed:4, r:0.35};
   const BOUND = {x:5.55, z:4.55};
   const locks = new Set(['stage']);
   const updaters = [];
@@ -391,9 +395,19 @@ const World = (() => {
   let drag = null;
   canvas.addEventListener('pointerdown', e => { drag={x:e.clientX,y:e.clientY}; try{canvas.setPointerCapture(e.pointerId);}catch(_){} });
   canvas.addEventListener('pointermove', e => { if(!drag) return;
-    if (locks.size===0) { P.yaw -= (e.clientX-drag.x)*0.005; P.pitch = clamp(P.pitch-(e.clientY-drag.y)*0.004, -1.1, 1.1); }
+    if (locks.size===0 && !plock) { P.yaw -= (e.clientX-drag.x)*0.005; P.pitch = clamp(P.pitch-(e.clientY-drag.y)*0.004, -1.1, 1.1); }
     drag.x=e.clientX; drag.y=e.clientY; });
   const endDrag = () => { drag=null; };
+  // 화면을 클릭하면 마우스를 잡아서, 끌지 않아도 둘러볼 수 있다 (안 되는 기기에서는 끌기로)
+  let plock=false, clickHook=null, shakeAmt=0, dashT=0, dashCd=0;
+  document.addEventListener('pointerlockchange', () => { plock = document.pointerLockElement===canvas; });
+  canvas.addEventListener('click', () => {
+    if (clickHook) { clickHook(); return; }
+    if (!plock && shown) { try { const pr=canvas.requestPointerLock(); if (pr && pr.catch) pr.catch(()=>{}); } catch(_){} }
+  });
+  document.addEventListener('mousemove', e => { if (plock && locks.size===0) { P.yaw -= e.movementX*0.0026; P.pitch = clamp(P.pitch - e.movementY*0.0026, -1.1, 1.1); } });
+  function releaseMouse(){ try { if (document.pointerLockElement) document.exitPointerLock(); } catch(_){} }
+  Input.on(c => { if ((c==='ShiftLeft'||c==='ShiftRight') && locks.size===0 && dashCd<=0) { dashT=.2; dashCd=.8; Sfx.beep(240,.12,'sine',.04); } });
   canvas.addEventListener('pointerup', endDrag); canvas.addEventListener('pointercancel', endDrag);
 
   function blocked(x,z){
@@ -406,11 +420,13 @@ const World = (() => {
   function move(dt){
     if (keys.ArrowLeft) P.yaw += 1.9*dt;
     if (keys.ArrowRight) P.yaw -= 1.9*dt;
+    dashT-=dt; dashCd-=dt;
     let f=(keys.KeyW?1:0)-(keys.KeyS?1:0), s=(keys.KeyD?1:0)-(keys.KeyA?1:0);
     if (!f && !s) return;
     const l=Math.hypot(f,s); f/=l; s/=l;
     const sn=Math.sin(P.yaw), cs=Math.cos(P.yaw);
-    tryMove((-sn*f + cs*s)*P.speed*dt, (-cs*f - sn*s)*P.speed*dt);
+    const sp=P.speed*(dashT>0?3.2:1)*dt;
+    tryMove((-sn*f + cs*s)*sp, (-cs*f - sn*s)*sp);
   }
   const dir = new THREE.Vector3(), tmp = new THREE.Vector3();
   function forward(){ const cp=Math.cos(P.pitch); return dir.set(-Math.sin(P.yaw)*cp, Math.sin(P.pitch), -Math.cos(P.yaw)*cp); }
@@ -445,6 +461,7 @@ const World = (() => {
     if (locks.size===0) move(dt);
     camera.position.set(P.x, P.eye, P.z);
     camera.rotation.set(P.pitch, P.yaw, 0);
+    if (shakeAmt>.002) { camera.position.x+=(Math.random()-.5)*shakeAmt; camera.position.y+=(Math.random()-.5)*shakeAmt; shakeAmt=Math.max(0,shakeAmt-dt*1.1); }
     pick(dt);
     const ts=t/1000;
     for (const u of updaters.slice()) u(dt, ts);
@@ -484,6 +501,7 @@ const World = (() => {
   const allRooms = [];
   return { scene, camera, P, updaters, tween, pose, lookAt, enter, forward, tryMove, allRooms,
     get room(){ return room; },
+    releaseMouse, shake(a){ shakeAmt=Math.max(shakeAmt,a); }, setClickHook(f){ clickHook=f; },
     lock(k){ locks.add(k); }, unlock(k){ locks.delete(k); }, locked(){ return locks.size>0; },
     show(v){ shown=v; $('#hud').hidden=!v; },
     onUpdate(u){ updaters.push(u); }, offUpdate: off,
@@ -511,15 +529,15 @@ const Dialog = { el:$('#dialog'), open:false, onSpeaker:null,
       this._show(who,text);
       this.el.querySelector('.opts').innerHTML=''; this.el.querySelector('.more').hidden=false;
       const t0=performance.now();
-      const done = () => { if (performance.now()-t0<300) return; off(); this.el.onclick=null; this._hide(); res(); };
+      const done = () => { if (performance.now()-t0<300) return; off(); this.el.onclick=null; World.setClickHook(null); this._hide(); res(); };
       const off = Input.on(c => { if (c==='Space'||c==='Enter'||c==='KeyE') done(); });
-      this.el.onclick = done;
+      this.el.onclick = done; World.setClickHook(done);
     });
   },
   async sayAll(list){ for (const [w,t] of list) await this.say(w,t); },
   choose(who, text, options){
     return new Promise(res => {
-      this._show(who,text); this.el.onclick=null;
+      this._show(who,text); this.el.onclick=null; World.releaseMouse();
       this.el.querySelector('.more').hidden=true;
       const box=this.el.querySelector('.opts'); box.innerHTML='';
       options.forEach((o,i) => { const b=document.createElement('button'); b.textContent=(i+1)+'. '+o;
@@ -529,7 +547,7 @@ const Dialog = { el:$('#dialog'), open:false, onSpeaker:null,
   }
 };
 const Panel = { el:$('#panel'),
-  open(html){ this.el.innerHTML=html; this.el.hidden=false; World.lock('panel'); return this.el; },
+  open(html){ World.releaseMouse(); this.el.innerHTML=html; this.el.hidden=false; World.lock('panel'); return this.el; },
   close(){ this.el.hidden=true; this.el.innerHTML=''; World.unlock('panel'); },
   /* 실패했을 때: 이 단계부터 다시 */
   retry(title, msg, label='이 단계 다시 하기'){
@@ -724,15 +742,38 @@ function buildChamber(){
   shade.position.set(0,1.45,-2); g.add(shade);
   const glow=new THREE.Mesh(new THREE.SphereGeometry(.12,8,6), bas(0xff3020)); g.add(glow);
   const grabIt=inter(list,'grab','붙잡기',0,1.3,-2,2.3,.55);
+  const fakes=[0,1].map(()=>{ const m=new THREE.Mesh(shade.geometry, shade.material.clone()); m.visible=false; g.add(m);
+    return {mesh:m, it:inter(list,'fake','붙잡기',0,1.35,0,2.3,.55)}; });
   World.onUpdate((dt,t)=>{ if(!g.visible) return; fires.forEach((f,i)=>{ f.scale.y=1+.25*Math.sin(t*8+i*1.7); });
     glass.material.color.setHSL(.55,.4,.72+.06*Math.sin(t*2)); });
-  return { group:g, colliders:col, inter:list, shade, glow, grabIt,
+  return { group:g, colliders:col, inter:list, shade, glow, grabIt, fakes,
     light:{ambient:0x4a3a5e, ambientI:1.5, fog:0x07040a, lamps:[{c:0xd8c8ff,i:1.0,x:0,y:2.4,z:-3.4},{c:0x9a5ad0,i:.8,x:0,y:2,z:4},{c:0x705090,i:.6,x:0,y:3.2,z:0}]},
     tint(){ Shell.tint(0xa89ab8,0x857a94); } };
 }
 
-const Rooms = { class:buildClassroom(), troll:buildTrollRoom(), chamber:buildChamber() };
-World.allRooms.push(Rooms.class, Rooms.troll, Rooms.chamber);
+/* 이야기 중간에 직접 해 보는 짧은 장면들이 쓰는 방 (편지 · 승강장 벽 · 열쇠) */
+function buildStageRoom(){
+  const g=new THREE.Group(), list=[]; World.scene.add(g);
+  const hearth=box(1.8,1.5,.4,lam(0x15100e),0,.75,-4.8,g);
+  const lg=new THREE.PlaneGeometry(.38,.25), lm=bas(0xf2ead0,{side:THREE.DoubleSide});
+  const letters=[]; for (let i=0;i<14;i++){ const m=new THREE.Mesh(lg,lm); g.add(m); letters.push({m,v:new THREE.Vector3()}); }
+  const sign=(txt,x)=>{ const c=document.createElement('canvas'); c.width=c.height=128; const k=c.getContext('2d');
+    k.fillStyle='#1b2a44'; k.fillRect(0,0,128,128); k.strokeStyle='#e9e3cf'; k.lineWidth=6; k.strokeRect(6,6,116,116);
+    k.fillStyle='#e9e3cf'; k.font='700 76px sans-serif'; k.textAlign='center'; k.textBaseline='middle'; k.fillText(txt,64,68);
+    const m=new THREE.Mesh(new THREE.PlaneGeometry(.9,.9), bas(0xffffff,{map:new THREE.CanvasTexture(c)})); m.position.set(x,2.5,-4.96); g.add(m); return m; };
+  const signs=[sign('9',-2.8), sign('10',2.8)];
+  const kg=new THREE.BoxGeometry(.3,.05,.12), km=bas(0xe9c040);
+  const keysM=[]; for (let i=0;i<12;i++){ const m=new THREE.Mesh(kg, i===0?bas(0x9fe0ff):km); if(i===0) m.scale.setScalar(1.7); g.add(m); keysM.push({m,a:0,r:2,h:2,w:1}); }
+  const R={ group:g, colliders:[], inter:list, letters, keys:keysM, tintC:[0xffffff,0xffffff],
+    light:{ambient:0x555555, ambientI:1.3, fog:0x060606, lamps:[{c:0xffffff,i:1,x:0,y:3,z:0},{c:0xffffff,i:.7,x:-4,y:2.6,z:-3},{c:0xffffff,i:.7,x:4,y:2.6,z:3}]},
+    tint(){ Shell.tint(R.tintC[0],R.tintC[1]); },
+    mode(m, wall, floor, amb, fog, lamp){ hearth.visible=m==='letters'; letters.forEach(l=>l.m.visible=m==='letters'); signs.forEach(x=>x.visible=m==='wall'); keysM.forEach(k=>k.m.visible=m==='keys');
+      R.tintC=[wall,floor]; R.light.ambient=amb; R.light.fog=fog; R.light.lamps.forEach(l=>l.c=lamp); } };
+  return R;
+}
+const Rooms = { class:buildClassroom(), troll:buildTrollRoom(), chamber:buildChamber(), stage:buildStageRoom() };
+World.allRooms.push(Rooms.class, Rooms.troll, Rooms.chamber, Rooms.stage);
+Rooms.stage.group.visible=false;
 Rooms.troll.group.visible=false; Rooms.chamber.group.visible=false;
 Dialog.onSpeaker = who => { Rooms.class.profShadow(who==='prof'); };
 
@@ -740,44 +781,58 @@ Dialog.onSpeaker = who => { Rooms.class.profShadow(who==='prof'); };
    7. 싸움 틀 (Combat) — 체력, 불꽃, 적의 공격. 편마다 적만 바꿔 끼운다
    ===================================================================== */
 const Combat = (() => {
-  const mine=[], theirs=[];
-  for (let i=0;i<5;i++){ const m=new THREE.Mesh(new THREE.SphereGeometry(.09,6,5), bas(0xffd070)); m.visible=false; World.scene.add(m); mine.push({m,v:new THREE.Vector3(),life:0}); }
-  for (let i=0;i<6;i++){ const m=new THREE.Mesh(new THREE.SphereGeometry(.17,7,6), bas(0x9a3ae0)); m.visible=false; World.scene.add(m); theirs.push({m,v:new THREE.Vector3(),life:0}); }
-  let active=false, hp=0, max=0, inv=0, cd=0, cfg=null;
-  const heartsEl=$('#hearts'), bossEl=$('#boss'), vig=$('#vignette');
+  const mk=(r,c)=>{ const m=new THREE.Mesh(new THREE.SphereGeometry(r,7,6), bas(c)); m.visible=false; World.scene.add(m); return {m,v:new THREE.Vector3(),life:0}; };
+  const mine=[], theirs=[], bits=[];
+  for (let i=0;i<6;i++) mine.push(mk(.09,0xffd070));
+  for (let i=0;i<12;i++) theirs.push(mk(.17,0x9a3ae0));
+  const bitGeo=new THREE.BoxGeometry(.07,.07,.07);
+  for (let i=0;i<12;i++){ const m=new THREE.Mesh(bitGeo,bas(0xffd070)); m.visible=false; World.scene.add(m); bits.push({m,v:new THREE.Vector3(),life:0}); }
+  let active=false, hp=0, max=0, inv=0, cd=0, cfg=null, mdown=false;
+  const heartsEl=$('#hearts'), bossEl=$('#boss'), stgEl=bossEl.querySelector('.stg'), vig=$('#vignette'), tv=new THREE.Vector3();
+  $('#view').addEventListener('pointerdown',()=>{ mdown=true; }); addEventListener('pointerup',()=>{ mdown=false; });
   const draw=()=>{ heartsEl.innerHTML='♥'.repeat(Math.max(0,hp))+'<span class="off">'+'♥'.repeat(max-Math.max(0,hp))+'</span>'; };
-  function start(c){ cfg=c; active=true; hp=max=c.hp; inv=0; cd=0; heartsEl.hidden=false; bossEl.hidden=false; draw(); }
+  function start(c){ cfg=c; active=true; hp=max=c.hp; inv=0; cd=.4; mdown=false; heartsEl.hidden=!!c.quiet; bossEl.hidden=!!c.quiet; stgEl.hidden=true; draw(); }
   function stop(){ active=false; heartsEl.hidden=true; bossEl.hidden=true; for(const b of mine.concat(theirs)){ b.life=0; b.m.visible=false; } }
   function boss(name,k){ bossEl.querySelector('span').textContent=name; bossEl.querySelector('i').style.width=(clamp(k,0,1)*100)+'%'; }
+  function stagger(k){ stgEl.hidden=false; stgEl.querySelector('i').style.width=(clamp(k,0,1)*100)+'%'; }
+  function burst(p,color,n=5){ let k=0; for (const b of bits){ if (b.life>0) continue; b.m.position.copy(p); b.m.material.color.setHex(color);
+    b.v.set((Math.random()-.5)*5, 1+Math.random()*3.5, (Math.random()-.5)*5); b.life=.45; b.m.visible=true; if (++k>=n) break; } }
   function cast(){
     if (!active || World.locked() || cd>0) return;
     const b=mine.find(b=>b.life<=0); if(!b) return;
-    cd=.3; const d=World.forward(); b.m.position.copy(World.camera.position).addScaledVector(d,.5); b.m.position.y-=.12;
-    b.v.copy(d).multiplyScalar(19); b.life=1.1; b.m.visible=true; Sfx.beep(880,.06,'square',.03);
+    cd=.2; const from=World.camera.position, d=World.forward().clone();
+    let best=null, bd=.955;                                   // 조준 보정: 과녁 근처를 보면 과녁으로 날아간다
+    for (const t of cfg.targets()) { tv.copy(t.pos).sub(from).normalize(); const dot=tv.dot(d); if (dot>bd) { bd=dot; best=t; } }
+    if (best) d.copy(best.pos).sub(from).normalize();
+    b.m.position.copy(from).addScaledVector(d,.5); b.m.position.y-=.1;
+    b.v.copy(d).multiplyScalar(21); b.life=1.1; b.m.visible=true; Sfx.beep(820+Math.random()*120,.05,'square',.025);
   }
-  function shoot(x,y,z,speed,spread=0){
-    const b=theirs.find(b=>b.life<=0); if(!b) return;
-    b.m.position.set(x,y,z); const P=World.P;
-    b.v.set(P.x-x, 1.25-y, P.z-z).normalize(); if (spread){ const a=spread, c=Math.cos(a), s=Math.sin(a), vx=b.v.x, vz=b.v.z; b.v.x=vx*c-vz*s; b.v.z=vx*s+vz*c; }
-    b.v.multiplyScalar(speed); b.life=3; b.m.visible=true; Sfx.beep(180,.12,'sawtooth',.03);
+  function launch(x,y,z,kind){ const b=theirs.find(b=>b.life<=0); if(!b) return null;
+    b.m.position.set(x,y,z); b.m.material.color.setHex(kind==='rock'?0x9a9488:0x9a3ae0); b.m.scale.setScalar(kind==='rock'?1.6:1); b.life=3.2; b.m.visible=true; return b; }
+  function shoot(x,y,z,speed,spread=0,kind){
+    const b=launch(x,y,z,kind); if(!b) return; const P=World.P;
+    b.v.set(P.x-x, 1.25-y, P.z-z).normalize(); if (spread){ const c=Math.cos(spread), sn=Math.sin(spread), vx=b.v.x, vz=b.v.z; b.v.x=vx*c-vz*sn; b.v.z=vx*sn+vz*c; }
+    b.v.multiplyScalar(speed); Sfx.beep(kind==='rock'?120:180,.12,'sawtooth',.03);
   }
+  function shootDir(x,y,z,dx,dz,speed){ const b=launch(x,y,z); if(!b) return; b.v.set(dx,0,dz).multiplyScalar(speed); }
   function hurt(n, fx, fz){
     if (!active || inv>0) return;
-    hp-=n; inv=1.1; draw(); Sfx.beep(110,.25,'sawtooth',.07);
+    hp-=n; inv=1.1; draw(); Sfx.beep(110,.25,'sawtooth',.07); World.shake(.35);
     vig.classList.add('hit'); setTimeout(()=>vig.classList.remove('hit'), 320);
     const P=World.P, dx=P.x-fx, dz=P.z-fz, l=Math.hypot(dx,dz)||1; World.tryMove(dx/l*.9, dz/l*.9);
     if (hp<=0) cfg.onDead();
   }
-  Input.on(c => { if (c==='Space') cast(); });
   World.onUpdate(dt => {
+    for (const b of bits) { if (b.life<=0) continue; b.life-=dt; b.v.y-=12*dt; b.m.position.addScaledVector(b.v,dt); if (b.life<=0) b.m.visible=false; }
     if (!active || World.locked()) return;
     cd-=dt; inv-=dt; const P=World.P;
+    if (keys.Space || mdown) cast();
     const targets=cfg.targets();
     for (const b of mine) { if (b.life<=0) continue;
       b.life-=dt; b.m.position.addScaledVector(b.v,dt);
       let dead = b.life<=0 || Math.abs(b.m.position.x)>5.9 || Math.abs(b.m.position.z)>4.9 || b.m.position.y<0 || b.m.position.y>3.6;
-      if (!dead) for (const t of targets) if (b.m.position.distanceTo(t.pos)<t.r) { t.hit(); dead=true; break; }
-      if (!dead) for (const e of theirs) if (e.life>0 && b.m.position.distanceTo(e.m.position)<.5) { e.life=0; e.m.visible=false; dead=true; Sfx.beep(600,.05,'triangle',.04); break; }
+      if (!dead) for (const t of targets) if (b.m.position.distanceTo(t.pos)<t.r) { burst(b.m.position,0xffd070,3); t.hit(); dead=true; break; }
+      if (!dead) for (const e of theirs) if (e.life>0 && b.m.position.distanceTo(e.m.position)<.55) { burst(e.m.position,0xc080ff,4); e.life=0; e.m.visible=false; dead=true; Sfx.beep(600,.05,'triangle',.04); break; }
       if (dead) { b.life=0; b.m.visible=false; }
     }
     for (const e of theirs) { if (e.life<=0) continue;
@@ -787,13 +842,67 @@ const Combat = (() => {
       if (e.life<=0 || Math.abs(p.x)>5.9 || Math.abs(p.z)>4.9) { e.life=0; e.m.visible=false; }
     }
   });
-  return { start, stop, boss, shoot, hurt, get hp(){ return hp; } };
+  return { start, stop, boss, stagger, shoot, shootDir, hurt, burst, get hp(){ return hp; } };
 })();
 
 /* =====================================================================
    8. 단계별 내용
    ===================================================================== */
 const Stats = { potion:0, mistakes:0, retries:0 };
+
+/* ---- 8-0. 이야기 속 장면: 읽다가 직접 해 본다 ---- */
+async function momentLetters(){
+  const R=Rooms.stage, P=World.P; R.mode('letters',0xd8bf9a,0xa07850,0x6a5540,0x0a0705,0xffd9a0);
+  await Fade.out(); World.enter(R,{x:0,z:4.2,yaw:0}); World.show(true); Keys.walk(); World.lock('stage');
+  R.letters.forEach(l=>{ l.m.visible=true; l.m.position.set((Math.random()-.5)*1.2, 1+Math.random(), -4.3); l.v.set((Math.random()<.5?-1:1)*(2+Math.random()*3), (Math.random()-.5)*2, .5+Math.random()*2.5); });
+  Task.set('편지 잡기', [{id:'l',text:'날아다니는 편지에 달려가 5통 잡기'}]);
+  await Fade.in(); Toast.show('굴뚝에서 편지가 쏟아진다! 달려가서 잡아!', 2600);
+  World.unlock('stage'); let got=0;
+  await new Promise(res => { const t0=performance.now(); const u=(dt,t)=>{ if (World.locked()) return;
+    for (const l of R.letters) { if (!l.m.visible) continue; const p=l.m.position; p.addScaledVector(l.v,dt);
+      if (Math.abs(p.x)>5.2) { l.v.x*=-1; p.x=clamp(p.x,-5.2,5.2); } if (Math.abs(p.z)>4.2) { l.v.z*=-1; p.z=clamp(p.z,-4.2,4.2); }
+      if (p.y<.9||p.y>2.2) { l.v.y*=-1; p.y=clamp(p.y,.9,2.2); }
+      l.m.rotation.y+=dt*4; l.m.rotation.x=Math.sin(t*5+p.z)*.6;
+      if (Math.hypot(p.x-P.x,p.z-P.z)<.7) { l.m.visible=false; got++; Sfx.beep(600+got*120,.1,'triangle',.05); Toast.show('잡았다! ('+got+'/5)',1200); } }
+    if (got>=5 || performance.now()-t0>25000) { World.offUpdate(u); res(); } }; World.onUpdate(u); });
+  World.lock('stage'); Task.clear();
+  await Dialog.say('narr', got>=5 ? '봉투를 뜯으려는 순간, 이모부가 달려들어 전부 빼앗았다.\n한 글자도 못 읽었다.' : '이모부가 편지를 모조리 쓸어 담았다.\n한 글자도 못 읽었다.');
+  await Fade.out(); World.show(false); await Fade.in();
+}
+async function momentWall(){
+  const R=Rooms.stage, P=World.P, cam=World.camera; R.mode('wall',0xd88a68,0x9a9a98,0x6a6058,0x0c0a09,0xfff0d8);
+  await Fade.out(); World.enter(R,{x:0,z:4.2,yaw:0}); World.show(true); Keys.set('<b>W</b> 꾹 눌러 달리기'); World.lock('stage');
+  Task.set('9와 4분의 3 승강장', [{id:'w',text:'W를 꾹 눌러 9번과 10번 사이 벽으로 달리기'}]);
+  await Fade.in();
+  await Dialog.say('narr','9번과 10번 사이의 벽돌 벽.\n망설이면 부딪힌다고 했다. 멈추지 말고 달린다.');
+  World.unlock('stage'); const base=P.speed; let run=0;
+  await new Promise(res => { const u=dt=>{ if (World.locked()) return;
+    run = keys.KeyW ? Math.min(1,run+dt*.7) : Math.max(0,run-dt*2.5);
+    P.speed=1.5+run*9; cam.fov=70+run*28; cam.updateProjectionMatrix(); if (run>.3) World.shake(run*.05);
+    if (P.z<-4.3) { World.offUpdate(u); res(); } }; World.onUpdate(u); });
+  P.speed=base; World.lock('stage'); Task.clear(); Sfx.beep(900,.4,'sine',.06);
+  await Fade.out(true); cam.fov=70; cam.updateProjectionMatrix(); World.show(false); await wait(200); await Fade.in();
+}
+async function momentKeys(){
+  const R=Rooms.stage; R.mode('keys',0x9ab0d0,0x70809a,0x44556a,0x05070a,0xcfe0ff);
+  await Fade.out(); World.enter(R,{x:0,z:3.6,yaw:0,pitch:.3}); World.show(true); Keys.fight(''); World.lock('stage');
+  R.keys.forEach((k,i)=>{ k.a=Math.random()*6.28; k.r=1.6+Math.random()*2.6; k.h=1.9+Math.random()*1.2; k.w=(1.3+Math.random()*1.2)*(i%2?1:-1); });
+  Object.assign(R.keys[0],{r:3,h:2.2,w:.75});
+  Task.set('날아다니는 열쇠', [{id:'k',text:'크고 느린 은빛 열쇠를 불꽃으로 맞히기'}]);
+  await Fade.in();
+  await Dialog.say('narr','열쇠들이 새 떼처럼 날아다닌다. 문에 맞는 건 하나뿐이다.\n다른 것보다 크고 느린, 은빛 열쇠.');
+  World.unlock('stage');
+  await new Promise(res => { let scatter=0, done=false; const t0=performance.now(); let hinted=false;
+    Combat.start({hp:3, quiet:true, onDead(){}, targets:()=>R.keys.map((k,i)=>({pos:k.m.position, r:i===0?.45:.28,
+      hit(){ if (done) return; if (i===0) { done=true; Combat.burst(k.m.position,0x9fe0ff,10); Sfx.beep(990,.3,'triangle',.06); Toast.show('맞혔다! 은빛 열쇠가 손에 들어왔다.',1500);
+          World.offUpdate(u); Combat.stop(); setTimeout(res,1100); }
+        else { scatter=1.5; Sfx.beep(300,.06,'square',.04); } }}))});
+    const u=(dt,t)=>{ scatter=Math.max(0,scatter-dt);
+      R.keys.forEach((k,i)=>{ k.a+=k.w*dt*(1+(i?scatter*2:0)); k.m.position.set(Math.cos(k.a)*k.r, k.h+Math.sin(t*2+i)*.25, Math.sin(k.a)*k.r*.7-.5); k.m.rotation.y=-k.a; k.m.rotation.z=Math.sin(t*20+i)*.3; });
+      if (!hinted && performance.now()-t0>14000) { hinted=true; Toast.show('은빛 열쇠는 하늘색으로 빛나. 클릭이나 Space를 누르고 있으면 계속 쏴.',4000); } };
+    World.onUpdate(u); });
+  World.lock('stage'); Task.clear(); await Fade.out(); World.show(false); await Fade.in();
+}
 
 /* ---- 8-1. 교실 둘러보기 ---- */
 async function stExplore(){
@@ -813,12 +922,12 @@ async function stExplore(){
   };
   const names={board:'칠판',shelf:'재료 선반',cauldron:'솥',candle:'촛불',desk:'교탁'};
   const need=Object.keys(names), seen=new Set(); let busy=false;
-  Task.set('교실 둘러보기', need.map(id=>({id,text:names[id]})));
+  Task.set('교실 둘러보기 (3곳 이상)', need.map(id=>({id,text:names[id]})));
   for (const it of R.inter) if (thoughts[it.id]) { it.enabled=true;
     it.onUse = async () => { if (busy) return; busy=true; await Dialog.sayAll(thoughts[it.id]); seen.add(it.id); Task.done(it.id); busy=false; }; }
   World.unlock('stage');
   const t0=performance.now();
-  await until(()=>!busy && !Dialog.open && (seen.size>=need.length || performance.now()-t0>105000));
+  await until(()=>!busy && !Dialog.open && (seen.size>=3 || performance.now()-t0>90000));
   World.lock('stage');
   for (const it of R.inter) { it.enabled=false; it.onUse=null; }
   Sfx.beep(660,.5,'sine',.06); setTimeout(()=>Sfx.beep(520,.7,'sine',.06),350);
@@ -1015,10 +1124,9 @@ async function stTroll(){
   World.enter(R,{x:0,z:3.6,yaw:0}); World.show(true); Keys.fight('몽둥이 띄우기(꾹)'); World.lock('stage');
   placeTroll(R,0,-3,0); await Fade.in();
   await Dialog.sayAll([
-    ['narr','키가 천장에 닿는 트롤이다. 손에 든 몽둥이가 바닥에 끌린다.\n구석에서 친구가 얼어붙어 있다.'],
+    ['narr','키가 천장에 닿는 트롤이다. 구석에서 친구가 얼어붙어 있다.'],
     ['friend','머리를 노려! 몸통은 가죽이 너무 두꺼워!'],
-    ['narr','Space로 불꽃을 쏜다. 머리를 여러 번 맞히면 트롤이 멍해진다.\n바닥의 붉은 원은 몽둥이가 떨어질 자리다. 원 밖으로 피한다.'],
-    ['narr','몽둥이가 바닥에 박히거나 떨어지면 기회다.\n몽둥이를 보면서 E를 꾹 눌러 띄운다. 그러면 머리 위로 떨어진다.']
+    ['narr','불꽃으로 머리를 계속 맞히면 트롤이 멍해져서 몽둥이를 놓친다.\n그때 몽둥이를 보면서 E를 꾹 눌러 머리 위로 띄운다.']
   ]);
   for (;;) {
     World.P.x=0; World.P.z=3.6; World.P.yaw=0; World.P.pitch=0; placeTroll(R,0,-3,0);
@@ -1026,7 +1134,7 @@ async function stTroll(){
     const win=await trollFight(R);
     World.lock('stage');
     if (win) break;
-    Stats.retries++; await Panel.retry('쓰러졌다','몽둥이에 너무 많이 맞았어. 붉은 원이 보이면 바로 옆으로 걸어서 피해. 싸움 처음부터 다시 해 보자.','다시 싸우기');
+    Stats.retries++; await Panel.retry('쓰러졌다','너무 많이 맞았어. 붉은 원이 보이면 Shift로 재빨리 피해. 날아오는 돌은 불꽃으로 깰 수 있어. 싸움 처음부터 다시 해 보자.','다시 싸우기');
   }
   await Dialog.sayAll([
     ['narr','쿵. 트롤이 제 몽둥이에 맞고 쓰러진다.\n바닥이 한 번 크게 울린다.'],
@@ -1039,40 +1147,61 @@ function placeTroll(R,x,z,ry){ const T=R.troll; T.root.position.set(x,0,z); T.ro
 
 function trollFight(R){
   return new Promise(res => {
-    const T=R.troll, P=World.P, it=R.clubIt, root=T.root;
-    let state='walk', timer=0, bonks=0, stagger=0, lev=0, slow=0, over=false, tx=0, tz=0, lift=null, tipBody=false, tipOpen=false, flash=0;
-    const speed=()=>1.55+bonks*.4;
+    const T=R.troll, P=World.P, it=R.clubIt, root=T.root, NEEDSTG=8;
+    let state='walk', timer=0, bonks=0, stg=0, lev=0, slow=0, over=false, tx=0, tz=0, lift=null, tipBody=false, tipOpen=false, flash=0;
+    let throwCd=2.5, chargeCd=3, cdx=0, cdz=0, hitOnce=false;
+    const speed=()=>1.7+bonks*.45;
     const headPos=new THREE.Vector3(), bodyPos=new THREE.Vector3();
     const hand=(lx,ly,lz)=>{ const c=Math.cos(root.rotation.y), s=Math.sin(root.rotation.y); return [root.position.x+lx*c+lz*s, ly, root.position.z-lx*s+lz*c]; };
-    const open=(dur,x,z)=>{ state='open'; timer=dur; lev=0; T.ring.visible=false; T.club.position.set(x,.2,z); T.club.rotation.set(0,0,Math.PI/2);
+    const holdClub=()=>{ const h=hand(.95,1.1,.3); T.club.position.set(h[0],h[1],h[2]); T.club.rotation.set(0,0,0); };
+    const open=(dur,x,z)=>{ state='open'; timer=dur; lev=0; stg=0; Combat.stagger(0); T.ring.visible=false; T.club.position.set(x,.2,z); T.club.rotation.set(0,0,Math.PI/2);
       it.pos.set(x,.3,z); it.enabled=true;
       if (!tipOpen) { tipOpen=true; Toast.show('지금이야! 몽둥이를 보면서 E를 꾹 눌러.', 3500); } };
+    const daze=()=>{ const h=hand(1.5,0,.6); open(3.4, clamp(h[0],-5,5), clamp(h[2],-4,4)); };
     it.onHold=dt=>{ if(state==='open') lev+=dt*1.25; };
     it.progress=()=>clamp(lev,0,1);
-    Combat.start({hp:4, onDead:()=>finish(false), targets:()=>[
-      {pos:headPos, r:.62, hit(){ if (state==='walk'||state==='windup') { stagger++; slow=.5; flash=.2; Sfx.beep(300,.08,'square',.05);
-          if (stagger>=5) { stagger=0; const h=hand(1.5,0,.6); open(3.4, clamp(h[0],-5,5), clamp(h[2],-4,4)); Toast.show('트롤이 멍해졌다! 몽둥이를 떨어뜨렸어.',2500); } } }},
-      {pos:bodyPos, r:.9, hit(){ slow=.25; if(!tipBody){ tipBody=true; Toast.show('몸통은 끄떡없다. 머리를 노려!'); } }}
+    Combat.start({hp:5, onDead:()=>finish(false), targets:()=>[
+      {pos:headPos, r:.62, hit(){ if (state==='open'||state==='lift'||state==='reel'||state==='charge') return;
+          stg++; slow=.4; flash=.15; Sfx.beep(300+stg*30,.06,'square',.04); Combat.stagger(stg/NEEDSTG);
+          if (stg>=NEEDSTG) { daze(); World.shake(.15); Toast.show('트롤이 멍해졌다! 몽둥이를 놓쳤어.',2200); } }},
+      {pos:bodyPos, r:.9, hit(){ slow=.2; if(!tipBody){ tipBody=true; Toast.show('몸통은 끄떡없다. 머리를 노려!'); } }}
     ]});
-    Combat.boss('트롤',1);
-    Toast.show('Space: 불꽃 쏘기 — 머리를 노려!', 3000);
+    Combat.boss('트롤',1); Combat.stagger(0);
+    Toast.show('클릭이나 Space를 누르고 있으면 불꽃이 나가. 머리를 노려!', 3200);
     const u=(dt,t)=>{
       if (over || World.locked()) return;
-      const dx=P.x-root.position.x, dz=P.z-root.position.z, dist=Math.hypot(dx,dz);
+      const dx=P.x-root.position.x, dz=P.z-root.position.z, dist=Math.hypot(dx,dz)||1;
       headPos.set(root.position.x,2.58,root.position.z); bodyPos.set(root.position.x,1.5,root.position.z);
-      slow-=dt; flash-=dt; T.head.scale.setScalar(flash>0?1.35:1);
+      slow-=dt; flash-=dt; T.head.scale.setScalar(flash>0?1.4:1);
       if (state==='walk') {
+        throwCd-=dt; chargeCd-=dt;
+        if (stg>0) { stg=Math.max(0,stg-dt*.6); Combat.stagger(stg/NEEDSTG); }
         root.rotation.y=Math.atan2(dx,dz); root.position.y=Math.abs(Math.sin(t*4))*.06;
         if (dist>2.5) { const v=speed()*(slow>0?.35:1)*dt; root.position.x+=dx/dist*v; root.position.z+=dz/dist*v; }
         T.armPivot.rotation.x += (0-T.armPivot.rotation.x)*Math.min(1,dt*8);
-        const h=hand(.95,1.1,.3); T.club.position.set(h[0],h[1],h[2]); T.club.rotation.set(0,0,0);
+        holdClub();
         if (dist<=2.8) { state='windup'; timer=.95-bonks*.1; tx=P.x; tz=P.z; T.ring.position.set(tx,.03,tz); T.ring.visible=true; Sfx.beep(140,.3,'sine',.05); }
+        else if (bonks>=2 && chargeCd<=0 && dist>3.4) { state='roar'; timer=1; chargeCd=6; Toast.show('트롤이 돌진한다! Shift로 옆으로 피해!',1800); Sfx.beep(80,.9,'sawtooth',.08); }
+        else if (bonks>=1 && throwCd<=0 && dist>4) { state='throw'; timer=.6; throwCd=2.6-bonks*.4; }
       } else if (state==='windup') {
         timer-=dt; T.armPivot.rotation.x += (-2.7-T.armPivot.rotation.x)*Math.min(1,dt*10);
         const h=hand(.95,3.3,-.2); T.club.position.set(h[0],h[1],h[2]);
         T.ring.material.opacity=.45+.4*Math.sin(t*22);
-        if (timer<=0) { Sfx.beep(70,.3,'sawtooth',.08); if (Math.hypot(P.x-tx,P.z-tz)<1.6) Combat.hurt(1,root.position.x,root.position.z);
+        if (timer<=0) { Sfx.beep(70,.3,'sawtooth',.08); World.shake(.3); Combat.burst(T.ring.position,0x9a9488,6);
+          if (Math.hypot(P.x-tx,P.z-tz)<1.6) Combat.hurt(1,root.position.x,root.position.z);
           if (!over) { T.armPivot.rotation.x=-.9; open(2.7-bonks*.3, tx, tz); } }
+      } else if (state==='throw') {
+        timer-=dt; root.rotation.y=Math.atan2(dx,dz); holdClub(); root.position.y=timer*.2;
+        if (timer<=0) { const h=hand(-.95,2.3,.5); Combat.shoot(h[0],h[1],h[2],9.5,0,'rock'); state='walk'; }
+      } else if (state==='roar') {
+        timer-=dt; root.rotation.y=Math.atan2(dx,dz); holdClub(); root.position.y=Math.abs(Math.sin(t*18))*.1; World.shake(.04);
+        if (timer<=0) { state='charge'; cdx=dx/dist; cdz=dz/dist; hitOnce=false; }
+      } else if (state==='charge') {
+        const nx=root.position.x+cdx*9.5*dt, nz=root.position.z+cdz*9.5*dt; holdClub(); root.position.y=Math.abs(Math.sin(t*16))*.12; World.shake(.05);
+        if (!hitOnce && dist<1.5) { hitOnce=true; Combat.hurt(1,root.position.x,root.position.z); }
+        if (Math.abs(nx)>4.7 || Math.abs(nz)>3.8) { World.shake(.6); Sfx.beep(60,.4,'square',.09); Combat.burst(headPos,0x9a9488,8); root.position.y=0;
+          if (!over) { daze(); Toast.show('쾅! 벽에 머리를 박았다. 지금이야!',2200); } }
+        else { root.position.x=nx; root.position.z=nz; }
       } else if (state==='open') {
         if (!keys.KeyE) lev=Math.max(0,lev-dt*.6);
         timer -= dt*(lev>0 ? .25 : 1);
@@ -1084,11 +1213,11 @@ function trollFight(R){
         lift.t+=dt; const k=clamp(lift.t/.6,0,1), d=clamp((lift.t-.75)/.18,0,1);
         T.club.position.set(lift.x+(root.position.x-lift.x)*k, lift.y+(4.1-lift.y)*k - d*1.2, lift.z+(root.position.z-lift.z)*k);
         T.club.rotation.y+=dt*8;
-        if (lift.t>=.93) { bonks++; Combat.boss('트롤',1-bonks/3); Sfx.beep(90,.35,'square',.09); flash=.4;
-          Toast.show(['쾅! 한 방 먹였다. 트롤이 화가 났다!','쾅! 한 번만 더!',''][bonks-1]||'',2200);
+        if (lift.t>=.93) { bonks++; Combat.boss('트롤',1-bonks/3); Sfx.beep(90,.35,'square',.09); flash=.4; World.shake(.5); Combat.burst(headPos,0xffd070,10);
+          Toast.show(['쾅! 한 방! 트롤이 화가 나서 돌을 던지기 시작한다.','쾅! 한 번만 더! 이제 돌진해 온다.',''][bonks-1]||'',2600);
           if (bonks>=3) { over=true; it.enabled=false; World.offUpdate(u); Combat.stop(); Toast.hide();
-            World.tween(900,k=>{ root.rotation.x=-k*1.45; root.position.y=k*.5; T.club.position.y=2.9-k*2.7; }).then(()=>res(true)); return; }
-          state='reel'; timer=1.4; }
+            World.tween(900,k=>{ root.rotation.x=-k*1.45; root.position.y=k*.5; T.club.position.y=2.9-k*2.7; }).then(()=>{ World.shake(.6); res(true); }); return; }
+          state='reel'; timer=1.3; throwCd=1.5; chargeCd=2.5; }
       } else if (state==='reel') {
         timer-=dt; root.rotation.z=Math.sin(t*14)*.08*timer; T.club.position.y=Math.max(.2,T.club.position.y-dt*6);
         if (timer<=0) { root.rotation.z=0; state='walk'; }
@@ -1111,7 +1240,7 @@ async function stFinal(){
     ['narr','거울 속의 내가 주머니에 돌을 넣는다.\n진짜 주머니가 묵직해진다. 돌이 나한테 왔다.'],
     ['shadow','……거짓말을 하는군. 잡아라!'],
     ['narr','그림자가 내 팔을 움켜쥔다. 그런데 비명을 지른 건 저쪽이다.\n내 살에 닿은 손이 타들어 간다.'],
-    ['narr','도망치지 말고 다가간다. 가까이에서 E로 붙잡는다.\nSpace 불꽃을 맞히면 그림자가 잠깐 멈춘다. 보라색 어둠은 피하거나 쏴서 없앤다.']
+    ['narr','도망치지 말고 다가가서 E로 붙잡는다.\n불꽃을 맞히면 그림자가 잠깐 멈춘다. 보라색 어둠은 피하거나 쏴서 없앤다.']
   ]);
   for (;;) {
     World.P.x=0; World.P.z=3.4; World.P.yaw=0; World.P.pitch=0; placeShade(R,0,-2.4);
@@ -1119,31 +1248,43 @@ async function stFinal(){
     const win=await shadowFight(R);
     World.lock('stage');
     if (win) break;
-    Stats.retries++; await Panel.retry('쓰러졌다','어둠에 너무 많이 맞았어. 옆으로 걸으면 피할 수 있어. 불꽃으로 멈춰 세운 다음 달려가서 붙잡아. 대결 처음부터 다시 해 보자.','다시 맞서기');
+    Stats.retries++; await Panel.retry('쓰러졌다','너무 많이 맞았어. Shift로 피하고, 불꽃으로 멈춰 세운 다음 달려가서 붙잡아. 붉은 빛이 떠 있는 그림자만 진짜야. 대결 처음부터 다시 해 보자.','다시 맞서기');
   }
   await Fade.out(true);
   World.show(false);
   await wait(500);
 }
-function placeShade(R,x,z){ R.shade.position.set(x,1.45,z); R.shade.material.opacity=.95; R.shade.scale.set(1,1,1); R.grabIt.enabled=false; }
+function placeShade(R,x,z){ R.shade.position.set(x,1.45,z); R.shade.material.opacity=.95; R.shade.scale.set(1,1,1); R.grabIt.enabled=false; R.fakes.forEach(f=>{ f.mesh.visible=false; f.it.enabled=false; }); }
 
 function shadowFight(R){
   return new Promise(res => {
-    const S=R.shade, G=R.glow, P=World.P, it=R.grabIt, vig=$('#vignette');
+    const S=R.shade, G=R.glow, P=World.P, it=R.grabIt, vig=$('#vignette'), F=R.fakes;
     const spots=[[-4.4,-3.2],[4.4,-3.2],[-4.4,3.4],[4.4,3.4],[0,0],[0,3.6],[-4.6,0],[4.6,0]];
-    let burns=0, stun=0, fireT=2.2, over=false, blink=0; const NEED=5;
+    let burns=0, stun=0, fireT=2, over=false, blink=0, pat=0; const NEED=5;
     const pos=new THREE.Vector3();
-    const lines=['그의 손이 타들어 간다!','그림자가 비명을 지른다.','흉터가 불에 덴 듯 아프다. 놓지 마!','그림자가 갈라지기 시작한다…'];
-    Combat.start({hp:4, onDead:()=>finish(false), targets:()=>[{pos, r:.85, hit(){ stun=1.5; Sfx.beep(420,.1,'square',.05); }}]});
+    const lines=['그의 손이 타들어 간다! 어둠이 세 갈래로 날아온다.','그림자가 비명을 지른다. 어둠이 사방으로 퍼진다!','그림자가 셋으로 갈라졌다. 붉은 빛이 떠 있는 쪽이 진짜다!','흉터가 불에 덴 듯 아프다. 한 번만 더!'];
+    const poof=f=>{ f.mesh.visible=false; f.it.enabled=false; Combat.burst(f.it.pos,0x9a3ae0,6); };
+    const placeFakes=real=>{ const free=shuffle(spots.filter(s=>s!==real && Math.hypot(s[0]-P.x,s[1]-P.z)>2.5));
+      F.forEach((f,i)=>{ f.mesh.position.set(free[i][0],1.45,free[i][1]); f.it.pos.set(free[i][0],1.35,free[i][1]); f.mesh.visible=true; f.it.enabled=true; }); };
+    F.forEach(f=>{ f.mesh.visible=false; f.it.enabled=false;
+      f.it.onUse=()=>{ if (over||!f.mesh.visible) return; poof(f); Combat.hurt(1,f.it.pos.x,f.it.pos.z); Toast.show('가짜다! 붉은 빛이 떠 있는 쪽이 진짜야.',2500); }; });
+    Combat.start({hp:5, onDead:()=>finish(false), targets:()=>{ const a=[{pos, r:.85, hit(){ stun=1.5; Sfx.beep(420,.1,'square',.05); }}];
+      for (const f of F) if (f.mesh.visible) a.push({pos:f.it.pos, r:.8, hit(){ poof(f); }}); return a; }});
     Combat.boss('그림자',1); it.enabled=true;
     Toast.show('다가가서 E로 붙잡아!', 3000);
+    const attack=()=>{ const x=S.position.x, z=S.position.z, sp=6.5+burns*.5;
+      if (burns>=2 && pat%3===2) { for (let i=0;i<8;i++){ const a=i*Math.PI/4+pat; Combat.shootDir(x,1.2,z,Math.cos(a),Math.sin(a),4.4); } Sfx.beep(140,.3,'sawtooth',.05); }
+      else if (burns>=1) { for (const a of [-.28,0,.28]) Combat.shoot(x,1.5,z,sp,a); }
+      else Combat.shoot(x,1.5,z,sp);
+      pat++; };
     it.onUse=()=>{ if (over || blink>0) return; burns++; Combat.boss('그림자',1-burns/NEED); Sfx.beep(900,.3,'sawtooth',.06);
+      World.shake(.3); Combat.burst(pos,0xffe0a0,10);
       vig.classList.add('burn'); setTimeout(()=>vig.classList.remove('burn'),350);
       if (burns>=NEED) { finish(true); return; }
-      Toast.show(lines[burns-1],2200);
+      Toast.show(lines[burns-1],2600);
       let best=spots[0], bd=0; for (const s of spots){ const d=Math.hypot(s[0]-P.x,s[1]-P.z); if(d>bd){bd=d;best=s;} }
       S.position.x=best[0]; S.position.z=best[1]; blink=.6; stun=0; fireT=.9;
-      for (const a of [-.3,0,.3]) Combat.shoot(best[0],1.5,best[1],6.5+burns*.5,a);
+      if (burns>=3) placeFakes(best);
     };
     const u=(dt,t)=>{
       if (over || World.locked()) return;
@@ -1151,16 +1292,16 @@ function shadowFight(R){
       blink-=dt;
       if (stun>0) { stun-=dt; S.material.opacity=.5+.4*Math.sin(t*40); }
       else { S.material.opacity=.95;
-        if (dist<5) { const v=(2.3+burns*.15)*dt, ax=-dx/dist, az=-dz/dist;       // 달아나되 빙 돌아서
-          let nx=S.position.x+(ax*.75 - az*.65)*v, nz=S.position.z+(az*.75 + ax*.65)*v;
-          S.position.x=clamp(nx,-5,5); S.position.z=clamp(nz,-3.3,4); }
-        fireT-=dt; if (fireT<=0) { fireT=Math.max(.75,1.7-burns*.2); Combat.shoot(S.position.x,1.5,S.position.z,6.5+burns*.5); }
+        if (dist<5) { const v=(2.4+burns*.2)*dt, ax=-dx/dist, az=-dz/dist;       // 달아나되 빙 돌아서
+          S.position.x=clamp(S.position.x+(ax*.75 - az*.65)*v,-5,5); S.position.z=clamp(S.position.z+(az*.75 + ax*.65)*v,-3.3,4); }
+        fireT-=dt; if (fireT<=0) { fireT=Math.max(.9,1.8-burns*.18); attack(); }
       }
       S.position.y=1.45+Math.sin(t*2.2)*.08; S.rotation.y=Math.atan2(dx,dz); S.scale.x=1+Math.sin(t*5)*.05;
       pos.set(S.position.x,1.35,S.position.z); it.pos.copy(pos);
       G.position.set(S.position.x+dx/dist*.1, 2.45+Math.sin(t*3)*.05, S.position.z+dz/dist*.1);
+      F.forEach((f,i)=>{ if (!f.mesh.visible) return; f.mesh.position.y=1.45+Math.sin(t*2.2+i+1)*.08; f.mesh.rotation.y=Math.atan2(P.x-f.mesh.position.x,P.z-f.mesh.position.z); });
     };
-    function finish(win){ over=true; World.offUpdate(u); Combat.stop(); it.enabled=false; Toast.hide(); res(win); }
+    function finish(win){ over=true; World.offUpdate(u); Combat.stop(); it.enabled=false; F.forEach(f=>{ f.mesh.visible=false; f.it.enabled=false; }); Toast.hide(); res(win); }
     World.onUpdate(u);
   });
 }
@@ -1183,11 +1324,15 @@ function showResult(){
    9. 단계 순서 — 여기만 바꾸면 다른 편이 된다
    ===================================================================== */
 const STAGES = [
-  {id:'pre',     name:'앞 이야기',     run: async () => { World.show(false); await Story.play('1편 · 앞 이야기', EP.storyPre); await Fade.out(); }},
+  {id:'pre',     name:'앞 이야기',     run: async () => { World.show(false); const p=EP.storyPre, k='1편 · 앞 이야기';
+      await Story.play(k,p.slice(0,2),0,p.length); await momentLetters();
+      await Story.play(k,p.slice(2,5),2,p.length); await momentWall();
+      await Story.play(k,p.slice(5),5,p.length); await Fade.out(); }},
   {id:'explore', name:'교실 둘러보기', run: stExplore},
   {id:'potion',  name:'마법약 수업',   run: stPotion},
   {id:'troll',   name:'트롤과 싸우기', run: stTroll},
-  {id:'post',    name:'뒤 이야기',     run: async () => { World.show(false); $('#fade').classList.remove('on'); await Story.play('1편 · 뒤 이야기', EP.storyPost); }},
+  {id:'post',    name:'뒤 이야기',     run: async () => { World.show(false); $('#fade').classList.remove('on'); const p=EP.storyPost, k='1편 · 뒤 이야기';
+      await Story.play(k,p.slice(0,4),0,p.length); await momentKeys(); await Story.play(k,p.slice(4),4,p.length); }},
   {id:'final',   name:'마지막 대결',   run: stFinal},
   {id:'end',     name:'끝 이야기',     run: async () => { World.show(false); $('#fade').classList.remove('on'); await Story.play('1편 · 끝 이야기', EP.storyEnd); }}
 ];
