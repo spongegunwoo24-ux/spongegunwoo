@@ -67,7 +67,7 @@ button:focus-visible{outline:2px solid var(--warn);outline-offset:2px}
       <div class="help">
         <b>이동</b> WASD · <b>조준/공격</b> 마우스 · <b>구르기</b> Space · <b>무기 전환</b> Q 또는 1~4 · <b>투척</b> G 또는 우클릭 · <b>투척물 바꾸기</b> F · <b>장전</b> R · <b>무기·장비 줍기/교체</b> E · <b>일시정지</b> P<br>
         모바일은 화면 왼쪽을 끌어 이동, 오른쪽을 끌어 조준·사격.<br>
-        총은 귀하고 탄창은 작다. 총소리는 굳어 있던 좀비를 깨운다. 점수는 처치로만 크게 오른다.
+        총은 귀하지만 탄창은 넉넉하다. 총소리는 굳어 있던 좀비를 깨운다. 점수는 처치로만 크게 오른다.
       </div>
     </div>
   </div>
@@ -191,7 +191,7 @@ const BT={
   '연구소':{c:'#3d7f8c',d:4,loot:[['w:tesla',.8],['e:nvg',.5],['c:med',.5],['w:flare',.4],['c:drink',.5]]}
 };
 const DECK=['병원','병원','경찰서','경찰서','마트','마트','마트','주유소','주유소','약국','약국','학교','교회','창고','창고','총포상','소방서','군 초소','연구소','집','집','집'];
-const STREET=['w:knife','w:bat','c:ammo','c:band','c:band','t:gren','t:molo','c:drink','t:alarm','w:pistol'];
+const STREET=['w:knife','w:bat','c:ammo','c:ammo','c:ammo','c:ammo','c:band','c:band','t:gren','t:molo','c:drink','t:alarm','w:pistol'];
 // 시작 아이템 추첨: [이름, 난이도별 가중치, 지급]
 const KITS=[
   ['꽝! 맨주먹',[4,10,18,40],()=>{}],
@@ -284,7 +284,7 @@ const tch={mv:null,aim:null,on:false};
 
 function mkItem(id,x,y){
   const [k,n]=id.split(':'),it={k,id:n,x,y,bob:Math.random()*6};
-  if(k==='w'&&WP[n].k==='g'){it.mag=Math.ceil(WP[n].ammo*rnd(.4,1));it.res=Math.random()<.4?WP[n].ammo:0}
+  if(k==='w'&&WP[n].k==='g'){it.mag=WP[n].ammo;it.res=WP[n].ammo*ri(2,4)}
   items.push(it);return it;
 }
 function populate(){
@@ -302,7 +302,7 @@ function populate(){
       const r=Math.random(),big=b.type==='교회'||b.type==='군 초소';
       spawnZ(r<.12?'screamer':r<(big?.35:.2)?'brute':r<.4?'runner':'walker',pos[0],pos[1],true)}
   });
-  for(let i=Math.round(8*df.loot);i--;){const p=freeOut();mkItem(pick(STREET),p[0],p[1])}
+  for(let i=Math.round(13*df.loot);i--;){const p=freeOut();mkItem(pick(STREET),p[0],p[1])}
   for(let i=0;i<2;i++)mkItem(pick(['w:knife','c:band','w:bat','c:drink']),sx+rnd(-260,260),sy+(Math.random()<.5?-1:1)*rnd(5,25));
   for(let i=Math.round(14*df.dorm);i--;){const p=freeOut();if(hyp(p[0]-sx,p[1]-sy)>480)spawnZ(Math.random()<.2?'runner':'walker',p[0],p[1],true)}
   if(df.lights){
@@ -348,7 +348,7 @@ function giveGun(id,mag,res){
   if(g){g.res+=mag+res;return}
   P.guns.push({id,mag,res});if(P.cur<0)P.cur=P.guns.length-1;
 }
-function kg(id){const w=WP[id];giveGun(id,w.ammo,id==='minigun'?0:w.ammo)}
+function kg(id){const w=WP[id];giveGun(id,w.ammo,w.ammo*(id==='minigun'?1:4))}
 function equip(id){P.eq[EQ[id].s]=id;recalc()}
 function eqDesc(e){const a=[];if(e.arm)a.push('피해 -'+Math.round(e.arm*100)+'%');if(e.spd)a.push('이동 '+(e.spd>0?'+':'')+Math.round(e.spd*100)+'%');if(e.quiet)a.push('발소리 작음');if(e.slots)a.push('총 3자루');if(e.ammo)a.push('탄약 +'+Math.round((e.ammo-1)*100)+'%');if(e.dash)a.push('구르기 빨리 충전');if(e.light)a.push(e.light==='nv'?'어둠 속 시야':'조명');return a.join(', ')}
 function pickLabel(it){
@@ -362,7 +362,7 @@ function pickup(it){
   if(it.k==='t'){P.th[it.id]+=it.id==='mine'||it.id==='alarm'?1:2;if(!P.th[P.thCur])P.thCur=it.id;toast(TH[it.id].n+' 획득','#b58be6');return true}
   if(it.id==='med'||it.id==='band'){if(P.hp>=P.mhp)return false;const h=it.id==='med'?45:20;P.hp=Math.min(P.mhp,P.hp+h);toast(CONS[it.id].n+' +'+h,'#6fbf73');return true}
   if(it.id==='drink'){P.boost=9;toast('에너지드링크: 9초간 빨라짐','#6fbf73');return true}
-  if(it.id==='ammo'){if(!P.guns.length)return false;const g=P.guns[P.cur>=0?P.cur:0],a=Math.ceil(WP[g.id].ammo*P.ammoM);g.res+=a;toast(WP[g.id].n+' 탄약 +'+a,'#e8c15a');return true}
+  if(it.id==='ammo'){if(!P.guns.length)return false;const g=P.guns[P.cur>=0?P.cur:0],a=Math.ceil(WP[g.id].ammo*2*P.ammoM);g.res+=a;toast(WP[g.id].n+' 탄약 +'+a,'#e8c15a');return true}
   return false;
 }
 function doPick(){
@@ -414,7 +414,7 @@ function hurtZ(z,d,kx,ky){
     const pts=Math.round(ZT[z.t].sc*(1+Math.min(combo,20)*.1)*df.mul);score+=pts;
     fx.push({k:'txt',x:z.x,y:z.y-14,s:'+'+pts,t:.7,c:'#f2b632'});
     decals.push({x:z.x,y:z.y,r:z.r+rnd(2,8)});if(decals.length>160)decals.shift();
-    if(Math.random()<.06)mkItem(Math.random()<.5?'c:ammo':'c:band',z.x,z.y);
+    if(Math.random()<.1)mkItem(Math.random()<.65?'c:ammo':'c:band',z.x,z.y);
     tone(110,.09,.05,'sawtooth',50);hs=.035;shake=Math.max(shake,5);
   }
 }
