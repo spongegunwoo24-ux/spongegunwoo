@@ -1,10 +1,10 @@
 'use strict';
 /* ===== 게임 상태 ===== */
 var G = { running: false, needCursor: false, runId: 0, idx: 0, time: 0, hp: 100, mp: 100, ctl: true, talking: false, cine: null, shake: 0,
-  beamPow: 1, beamColor: 0x7fd0ff, beamMode: 'cast', canFire: true, canShield: true, canJump: true, useLock: 0, fireLock: 0, mpIdle: 0, staff: false, busy: false, dead: false };
+  beamPow: 1, beamColor: 0x7fd0ff, spell: 0, boltCd: 0, beamMode: 'cast', canFire: true, canShield: true, canJump: true, useLock: 0, fireLock: 0, mpIdle: 0, staff: false, busy: false, dead: false };
 let L = null;
 const P = { pos: new V3(), vy: 0, yaw: 0, pitch: -0.08, face: 0, char: null, ground: true, dashT: 0, dashCd: 0, dashDir: new V3(), inv: 0, firing: false,
-  shield: false, shieldT: 0, aim: new V3(), speed: 0, hitT: null, tip: new V3() };
+  castT: 0, shield: false, shieldT: 0, aim: new V3(), speed: 0, hitT: null, tip: new V3() };
 P.char = castChar('luka'); scene.add(P.char); P.char.visible = false;
 const shieldMesh = new THREE.Group();
 shieldMesh.add(new THREE.Mesh(new THREE.SphereGeometry(1.15, 24, 16), new THREE.MeshBasicMaterial({ color: 0x8fd0ff, transparent: true, opacity: 0.16, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide })));
@@ -252,7 +252,10 @@ function updatePlayer(dt) {
   }
   let mx = 0, mz = 0;
   if (free && !cl) { mx = (keys.KeyD ? 1 : 0) - (keys.KeyA ? 1 : 0) + joy.x; mz = (keys.KeyW ? 1 : 0) - (keys.KeyS ? 1 : 0) + joy.y; }
-  const wantFire = cl || (free && G.canFire && G.fireLock <= 0 && (mouse.l || keys.T_fire || keys.KeyF));
+  const fireIn = free && G.canFire && G.fireLock <= 0 && (mouse.l || keys.T_fire || keys.KeyF);
+  if (free && G.beamMode === 'cast') for (let i = 0; i < 3; i++) if (pressed['Digit' + (i + 1)]) selectSpell(i);
+  const spl = (cl || G.beamMode !== 'cast') ? 0 : G.spell;
+  const wantFire = cl || (fireIn && spl === 0);
   if (wantFire && !P.firing && G.mp > 8) P.firing = true;
   if (!wantFire || G.mp <= 0) P.firing = false;
   const sh = free && !cl && G.canShield && (mouse.r || keys.KeyQ || keys.T_shield) && G.mp > 2 && !P.firing;
@@ -273,13 +276,25 @@ function updatePlayer(dt) {
   collide(P.pos);
   P.speed = P.dashT > 0 ? 8 : ml * sp;
   if (cl) { P.aim.copy(G.clash.pt); P.hitT = null; } else if (free) computeAim();
-  if (P.firing || P.shield) P.face += angDiff(P.face, Math.atan2(P.aim.x - P.pos.x, P.aim.z - P.pos.z)) * Math.min(1, 16 * dt);
+  P.castT -= dt; G.boltCd -= dt;
+  if (spl === 1 && free && !cl && G.canFire && G.fireLock <= 0 && (mouse.lp || pressed.T_fire || pressed.KeyF) && G.boltCd <= 0 && G.mp >= 20) { // 폭발탄
+    G.mp -= 20; G.mpIdle = 0; G.boltCd = 0.38; P.castT = 0.3; P.face = Math.atan2(P.aim.x - P.pos.x, P.aim.z - P.pos.z);
+    const o = new V3(P.pos.x + Math.sin(P.face) * 0.6, P.pos.y + 1.35, P.pos.z + Math.cos(P.face) * 0.6);
+    shoot(o, _v.subVectors(P.aim, o).normalize().multiplyScalar(30), { owner: 'player', dmg: 44 * G.beamPow, color: G.staff ? 0xffd76a : 0xff9a4a, r: 0.3, life: 3 });
+    sfx('shoot'); G.shake = Math.max(G.shake, 0.06); emit(o, 14, { color: 0xffc070, speed: 4, life: 0.35 });
+  }
+  if (spl === 2 && fireIn && G.mp > 1 && G.hp < 100) { // 치유
+    G.mp -= 28 * dt; G.hp = Math.min(100, G.hp + 17 * dt); G.mpIdle = 0; P.castT = 0.1;
+    emit(_v.set(P.pos.x + rand(-0.5, 0.5), P.pos.y + rand(0.1, 0.6), P.pos.z + rand(-0.5, 0.5)), 2, { color: 0x7affb0, speed: 0.3, vy: 2.4, life: 0.8, size: 0.13, drag: 0.3 });
+    if (Math.random() < dt * 5) sfx('ring');
+  }
+  if (P.firing || P.shield || P.castT > 0) P.face += angDiff(P.face, Math.atan2(P.aim.x - P.pos.x, P.aim.z - P.pos.z)) * Math.min(1, 16 * dt);
   else if (ml > 0.1) P.face += angDiff(P.face, Math.atan2(dx, dz)) * Math.min(1, 12 * dt);
   const ch = P.char; ch.position.copy(P.pos); ch.rotation.y = P.face;
   ch.visible = L.hidePlayer ? false : !(P.inv > 0 && Math.floor(G.time * 20) % 2 === 0);
   const tip = ch.userData.tip; let ap = 0;
   if (P.firing) { tip.getWorldPosition(P.tip); ap = Math.atan2(P.aim.y - P.tip.y, Math.hypot(P.aim.x - P.tip.x, P.aim.z - P.tip.z)); }
-  animChar(ch, dt, P.speed, P.firing, ap);
+  animChar(ch, dt, P.speed, P.firing || P.castT > 0, ap);
   if (P.firing) {
     ch.updateMatrixWorld(true); tip.getWorldPosition(P.tip);
     const w = G.staff ? 1.7 : 1; PB.set(P.tip, P.aim, w);
@@ -335,7 +350,23 @@ function walkTo(n, x, z, sp = 3) {
     tasks.push(k);
   });
 }
+function selectSpell(i) { if (G.spell !== i) sfx('pop'); G.spell = i; document.querySelectorAll('#spells .slot').forEach((e, k) => e.classList.toggle('on', k === i)); }
+const namePool = [];
+function updateNames() {
+  let n = 0; const show = G.running && L && !L.customPlayer;
+  if (show) for (const np of L.npcs) {
+    const c = np.char; if (!c.visible || !c.userData.name) continue;
+    const d = Math.hypot(c.position.x - P.pos.x, c.position.z - P.pos.z); if (d > 15) continue;
+    _v.set(c.position.x, c.position.y + 2.15 * c.scale.y, c.position.z).project(camera); if (_v.z > 1 || Math.abs(_v.x) > 1.05 || Math.abs(_v.y) > 1.05) continue;
+    let e = namePool[n]; if (!e) { e = document.createElement('div'); e.className = 'np'; $('names').appendChild(e); namePool.push(e); }
+    e.hidden = false; if (e.textContent !== c.userData.name) e.textContent = c.userData.name;
+    e.style.left = (_v.x * 0.5 + 0.5) * 100 + '%'; e.style.top = (-_v.y * 0.5 + 0.5) * 100 + '%'; e.style.opacity = clamp(1.6 - d / 10, 0.25, 1); n++;
+  }
+  for (; n < namePool.length; n++) namePool[n].hidden = true;
+}
 function updateHUD() {
+  updateNames(); const lb = !!G.cine && !L.customPlayer; $('lb1').classList.toggle('on', lb); $('lb2').classList.toggle('on', lb);
+  $('spells').hidden = !!L.customPlayer || G.beamMode !== 'cast' || !!G.cine;
   $('hp').firstElementChild.style.transform = `scaleX(${clamp(G.hp / 100, 0, 1)})`;
   $('mp').firstElementChild.style.transform = `scaleX(${clamp(G.mp / 100, 0, 1)})`;
   const cr = $('cross'), show = G.ctl && !G.cine && !G.talking && !L.noCross; cr.hidden = !show;
@@ -374,8 +405,9 @@ function frame() {
   if (keys.KeyM && !G._m) { muted = !muted; if (master) master.gain.value = muted ? 0 : 0.8; } G._m = keys.KeyM;
 }
 function boot() {
-  $('help').innerHTML = 'WASD 이동 · 마우스 조준 · 좌클릭 광선 · 우클릭/Q 방패<br>Shift 회피 · Space 점프 · E 대화 · M 음소거';
-  $('keys').innerHTML = isTouch ? '' : '이동 WASD · 조준 마우스 · 광선 좌클릭(누르고 있기) · 방패 우클릭 또는 Q<br>회피 Shift · 점프 Space · 대화 E · 음소거 M';
+  document.querySelectorAll('#spells .slot').forEach((e, k) => { const f = ev => { ev.preventDefault(); selectSpell(k); }; e.addEventListener('click', f); e.addEventListener('touchstart', f, { passive: false }); }); selectSpell(0);
+  $('help').innerHTML = '1·2·3 주문 선택 · WASD 이동 · 마우스 조준 · 좌클릭 광선 · 우클릭/Q 방패<br>Shift 회피 · Space 점프 · E 대화 · M 음소거';
+  $('keys').innerHTML = isTouch ? '' : '주문 선택 1·2·3 · 이동 WASD · 조준 마우스 · 시전 좌클릭 · 방패 우클릭 또는 Q<br>회피 Shift · 점프 Space · 대화 E · 음소거 M';
   const go = i => { audioInit(); $('title').hidden = true; G.running = true; tryLock(); startLevel(i); };
   $('bstart').onclick = () => go(0);
   let saved = 0; try { saved = +localStorage.getItem('astra_ch') || 0; } catch (e) {}

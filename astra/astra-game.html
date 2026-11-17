@@ -36,7 +36,7 @@ html,body{height:100%;margin:0;overflow:hidden;background:var(--night);color:var
   border:1px solid var(--gold-deep);color:var(--gold);font-size:15px;white-space:nowrap}
 #prompt kbd{display:inline-block;min-width:20px;padding:1px 6px;margin-right:6px;border-radius:5px;background:var(--gold);color:var(--night);
   font-family:var(--body);font-weight:700;text-align:center}
-#dlg{left:50%;bottom:calc(22px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);width:min(680px,calc(100vw - 32px));box-sizing:border-box;
+#dlg{z-index:9;left:50%;bottom:calc(22px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);width:min(680px,calc(100vw - 32px));box-sizing:border-box;
   padding:14px 20px 16px;border-radius:14px;background:var(--glass);border:1px solid rgba(242,207,122,.5);backdrop-filter:blur(6px);pointer-events:auto}
 #who{font-family:var(--display);font-weight:700;color:var(--gold);font-size:16px;margin-bottom:4px}
 #txt{font-size:18px;line-height:1.5;min-height:1.5em}
@@ -60,7 +60,7 @@ html,body{height:100%;margin:0;overflow:hidden;background:var(--night);color:var
 #clash{left:50%;bottom:34%;transform:translateX(-50%);width:min(420px,70vw);text-align:center;color:var(--gold);font-size:15px}
 #clash .bar{height:16px;margin-top:6px}
 #clash .bar i{background:linear-gradient(90deg,#ffd76a,#fff)}
-#help{left:max(16px,env(safe-area-inset-left,0px));bottom:calc(14px + env(safe-area-inset-bottom,0px));font-size:12px;line-height:1.7;opacity:.7;text-shadow:0 1px 4px #000}
+#help{max-width:30vw;left:max(16px,env(safe-area-inset-left,0px));bottom:calc(14px + env(safe-area-inset-bottom,0px));font-size:12px;line-height:1.7;opacity:.7;text-shadow:0 1px 4px #000}
 #title{inset:0;z-index:30;pointer-events:auto;display:grid;place-content:center;justify-items:center;gap:14px;text-align:center;
   padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));
   background:radial-gradient(ellipse at 50% 30%,rgba(40,48,110,.55),rgba(11,13,31,.93) 70%)}
@@ -71,6 +71,17 @@ html,body{height:100%;margin:0;overflow:hidden;background:var(--night);color:var
 #chap{display:flex;flex-wrap:wrap;gap:6px;justify-content:center;max-width:560px}
 #chap .btn{min-width:0;font-size:13px;padding:6px 10px}
 #title .keys{font-size:13px;line-height:1.8;opacity:.75;max-width:560px}
+#names{inset:0;z-index:4;overflow:hidden}
+.np{position:absolute;transform:translate(-50%,-100%);padding:2px 10px;border-radius:10px;font-family:var(--display);font-size:13px;color:var(--gold);
+  background:rgba(11,13,31,.6);border:1px solid rgba(242,207,122,.45);white-space:nowrap;text-shadow:0 1px 3px #000}
+.lb{left:0;right:0;height:9vh;background:#000;z-index:7;transition:transform .6s}
+#lb1{top:0;transform:translateY(-100%)}#lb2{bottom:0;transform:translateY(100%)}.lb.on{transform:none!important}
+#spells{left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);display:flex;gap:26px;pointer-events:auto}
+.slot{width:50px;height:50px;transform:rotate(45deg);border:2px solid var(--gold-deep);background:linear-gradient(145deg,rgba(20,24,51,.92),rgba(8,10,24,.96));
+  box-shadow:0 0 12px rgba(0,0,0,.7),inset 0 0 10px rgba(242,207,122,.15);cursor:pointer;transition:transform .15s,box-shadow .15s,border-color .15s}
+.slot span{display:grid;place-content:center;width:100%;height:100%;transform:rotate(-45deg);font-size:11px;line-height:1.25;text-align:center;color:var(--moon)}
+.slot b{display:block;color:var(--gold);font-size:13px}
+.slot.on{border-color:#fff;transform:rotate(45deg) scale(1.16);box-shadow:0 0 24px rgba(242,207,122,.9),inset 0 0 12px rgba(255,255,255,.6)}
 #tc{inset:0;z-index:8}
 #tc div{position:absolute;pointer-events:auto;border-radius:50%;display:grid;place-content:center;font-size:13px;color:#fff;
   background:rgba(20,24,51,.45);border:1.5px solid rgba(242,207,122,.6)}
@@ -89,6 +100,8 @@ html,body{height:100%;margin:0;overflow:hidden;background:var(--night);color:var
 <body>
 <!--PAGE-->
 <canvas id="c"></canvas>
+<div id="names" class="ui"></div><div id="lb1" class="ui lb"></div><div id="lb2" class="ui lb"></div>
+<div id="spells" class="ui" hidden><div class="slot"><span><b>1</b>광선</span></div><div class="slot"><span><b>2</b>폭발탄</span></div><div class="slot"><span><b>3</b>치유</span></div></div>
 <div id="bars" class="ui" hidden><div class="bar" id="hp"><i></i></div><div class="bar" id="mp"><i></i></div></div>
 <div id="obj" class="ui" hidden></div>
 <div id="cross" class="ui" hidden></div>
@@ -557,10 +570,10 @@ function makeWisp(color = 0xffe28a) {
 'use strict';
 /* ===== 게임 상태 ===== */
 var G = { running: false, needCursor: false, runId: 0, idx: 0, time: 0, hp: 100, mp: 100, ctl: true, talking: false, cine: null, shake: 0,
-  beamPow: 1, beamColor: 0x7fd0ff, beamMode: 'cast', canFire: true, canShield: true, canJump: true, useLock: 0, fireLock: 0, mpIdle: 0, staff: false, busy: false, dead: false };
+  beamPow: 1, beamColor: 0x7fd0ff, spell: 0, boltCd: 0, beamMode: 'cast', canFire: true, canShield: true, canJump: true, useLock: 0, fireLock: 0, mpIdle: 0, staff: false, busy: false, dead: false };
 let L = null;
 const P = { pos: new V3(), vy: 0, yaw: 0, pitch: -0.08, face: 0, char: null, ground: true, dashT: 0, dashCd: 0, dashDir: new V3(), inv: 0, firing: false,
-  shield: false, shieldT: 0, aim: new V3(), speed: 0, hitT: null, tip: new V3() };
+  castT: 0, shield: false, shieldT: 0, aim: new V3(), speed: 0, hitT: null, tip: new V3() };
 P.char = castChar('luka'); scene.add(P.char); P.char.visible = false;
 const shieldMesh = new THREE.Group();
 shieldMesh.add(new THREE.Mesh(new THREE.SphereGeometry(1.15, 24, 16), new THREE.MeshBasicMaterial({ color: 0x8fd0ff, transparent: true, opacity: 0.16, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide })));
@@ -808,7 +821,10 @@ function updatePlayer(dt) {
   }
   let mx = 0, mz = 0;
   if (free && !cl) { mx = (keys.KeyD ? 1 : 0) - (keys.KeyA ? 1 : 0) + joy.x; mz = (keys.KeyW ? 1 : 0) - (keys.KeyS ? 1 : 0) + joy.y; }
-  const wantFire = cl || (free && G.canFire && G.fireLock <= 0 && (mouse.l || keys.T_fire || keys.KeyF));
+  const fireIn = free && G.canFire && G.fireLock <= 0 && (mouse.l || keys.T_fire || keys.KeyF);
+  if (free && G.beamMode === 'cast') for (let i = 0; i < 3; i++) if (pressed['Digit' + (i + 1)]) selectSpell(i);
+  const spl = (cl || G.beamMode !== 'cast') ? 0 : G.spell;
+  const wantFire = cl || (fireIn && spl === 0);
   if (wantFire && !P.firing && G.mp > 8) P.firing = true;
   if (!wantFire || G.mp <= 0) P.firing = false;
   const sh = free && !cl && G.canShield && (mouse.r || keys.KeyQ || keys.T_shield) && G.mp > 2 && !P.firing;
@@ -829,13 +845,25 @@ function updatePlayer(dt) {
   collide(P.pos);
   P.speed = P.dashT > 0 ? 8 : ml * sp;
   if (cl) { P.aim.copy(G.clash.pt); P.hitT = null; } else if (free) computeAim();
-  if (P.firing || P.shield) P.face += angDiff(P.face, Math.atan2(P.aim.x - P.pos.x, P.aim.z - P.pos.z)) * Math.min(1, 16 * dt);
+  P.castT -= dt; G.boltCd -= dt;
+  if (spl === 1 && free && !cl && G.canFire && G.fireLock <= 0 && (mouse.lp || pressed.T_fire || pressed.KeyF) && G.boltCd <= 0 && G.mp >= 20) { // 폭발탄
+    G.mp -= 20; G.mpIdle = 0; G.boltCd = 0.38; P.castT = 0.3; P.face = Math.atan2(P.aim.x - P.pos.x, P.aim.z - P.pos.z);
+    const o = new V3(P.pos.x + Math.sin(P.face) * 0.6, P.pos.y + 1.35, P.pos.z + Math.cos(P.face) * 0.6);
+    shoot(o, _v.subVectors(P.aim, o).normalize().multiplyScalar(30), { owner: 'player', dmg: 44 * G.beamPow, color: G.staff ? 0xffd76a : 0xff9a4a, r: 0.3, life: 3 });
+    sfx('shoot'); G.shake = Math.max(G.shake, 0.06); emit(o, 14, { color: 0xffc070, speed: 4, life: 0.35 });
+  }
+  if (spl === 2 && fireIn && G.mp > 1 && G.hp < 100) { // 치유
+    G.mp -= 28 * dt; G.hp = Math.min(100, G.hp + 17 * dt); G.mpIdle = 0; P.castT = 0.1;
+    emit(_v.set(P.pos.x + rand(-0.5, 0.5), P.pos.y + rand(0.1, 0.6), P.pos.z + rand(-0.5, 0.5)), 2, { color: 0x7affb0, speed: 0.3, vy: 2.4, life: 0.8, size: 0.13, drag: 0.3 });
+    if (Math.random() < dt * 5) sfx('ring');
+  }
+  if (P.firing || P.shield || P.castT > 0) P.face += angDiff(P.face, Math.atan2(P.aim.x - P.pos.x, P.aim.z - P.pos.z)) * Math.min(1, 16 * dt);
   else if (ml > 0.1) P.face += angDiff(P.face, Math.atan2(dx, dz)) * Math.min(1, 12 * dt);
   const ch = P.char; ch.position.copy(P.pos); ch.rotation.y = P.face;
   ch.visible = L.hidePlayer ? false : !(P.inv > 0 && Math.floor(G.time * 20) % 2 === 0);
   const tip = ch.userData.tip; let ap = 0;
   if (P.firing) { tip.getWorldPosition(P.tip); ap = Math.atan2(P.aim.y - P.tip.y, Math.hypot(P.aim.x - P.tip.x, P.aim.z - P.tip.z)); }
-  animChar(ch, dt, P.speed, P.firing, ap);
+  animChar(ch, dt, P.speed, P.firing || P.castT > 0, ap);
   if (P.firing) {
     ch.updateMatrixWorld(true); tip.getWorldPosition(P.tip);
     const w = G.staff ? 1.7 : 1; PB.set(P.tip, P.aim, w);
@@ -891,7 +919,23 @@ function walkTo(n, x, z, sp = 3) {
     tasks.push(k);
   });
 }
+function selectSpell(i) { if (G.spell !== i) sfx('pop'); G.spell = i; document.querySelectorAll('#spells .slot').forEach((e, k) => e.classList.toggle('on', k === i)); }
+const namePool = [];
+function updateNames() {
+  let n = 0; const show = G.running && L && !L.customPlayer;
+  if (show) for (const np of L.npcs) {
+    const c = np.char; if (!c.visible || !c.userData.name) continue;
+    const d = Math.hypot(c.position.x - P.pos.x, c.position.z - P.pos.z); if (d > 15) continue;
+    _v.set(c.position.x, c.position.y + 2.15 * c.scale.y, c.position.z).project(camera); if (_v.z > 1 || Math.abs(_v.x) > 1.05 || Math.abs(_v.y) > 1.05) continue;
+    let e = namePool[n]; if (!e) { e = document.createElement('div'); e.className = 'np'; $('names').appendChild(e); namePool.push(e); }
+    e.hidden = false; if (e.textContent !== c.userData.name) e.textContent = c.userData.name;
+    e.style.left = (_v.x * 0.5 + 0.5) * 100 + '%'; e.style.top = (-_v.y * 0.5 + 0.5) * 100 + '%'; e.style.opacity = clamp(1.6 - d / 10, 0.25, 1); n++;
+  }
+  for (; n < namePool.length; n++) namePool[n].hidden = true;
+}
 function updateHUD() {
+  updateNames(); const lb = !!G.cine && !L.customPlayer; $('lb1').classList.toggle('on', lb); $('lb2').classList.toggle('on', lb);
+  $('spells').hidden = !!L.customPlayer || G.beamMode !== 'cast' || !!G.cine;
   $('hp').firstElementChild.style.transform = `scaleX(${clamp(G.hp / 100, 0, 1)})`;
   $('mp').firstElementChild.style.transform = `scaleX(${clamp(G.mp / 100, 0, 1)})`;
   const cr = $('cross'), show = G.ctl && !G.cine && !G.talking && !L.noCross; cr.hidden = !show;
@@ -930,8 +974,9 @@ function frame() {
   if (keys.KeyM && !G._m) { muted = !muted; if (master) master.gain.value = muted ? 0 : 0.8; } G._m = keys.KeyM;
 }
 function boot() {
-  $('help').innerHTML = 'WASD 이동 · 마우스 조준 · 좌클릭 광선 · 우클릭/Q 방패<br>Shift 회피 · Space 점프 · E 대화 · M 음소거';
-  $('keys').innerHTML = isTouch ? '' : '이동 WASD · 조준 마우스 · 광선 좌클릭(누르고 있기) · 방패 우클릭 또는 Q<br>회피 Shift · 점프 Space · 대화 E · 음소거 M';
+  document.querySelectorAll('#spells .slot').forEach((e, k) => { const f = ev => { ev.preventDefault(); selectSpell(k); }; e.addEventListener('click', f); e.addEventListener('touchstart', f, { passive: false }); }); selectSpell(0);
+  $('help').innerHTML = '1·2·3 주문 선택 · WASD 이동 · 마우스 조준 · 좌클릭 광선 · 우클릭/Q 방패<br>Shift 회피 · Space 점프 · E 대화 · M 음소거';
+  $('keys').innerHTML = isTouch ? '' : '주문 선택 1·2·3 · 이동 WASD · 조준 마우스 · 시전 좌클릭 · 방패 우클릭 또는 Q<br>회피 Shift · 점프 Space · 대화 E · 음소거 M';
   const go = i => { audioInit(); $('title').hidden = true; G.running = true; tryLock(); startLevel(i); };
   $('bstart').onclick = () => go(0);
   let saved = 0; try { saved = +localStorage.getItem('astra_ch') || 0; } catch (e) {}
@@ -1340,7 +1385,7 @@ LEVELS.push({ name: '별고리 경주', env: { bg: 0x2a2a6a, fog: 0x6a4a7a, fogD
   await say('미로', rank === 1 ? '졌다…! 푸딩은 네 거야. 진짜 빨랐어!' : '헤헤, 푸딩은 내 거! 그래도 멋진 비행이었어.');
   scene.fog.color.set(0x2a1a4a); flash(0.8, 1.5); sfx('roar'); G.shake = 0.5; music('mystery');
   await talk([['미로', '방금 성에서 보랏빛 섬광이…! 서고 쪽이야!'], ['', '주머니 속 거울 조각이 차갑게 떨린다.']]);
-  await fade(1); camera.fov = 62; camera.updateProjectionMatrix(); $('help').innerHTML = 'WASD 이동 · 마우스 조준 · 좌클릭 광선 · 우클릭/Q 방패<br>Shift 회피 · Space 점프 · E 대화 · M 음소거';
+  await fade(1); camera.fov = 62; camera.updateProjectionMatrix(); $('help').innerHTML = '1·2·3 주문 선택 · WASD 이동 · 마우스 조준 · 좌클릭 광선 · 우클릭/Q 방패<br>Shift 회피 · Space 점프 · E 대화 · M 음소거';
 } });
 
 </script>

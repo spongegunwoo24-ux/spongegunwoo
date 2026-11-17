@@ -391,5 +391,5 @@ LEVELS.push({ name: '별고리 경주', env: { bg: 0x2a2a6a, fog: 0x6a4a7a, fogD
   await say('미로', rank === 1 ? '졌다…! 푸딩은 네 거야. 진짜 빨랐어!' : '헤헤, 푸딩은 내 거! 그래도 멋진 비행이었어.');
   scene.fog.color.set(0x2a1a4a); flash(0.8, 1.5); sfx('roar'); G.shake = 0.5; music('mystery');
   await talk([['미로', '방금 성에서 보랏빛 섬광이…! 서고 쪽이야!'], ['', '주머니 속 거울 조각이 차갑게 떨린다.']]);
-  await fade(1); camera.fov = 62; camera.updateProjectionMatrix(); $('help').innerHTML = 'WASD 이동 · 마우스 조준 · 좌클릭 광선 · 우클릭/Q 방패<br>Shift 회피 · Space 점프 · E 대화 · M 음소거';
+  await fade(1); camera.fov = 62; camera.updateProjectionMatrix(); $('help').innerHTML = '1·2·3 주문 선택 · WASD 이동 · 마우스 조준 · 좌클릭 광선 · 우클릭/Q 방패<br>Shift 회피 · Space 점프 · E 대화 · M 음소거';
 } });
